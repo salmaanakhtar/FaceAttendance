@@ -11,6 +11,7 @@ import '../device/api.dart';
 import '../recognition/embedder.dart';
 import '../recognition/liveness.dart';
 import '../recognition/matcher.dart';
+import '../recognition/orientation.dart';
 import '../recognition/template_store.dart';
 import '../util/feedback.dart';
 import 'offline_queue.dart';
@@ -80,6 +81,8 @@ class ScanFlowController extends ChangeNotifier {
   final LivenessTracker _liveness = LivenessTracker();
   final List<List<double>> _samples = [];
   int _lastStatusUpdate = 0;
+  FrameOrientation? _orientation;
+  int _probeTries = 0;
 
   CameraController? get camera => _camera;
   bool get isFrontCamera => selectedCamera?.lensDirection == CameraLensDirection.front;
@@ -157,10 +160,45 @@ class ScanFlowController extends ChangeNotifier {
 
     _busy = true;
     try {
+      // Adaptive orientation: lock the first rotation/mirror combo where a
+      // face is actually found (device-agnostic; some sensors are unusual).
+      var orientation = _orientation;
+      if (orientation == null) {
+        if (_probeTries >= 3) {
+          // Give up probing; fall back to the classic formula.
+          final s = selectedCamera!.sensorOrientation % 360;
+          final isFront = selectedCamera!.lensDirection == CameraLensDirection.front;
+          orientation = FrameOrientation(s, isFront);
+          _orientation = orientation;
+        } else {
+          _probeTries++;
+          final candidates = orientationCandidates(selectedCamera!.sensorOrientation);
+          for (final cand in candidates) {
+            final probe = yuvToUprightRgba(image, cand.rotationDeg, mirrorX: cand.mirrorX);
+            final probeInput = InputImage.fromBytes(
+              bytes: probe.bytes,
+              metadata: InputImageMetadata(
+                size: Size(probe.width.toDouble(), probe.height.toDouble()),
+                rotation: InputImageRotation.rotation0deg,
+                format: InputImageFormat.bgra8888,
+                bytesPerRow: probe.width * 4,
+              ),
+            );
+            final probeFaces = await detector.processImage(probeInput);
+            if (probeFaces.isNotEmpty) {
+              orientation = cand;
+              _orientation = cand;
+              debugPrint('[scan] orientation locked: $cand');
+              break;
+            }
+          }
+          if (orientation == null) return; // no face under any orientation yet
+        }
+      }
+
       // Upright conversion once per frame (rotation + front-camera mirror).
-      final rotation = selectedCamera!.sensorOrientation % 360;
-      final isFront = selectedCamera!.lensDirection == CameraLensDirection.front;
-      final upright = yuvToUprightRgba(image, rotation, mirrorX: isFront);
+      final upright =
+          yuvToUprightRgba(image, orientation.rotationDeg, mirrorX: orientation.mirrorX);
       final inputImage = InputImage.fromBytes(
         bytes: upright.bytes,
         metadata: InputImageMetadata(

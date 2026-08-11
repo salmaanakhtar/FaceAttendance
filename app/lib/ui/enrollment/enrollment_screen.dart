@@ -11,6 +11,7 @@ import '../../../config.dart';
 import '../../../recognition/embedder.dart';
 import '../../../recognition/liveness.dart';
 import '../../../recognition/matcher.dart';
+import '../../../recognition/orientation.dart';
 import '../../../recognition/template_store.dart';
 import '../../../util/feedback.dart';
 
@@ -39,6 +40,9 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
   String _hint = 'Center your face in the frame';
   int _rejected = 0;
   int _frame = 0;
+  FrameOrientation? _orientation;
+  static const _probeEvery = 5;
+  String _diag = '';
 
   static const _targetSamples = 8;
 
@@ -97,9 +101,46 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
     if (detector == null || embedder == null || camera == null) return;
     _busy = true;
     try {
-      final rotation = camera.description.sensorOrientation % 360;
       final isFront = camera.description.lensDirection == CameraLensDirection.front;
-      final upright = yuvToUprightRgba(image, rotation, mirrorX: isFront);
+
+      // Adaptive orientation: lock the first rotation/mirror combo where a
+      // face is actually found, instead of trusting a device formula.
+      var orientation = _orientation;
+      if (orientation == null) {
+        final sensor = camera.description.sensorOrientation % 360;
+        final candidates = isFront
+            ? orientationCandidates(sensor)
+            : orientationCandidates(sensor);
+        for (final cand in candidates) {
+          final probe = yuvToUprightRgba(image, cand.rotationDeg, mirrorX: cand.mirrorX);
+          final probeInput = InputImage.fromBytes(
+            bytes: probe.bytes,
+            metadata: InputImageMetadata(
+              size: Size(probe.width.toDouble(), probe.height.toDouble()),
+              rotation: InputImageRotation.rotation0deg,
+              format: InputImageFormat.bgra8888,
+              bytesPerRow: probe.width * 4,
+            ),
+          );
+          final probeFaces = await detector.processImage(probeInput);
+          if (probeFaces.isNotEmpty) {
+            orientation = cand;
+            _orientation = cand;
+            // ignore: avoid_print
+            print('[enroll] orientation locked: $cand');
+            break;
+          }
+        }
+        if (orientation == null) {
+          if (_frame % _probeEvery == 0) {
+            _setHint('Center your face in the frame');
+          }
+          _frame++;
+          return;
+        }
+      }
+
+      final upright = yuvToUprightRgba(image, orientation.rotationDeg, mirrorX: orientation.mirrorX);
       final inputImage = InputImage.fromBytes(
         bytes: upright.bytes,
         metadata: InputImageMetadata(
@@ -111,29 +152,31 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
       );
       final faces = await detector.processImage(inputImage);
       _frame++;
-      if (_frame % 20 == 0) {
-        // ignore: avoid_print
-        print('[enroll] frame=$_frame w=${upright.width} h=${upright.height} '
-            'rot=$rotation front=$isFront faces=${faces.length} captured=$_captured rejected=$_rejected');
-      }
       if (faces.isEmpty) {
         _setHint('Center your face in the frame');
+        _updateDiag(faces: 0, landmarks: 0);
         return;
       }
       if (faces.length > 1) {
         _setHint('Only one person in frame');
+        _updateDiag(faces: faces.length, landmarks: faces.first.landmarks.length);
         return;
       }
       final face = faces.first;
       if (_frame % 20 == 0) {
         // ignore: avoid_print
         print('[enroll] face box=${face.boundingBox} landmarks=${face.landmarks.length} '
-            'yaw=${face.headEulerAngleY?.toStringAsFixed(1)} '
-            'lEyeOpen=${face.leftEyeOpenProbability?.toStringAsFixed(2)}');
+            'yaw=${face.headEulerAngleY?.toStringAsFixed(1)}');
       }
       final ratio = face.boundingBox.width / upright.width;
       final luma = _meanLuma(upright.bytes, upright.width, upright.height);
       final yaw = face.headEulerAngleY ?? 0;
+      _updateDiag(
+          faces: faces.length,
+          landmarks: face.landmarks.length,
+          ratio: ratio,
+          luma: luma.round(),
+          yaw: yaw);
       if (!EnrollmentQuality.acceptable(faceWidthRatio: ratio, meanLuma: luma, yaw: yaw)) {
         _rejected++;
         if (ratio < 0.22) {
@@ -260,6 +303,24 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
     if (mounted && _hint != hint) setState(() => _hint = hint);
   }
 
+  /// Live pipeline state, shown on screen so issues are diagnosable without
+  /// a PC. Sample every few frames to avoid UI churn.
+  void _updateDiag({
+    required int faces,
+    required int landmarks,
+    double? ratio,
+    int? luma,
+    double? yaw,
+  }) {
+    if (_frame % 3 != 0) return;
+    final r = ratio == null ? '' : 'w:${(ratio * 100).round()}%';
+    final l = luma == null ? '' : ' luma:$luma';
+    final y = yaw == null ? '' : ' yaw:${yaw.round()}°';
+    final text = 'F:$faces L:$landmarks $r$l$y cap:$_captured/$_targetSamples'
+        ' rej:$_rejected ${_orientation ?? ''}';
+    if (mounted && _diag != text) setState(() => _diag = text);
+  }
+
   @override
   void dispose() {
     _camera?.stopImageStream();
@@ -312,6 +373,13 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
                     Text(_hint,
                         textAlign: TextAlign.center,
                         style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500)),
+                    if (_diag.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(_diag,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                              color: Colors.white30, fontSize: 11, fontFamily: 'monospace')),
+                    ],
                     const SizedBox(height: 12),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,

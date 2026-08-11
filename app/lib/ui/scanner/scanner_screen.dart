@@ -304,7 +304,7 @@ class _UpdateBanner extends StatelessWidget {
                       const SizedBox(width: 8),
                       const Text('Ready to install', style: TextStyle(color: Colors.white70, fontSize: 13)),
                       const SizedBox(width: 10),
-                      _tapTarget('Install now', onTap: UpdateState.instance.downloadAndInstall),
+                      _tapTarget('Install now', onTap: UpdateState.instance.installDownloaded),
                     ],
                   ),
                 ),

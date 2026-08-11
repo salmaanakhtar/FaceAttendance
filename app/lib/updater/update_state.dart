@@ -32,6 +32,25 @@ class UpdateState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Called from the "Install now" pill after a completed download.
+  Future<void> installDownloaded() async {
+    final path = _downloadedPath;
+    if (phase != UpdatePhase.downloaded || path == null) return;
+    try {
+      final ok = await UpdateChecker.instance.install(path);
+      if (!ok) {
+        error = 'installer did not start — allow "install unknown apps" for FaceAttendance';
+        phase = UpdatePhase.error;
+        notifyListeners();
+      }
+    } catch (e) {
+      error = 'install failed: $e';
+      phase = UpdatePhase.error;
+      notifyListeners();
+    }
+  }
+
+  /// Full flow from the "Install" pill on the available banner.
   Future<void> downloadAndInstall() async {
     final assetId = info?.assetId;
     if (phase != UpdatePhase.available || assetId == null) return;
@@ -46,21 +65,11 @@ class UpdateState extends ChangeNotifier {
       _downloadedPath = path;
       phase = UpdatePhase.downloaded;
       notifyListeners();
+      // Hand straight to the installer after a short beat so the UI repaints.
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      await installDownloaded();
     } catch (e) {
       error = 'download failed: $e';
-      phase = UpdatePhase.error;
-      notifyListeners();
-      return;
-    }
-    try {
-      final ok = await UpdateChecker.instance.install(_downloadedPath!);
-      if (!ok) {
-        error = 'installer did not start — allow "install unknown apps" for FaceAttendance';
-        phase = UpdatePhase.error;
-        notifyListeners();
-      }
-    } catch (e) {
-      error = 'install failed: $e';
       phase = UpdatePhase.error;
       notifyListeners();
     }
