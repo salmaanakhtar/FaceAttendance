@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../config.dart';
 import '../device/secure_store.dart';
@@ -58,12 +59,13 @@ class UpdateChecker {
     }
   }
 
-  /// Download the APK to cache. Returns the local file path.
+  /// Download the APK into the cache ROOT (the FileProvider exposes only the
+  /// root, so subdirectories would break the installer). Returns the path.
   Future<String> download(int assetId, void Function(double fraction)? onProgress) async {
     final token = await SecureStore.instance.getDeviceToken();
     if (token == null) throw StateError('not provisioned');
-    final dir = Directory.systemTemp.createTempSync('faceatt-update');
-    final file = File('${dir.path}/update.apk');
+    final cacheDir = await getTemporaryDirectory(); // Android: <pkg>/cache (FileProvider root)
+    final file = File('${cacheDir.path}/faceattendance-update.apk');
     await _dio.download(
       '/api/v1/device/update/download',
       file.path,

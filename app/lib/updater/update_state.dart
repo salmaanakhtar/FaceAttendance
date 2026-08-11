@@ -14,6 +14,7 @@ class UpdateState extends ChangeNotifier {
   UpdateInfo? info;
   double progress = 0;
   String? error;
+  String? _downloadedPath;
 
   Future<void> check() async {
     if (phase != UpdatePhase.idle && phase != UpdatePhase.checking) return;
@@ -42,15 +43,24 @@ class UpdateState extends ChangeNotifier {
         progress = f;
         notifyListeners();
       });
+      _downloadedPath = path;
       phase = UpdatePhase.downloaded;
       notifyListeners();
-      final ok = await UpdateChecker.instance.install(path);
-      if (!ok) {
-        error = 'installer did not start';
-        phase = UpdatePhase.error;
-      }
     } catch (e) {
       error = 'download failed: $e';
+      phase = UpdatePhase.error;
+      notifyListeners();
+      return;
+    }
+    try {
+      final ok = await UpdateChecker.instance.install(_downloadedPath!);
+      if (!ok) {
+        error = 'installer did not start — allow "install unknown apps" for FaceAttendance';
+        phase = UpdatePhase.error;
+        notifyListeners();
+      }
+    } catch (e) {
+      error = 'install failed: $e';
       phase = UpdatePhase.error;
       notifyListeners();
     }
