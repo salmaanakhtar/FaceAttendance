@@ -11,6 +11,7 @@ import 'attendance/offline_queue.dart';
 import 'ui/admin/admin_gate.dart';
 import 'ui/provision/provision_screen.dart';
 import 'ui/scanner/scanner_screen.dart';
+import 'updater/update_state.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,12 +29,13 @@ Future<void> main() async {
     runApp(const _FatalApp(message: 'No camera found on this device.'));
     return;
   }
-  final back = cameras.firstWhere(
-    (c) => c.lensDirection == CameraLensDirection.back,
+  // Selfie camera first: the kiosk faces the employee.
+  final camera = cameras.firstWhere(
+    (c) => c.lensDirection == CameraLensDirection.front,
     orElse: () => cameras.first,
   );
 
-  runApp(FaceAttendanceApp(backCamera: back));
+  runApp(FaceAttendanceApp(camera: camera));
 }
 
 class _FatalApp extends StatelessWidget {
@@ -55,8 +57,8 @@ class _FatalApp extends StatelessWidget {
 }
 
 class FaceAttendanceApp extends StatefulWidget {
-  final CameraDescription backCamera;
-  const FaceAttendanceApp({super.key, required this.backCamera});
+  final CameraDescription camera;
+  const FaceAttendanceApp({super.key, required this.camera});
 
   @override
   State<FaceAttendanceApp> createState() => _FaceAttendanceAppState();
@@ -79,7 +81,7 @@ class _FaceAttendanceAppState extends State<FaceAttendanceApp> {
     final token = await SecureStore.instance.getDeviceToken();
     _provisioned = key != null && key.isNotEmpty && token != null;
 
-    _scanner = ScanFlowController(widget.backCamera);
+    _scanner = ScanFlowController(widget.camera);
     if (_provisioned) {
       await _scanner.init();
       // Kick off template sync + status
@@ -90,6 +92,8 @@ class _FaceAttendanceAppState extends State<FaceAttendanceApp> {
       }
       schedulePeriodicTemplateSync();
       OfflineQueue.instance.flush();
+      // GitHub-backed auto-update check (non-blocking).
+      UpdateState.instance.check();
     }
     if (mounted) setState(() => _checkingProvision = false);
   }

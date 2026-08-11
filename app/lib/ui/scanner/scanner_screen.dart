@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../attendance/scan_flow.dart';
 import '../../device/secure_store.dart';
 import '../../app_state.dart';
+import '../../updater/update_state.dart';
 
 /// The kiosk's primary surface: live camera + scan state feedback.
 /// Everything else (admin) is behind the lock icon.
@@ -52,6 +53,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
             _StatusOverlay(controller: widget.controller),
             _TopBar(orgName: _orgName, onAdmin: widget.onAdminRequested),
             _OfflineBadge(controller: widget.controller),
+            const _UpdateBanner(),
           ],
         ),
       ),
@@ -74,7 +76,15 @@ class _CameraLayer extends StatelessWidget {
             child: CircularProgressIndicator(color: Colors.white24),
           );
         }
-        return CameraPreview(camera);
+        // Mirror the selfie feed so the employee sees themselves naturally.
+        final mirrored = camera.description.lensDirection == CameraLensDirection.front;
+        return mirrored
+            ? Transform(
+                alignment: Alignment.center,
+                transform: Matrix4.diagonal3Values(-1, 1, 1),
+                child: CameraPreview(camera),
+              )
+            : CameraPreview(camera);
       },
     );
   }
@@ -226,6 +236,141 @@ class _StatusOverlay extends StatelessWidget {
         }
         return _PromptBanner(phase: phase);
       },
+    );
+  }
+}
+
+class _UpdateBanner extends StatelessWidget {
+  const _UpdateBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: UpdateState.instance,
+      builder: (context, _) {
+        final s = UpdateState.instance;
+        switch (s.phase) {
+          case UpdatePhase.available:
+            return Positioned(
+              top: 64,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: _pill(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.system_update_alt_rounded, color: Colors.white70, size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Update ${s.info?.latest ?? ''} available',
+                        style: const TextStyle(color: Colors.white70, fontSize: 13),
+                      ),
+                      const SizedBox(width: 10),
+                      _tapTarget('Install', onTap: s.downloadAndInstall),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          case UpdatePhase.downloading:
+            return Positioned(
+              top: 64,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: _pill(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white70),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Downloading ${(s.progress * 100).toStringAsFixed(0)}%',
+                        style: const TextStyle(color: Colors.white70, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          case UpdatePhase.downloaded:
+            return Positioned(
+              top: 64,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: _pill(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.download_done_rounded, color: Color(0xFF2FBF71), size: 18),
+                      const SizedBox(width: 8),
+                      const Text('Ready to install', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                      const SizedBox(width: 10),
+                      _tapTarget('Install now', onTap: UpdateState.instance.downloadAndInstall),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          case UpdatePhase.error:
+            return Positioned(
+              top: 64,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: _pill(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.error_outline_rounded, color: Color(0xFFFF5D5D), size: 18),
+                      const SizedBox(width: 8),
+                      Text('Update failed — ${s.error}', style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                      const SizedBox(width: 10),
+                      _tapTarget('Retry', onTap: () {
+                        UpdateState.instance.dismiss();
+                        UpdateState.instance.check();
+                      }),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          default:
+            return const SizedBox.shrink();
+        }
+      },
+    );
+  }
+
+  Widget _pill({required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xEE161A20),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: child,
+    );
+  }
+
+  Widget _tapTarget(String label, {required VoidCallback onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: const Color(0xFF2F6BFF),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+      ),
     );
   }
 }

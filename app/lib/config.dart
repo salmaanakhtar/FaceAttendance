@@ -9,6 +9,13 @@ const String kApiBaseUrl = String.fromEnvironment(
   defaultValue: 'http://10.0.2.2:4747',
 );
 
+/// App release tag (git tag of the GitHub release this build came from).
+/// Injected at build time by scripts/publish_release.ps1.
+const String kAppVersion = String.fromEnvironment(
+  'APP_VERSION',
+  defaultValue: '0.1.1',
+);
+
 /// ONNX recognition model (bundled asset). InsightFace MobileFaceNet,
 /// input [1,3,112,112] NCHW RGB in [-1,1], output 512-d embedding.
 const String kModelAsset = 'assets/models/w600k_mbf.onnx';

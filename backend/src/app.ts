@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import { config } from './config.js';
 import { deviceRoutes } from './routes/device.js';
+import { updateRoutes } from './routes/update.js';
 import { adminAuthRoutes } from './routes/admin-auth.js';
 import { employeeRoutes } from './routes/employees.js';
 import { attendanceRoutes } from './routes/attendance.js';
@@ -25,6 +26,7 @@ export function buildApp(): FastifyInstance {
   app.get('/health', async () => ({ ok: true, time: new Date().toISOString() }));
 
   deviceRoutes(app);
+  updateRoutes(app);
   adminAuthRoutes(app);
   employeeRoutes(app);
   attendanceRoutes(app);
