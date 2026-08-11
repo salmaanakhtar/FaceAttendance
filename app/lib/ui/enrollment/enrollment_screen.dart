@@ -101,17 +101,15 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
     if (detector == null || embedder == null || camera == null) return;
     _busy = true;
     try {
-      final isFront = camera.description.lensDirection == CameraLensDirection.front;
-
       // Adaptive orientation: lock the first rotation/mirror combo where a
       // face is actually found, instead of trusting a device formula.
       var orientation = _orientation;
       if (orientation == null) {
         final sensor = camera.description.sensorOrientation % 360;
-        final candidates = isFront
-            ? orientationCandidates(sensor)
-            : orientationCandidates(sensor);
-        for (final cand in candidates) {
+        final candidates = orientationCandidates(sensor);
+        for (var i = 0; i < candidates.length; i++) {
+          final cand = candidates[i];
+          _setDiagOnly('probing $i/6 $cand faces:0');
           final probe = yuvToUprightRgba(image, cand.rotationDeg, mirrorX: cand.mirrorX);
           final probeInput = InputImage.fromBytes(
             bytes: probe.bytes,
@@ -122,20 +120,25 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
               bytesPerRow: probe.width * 4,
             ),
           );
-          final probeFaces = await detector.processImage(probeInput);
+          final probeFaces = await detector.processImage(probeInput).timeout(
+                const Duration(seconds: 4),
+              );
           if (probeFaces.isNotEmpty) {
             orientation = cand;
             _orientation = cand;
+            _setDiagOnly('orientation locked: $cand');
             // ignore: avoid_print
             print('[enroll] orientation locked: $cand');
             break;
           }
         }
         if (orientation == null) {
+          _frame++;
+          _setDiagOnly('probing done — no face under any orientation '
+              '(faces:0, frame:$_frame)');
           if (_frame % _probeEvery == 0) {
             _setHint('Center your face in the frame');
           }
-          _frame++;
           return;
         }
       }
@@ -150,7 +153,9 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
           bytesPerRow: upright.width * 4,
         ),
       );
-      final faces = await detector.processImage(inputImage);
+      final faces = await detector.processImage(inputImage).timeout(
+            const Duration(seconds: 4),
+          );
       _frame++;
       if (faces.isEmpty) {
         _setHint('Center your face in the frame');
@@ -205,11 +210,23 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
       } else {
         _setHint('Keep still — $_captured/$_targetSamples');
       }
-    } catch (_) {
-      // transient frame error — keep scanning
+    } catch (e) {
+      _frame++;
+      // Never swallow silently: surface the failure on screen so it is
+      // diagnosable without a PC.
+      // ignore: avoid_print
+      print('[enroll] frame error: $e');
+      if (_frame % 10 == 0) {
+        final msg = e.toString();
+        _setDiagOnly('err: ${msg.length > 140 ? msg.substring(0, 140) : msg}');
+      }
     } finally {
       _busy = false;
     }
+  }
+
+  void _setDiagOnly(String text) {
+    if (mounted && _diag != text) setState(() => _diag = text);
   }
 
   Future<void> _finish() async {
