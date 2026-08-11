@@ -58,9 +58,9 @@ class ScanOutcome {
 /// The scanner's brain: camera frame pipeline -> detection -> quality gates
 /// -> liveness -> embedding -> match -> server/queue -> feedback.
 class ScanFlowController extends ChangeNotifier {
-  ScanFlowController(this.cameraDescription);
+  ScanFlowController(this.cameras);
 
-  final CameraDescription cameraDescription;
+  final List<CameraDescription> cameras;
   CameraController? _camera;
   FaceDetector? _detector;
   FaceEmbedder? _embedder;
@@ -75,12 +75,14 @@ class ScanFlowController extends ChangeNotifier {
   bool lastSyncWasOffline = false;
   bool modelReady = false;
   String? initError;
+  CameraDescription? selectedCamera;
 
   final LivenessTracker _liveness = LivenessTracker();
   final List<List<double>> _samples = [];
   int _lastStatusUpdate = 0;
 
   CameraController? get camera => _camera;
+  bool get isFrontCamera => selectedCamera?.lensDirection == CameraLensDirection.front;
 
   Future<void> init() async {
     try {
@@ -99,13 +101,37 @@ class ScanFlowController extends ChangeNotifier {
           enableClassification: true,
         ),
       );
-      _camera = CameraController(
-        cameraDescription,
-        kCameraResolution,
-        enableAudio: false,
-        imageFormatGroup: ImageFormatGroup.yuv420,
-      );
-      await _camera!.initialize();
+      // Selfie camera first (the kiosk faces the employee); fall back
+      // through the remaining cameras if the front one cannot open.
+      final ordered = [
+        ...cameras.where((c) => c.lensDirection == CameraLensDirection.front),
+        ...cameras.where((c) => c.lensDirection != CameraLensDirection.front),
+      ];
+      CameraController? opened;
+      for (final candidate in ordered) {
+        final c = CameraController(
+          candidate,
+          kCameraResolution,
+          enableAudio: false,
+          imageFormatGroup: ImageFormatGroup.yuv420,
+        );
+        try {
+          await c.initialize();
+          opened = c;
+          selectedCamera = candidate;
+          break;
+        } catch (e) {
+          debugPrint('camera ${candidate.name} failed to open: $e');
+          await c.dispose();
+        }
+      }
+      if (opened == null) {
+        initError = 'no usable camera';
+        phase = ScanPhase.init;
+        notifyListeners();
+        return;
+      }
+      _camera = opened;
       await _camera!.setFlashMode(FlashMode.off);
       _camera!.startImageStream(_onFrame);
       phase = ScanPhase.idle;
@@ -131,7 +157,7 @@ class ScanFlowController extends ChangeNotifier {
     _busy = true;
     try {
       // Upright conversion once per frame (rotation from sensor orientation).
-      final rotation = cameraDescription.sensorOrientation % 360;
+      final rotation = selectedCamera!.sensorOrientation % 360;
       final upright = yuvToUprightRgba(image, rotation);
       final inputImage = InputImage.fromBytes(
         bytes: upright.bytes,
@@ -427,6 +453,28 @@ class ScanFlowController extends ChangeNotifier {
       phase = ScanPhase.idle;
       notifyListeners();
     });
+  }
+
+  /// Free the camera while admin surfaces (or enrollment) use it.
+  void pause() {
+    _cooldownTimer?.cancel();
+    _camera?.stopImageStream();
+    phase = ScanPhase.init;
+    notifyListeners();
+  }
+
+  /// Restore the live scanner after admin work.
+  Future<void> resume() async {
+    final camera = _camera;
+    if (camera == null || camera.value.isInitialized) {
+      if (camera != null && !camera.value.isStreamingImages) {
+        camera.startImageStream(_onFrame);
+        phase = ScanPhase.idle;
+        notifyListeners();
+      }
+      return;
+    }
+    await init();
   }
 
   @override

@@ -77,7 +77,7 @@ class _CameraLayer extends StatelessWidget {
           );
         }
         // Mirror the selfie feed so the employee sees themselves naturally.
-        final mirrored = camera.description.lensDirection == CameraLensDirection.front;
+        final mirrored = controller.isFrontCamera;
         return mirrored
             ? Transform(
                 alignment: Alignment.center,

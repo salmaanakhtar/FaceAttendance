@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../admin/admin_api.dart';
 import '../../app_state.dart';
+import 'tabs/attendance_tab.dart';
+import 'tabs/audit_tab.dart';
+import 'tabs/dashboard_tab.dart';
+import 'tabs/employees_tab.dart';
 
-/// Phase-3 placeholder shell for admin surfaces. Lock icon in the app bar
-/// returns the kiosk to the scanner (auto-relock also enforced).
+/// Admin console: dashboard, employees, attendance, audit.
+/// Auto-relocks to the scanner after [AppState] inactivity.
 class AdminShellScreen extends StatefulWidget {
   const AdminShellScreen({super.key});
 
@@ -13,6 +17,15 @@ class AdminShellScreen extends StatefulWidget {
 }
 
 class _AdminShellScreenState extends State<AdminShellScreen> with WidgetsBindingObserver {
+  int _tab = 0;
+
+  static const _tabs = [
+    (icon: Icons.speed_rounded, label: 'Dashboard'),
+    (icon: Icons.people_alt_outlined, label: 'Employees'),
+    (icon: Icons.fact_check_outlined, label: 'Attendance'),
+    (icon: Icons.receipt_long_outlined, label: 'Audit'),
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -39,7 +52,7 @@ class _AdminShellScreenState extends State<AdminShellScreen> with WidgetsBinding
       appBar: AppBar(
         backgroundColor: const Color(0xFF0E1116),
         foregroundColor: Colors.white,
-        title: const Text('Admin'),
+        title: Text(_tabs[_tab].label),
         actions: [
           IconButton(
             tooltip: 'Lock kiosk',
@@ -51,24 +64,28 @@ class _AdminShellScreenState extends State<AdminShellScreen> with WidgetsBinding
           ),
         ],
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.construction_rounded, color: Colors.white24, size: 48),
-            const SizedBox(height: 16),
-            const Text(
-              'Admin console coming online\nin the next build cycle.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white54, fontSize: 15, height: 1.5),
-            ),
-            const SizedBox(height: 24),
-            TextButton(
-              onPressed: () => AppState.instance.lockToKiosk(),
-              child: const Text('Return to scanner', style: TextStyle(color: Color(0xFF4DA3FF))),
-            ),
-          ],
-        ),
+      body: IndexedStack(
+        index: _tab,
+        children: const [
+          DashboardTab(),
+          EmployeesTab(),
+          AttendanceTab(),
+          AuditTab(),
+        ],
+      ),
+      floatingActionButton: _tab == 1 ? const EmployeesFab() : null,
+      bottomNavigationBar: NavigationBar(
+        backgroundColor: const Color(0xFF0E1116),
+        indicatorColor: const Color(0xFF2F6BFF),
+        selectedIndex: _tab,
+        onDestinationSelected: (i) {
+          setState(() => _tab = i);
+          AppState.instance.touchAdminActivity();
+        },
+        destinations: [
+          for (final t in _tabs)
+            NavigationDestination(icon: Icon(t.icon), label: t.label),
+        ],
       ),
     );
   }

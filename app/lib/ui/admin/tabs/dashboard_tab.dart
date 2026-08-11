@@ -1,0 +1,185 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+
+import '../../../admin/admin_api.dart';
+import '../../../admin/models.dart';
+
+/// Live operations snapshot: who is in right now + today's numbers.
+class DashboardTab extends StatefulWidget {
+  const DashboardTab({super.key});
+
+  @override
+  State<DashboardTab> createState() => _DashboardTabState();
+}
+
+class _DashboardTabState extends State<DashboardTab> {
+  List<AttendanceSession> _now = [];
+  Map<String, dynamic>? _stats;
+  bool _loading = true;
+  String? _error;
+  Timer? _poll;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+    _poll = Timer.periodic(const Duration(seconds: 15), (_) => _load(silent: true));
+  }
+
+  @override
+  void dispose() {
+    _poll?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) setState(() => _loading = true);
+    try {
+      final nowRes = await AdminApi.instance.attendanceNow();
+      final statsRes = await AdminApi.instance.attendanceStats();
+      if (mounted) {
+        setState(() {
+          _now = (nowRes['currentlyIn'] as List<dynamic>)
+              .map((e) => AttendanceSession.fromJson(e as Map<String, dynamic>))
+              .toList();
+          _stats = statsRes['aggregate'] as Map<String, dynamic>?;
+          _loading = false;
+          _error = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = 'Could not load dashboard: $e';
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator(color: Colors.white24));
+    }
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(_error!, textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white54)),
+              const SizedBox(height: 12),
+              FilledButton(onPressed: _load, child: const Text('Retry')),
+            ],
+          ),
+        ),
+      );
+    }
+    final agg = _stats ?? {};
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        _StatRow(
+          stats: [
+            (label: 'Currently in', value: '${_now.length}', color: const Color(0xFF2FBF71)),
+            (label: 'Today sessions', value: '${agg['sessions'] ?? 0}', color: const Color(0xFF4DA3FF)),
+            (label: 'Late', value: '${agg['lateCount'] ?? 0}', color: const Color(0xFFFFC857)),
+            (label: 'Incomplete', value: '${agg['incompleteCount'] ?? 0}', color: const Color(0xFFFF5D5D)),
+          ],
+        ),
+        const SizedBox(height: 20),
+        Row(
+          children: [
+            const Text('In right now',
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+            const Spacer(),
+            Text('worked today ${_fmtHours((agg['workedMinutes'] as num?)?.toInt() ?? 0)}',
+                style: const TextStyle(color: Colors.white38, fontSize: 12)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (_now.isEmpty)
+          const _EmptyCard(text: 'No one is checked in right now.')
+        else
+          for (final s in _now)
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF161A20),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.person_rounded, color: Color(0xFF2FBF71), size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(s.employeeName,
+                        style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500)),
+                  ),
+                  Text(formatLocal(s.checkInAt),
+                      style: const TextStyle(color: Colors.white54, fontSize: 14)),
+                ],
+              ),
+            ),
+      ],
+    );
+  }
+
+  String _fmtHours(int minutes) => '${minutes ~/ 60}h ${minutes % 60}m';
+}
+
+class _StatRow extends StatelessWidget {
+  final List<({String label, String value, Color color})> stats;
+  const _StatRow({required this.stats});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (final s in stats)
+          Expanded(
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF161A20),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  Text(s.value,
+                      style: TextStyle(
+                          color: s.color, fontSize: 24, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 2),
+                  Text(s.label, style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _EmptyCard extends StatelessWidget {
+  final String text;
+  const _EmptyCard({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161A20),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(text, textAlign: TextAlign.center,
+          style: const TextStyle(color: Colors.white38, fontSize: 13)),
+    );
+  }
+}

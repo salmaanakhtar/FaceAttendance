@@ -29,13 +29,7 @@ Future<void> main() async {
     runApp(const _FatalApp(message: 'No camera found on this device.'));
     return;
   }
-  // Selfie camera first: the kiosk faces the employee.
-  final camera = cameras.firstWhere(
-    (c) => c.lensDirection == CameraLensDirection.front,
-    orElse: () => cameras.first,
-  );
-
-  runApp(FaceAttendanceApp(camera: camera));
+  runApp(FaceAttendanceApp(cameras: cameras));
 }
 
 class _FatalApp extends StatelessWidget {
@@ -57,8 +51,8 @@ class _FatalApp extends StatelessWidget {
 }
 
 class FaceAttendanceApp extends StatefulWidget {
-  final CameraDescription camera;
-  const FaceAttendanceApp({super.key, required this.camera});
+  final List<CameraDescription> cameras;
+  const FaceAttendanceApp({super.key, required this.cameras});
 
   @override
   State<FaceAttendanceApp> createState() => _FaceAttendanceAppState();
@@ -73,7 +67,16 @@ class _FaceAttendanceAppState extends State<FaceAttendanceApp> {
   void initState() {
     super.initState();
     AppState.instance.start();
+    AppState.instance.addListener(_onAppState);
     _bootstrap();
+  }
+
+  void _onAppState() {
+    if (AppState.instance.adminMode) {
+      _scanner.pause();
+    } else {
+      _scanner.resume();
+    }
   }
 
   Future<void> _bootstrap() async {
@@ -81,7 +84,7 @@ class _FaceAttendanceAppState extends State<FaceAttendanceApp> {
     final token = await SecureStore.instance.getDeviceToken();
     _provisioned = key != null && key.isNotEmpty && token != null;
 
-    _scanner = ScanFlowController(widget.camera);
+    _scanner = ScanFlowController(widget.cameras);
     if (_provisioned) {
       await _scanner.init();
       // Kick off template sync + status
@@ -100,6 +103,7 @@ class _FaceAttendanceAppState extends State<FaceAttendanceApp> {
 
   @override
   void dispose() {
+    AppState.instance.removeListener(_onAppState);
     _scanner.dispose();
     super.dispose();
   }
