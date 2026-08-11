@@ -49,20 +49,17 @@ export function updateRoutes(app: FastifyInstance): void {
     const q = req.query as { currentTag?: string };
     try {
       const release = (await ghJson([
-        'release',
-        'view',
-        'latest',
-        '--repo',
-        REPO,
-        '--json',
-        'tagName,name,assets',
-      ])) as { tagName: string; name: string; assets: ReleaseAsset[] };
+        'api',
+        `repos/${REPO}/releases/latest`,
+        '--jq',
+        '{tag_name, name, assets: [.assets[] | {id, name, size}]}',
+      ])) as { tag_name: string; name: string; assets: ReleaseAsset[] };
       const apk = release.assets.find((a) => a.name.endsWith('.apk'));
       if (!apk) {
-        return reply.send({ upToDate: true, latest: release.tagName, asset: null });
+        return reply.send({ upToDate: true, latest: release.tag_name, asset: null });
       }
       const current = q.currentTag ? parseTag(q.currentTag) : [0, 0, 0];
-      const latest = parseTag(release.tagName);
+      const latest = parseTag(release.tag_name);
       const newer =
         latest[0]! > current[0]! ||
         (latest[0] === current[0] && latest[1]! > current[1]!) ||
@@ -72,11 +69,11 @@ export function updateRoutes(app: FastifyInstance): void {
         actorType: 'device',
         actorId: req.device!.id,
         action: 'update_check',
-        details: { currentTag: q.currentTag ?? null, latest: release.tagName, newer },
+        details: { currentTag: q.currentTag ?? null, latest: release.tag_name, newer },
       });
       return reply.send({
         upToDate: !newer,
-        latest: release.tagName,
+        latest: release.tag_name,
         releaseName: release.name,
         asset: { id: apk.id, name: apk.name, size: apk.size },
       });

@@ -9,7 +9,9 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 Set-Location (Join-Path $root 'app')
 
-flutter build apk --release --dart-define="API_BASE=$ApiBase" --dart-define="APP_VERSION=$Tag"
+$defineApi = "--dart-define=API_BASE=$ApiBase"
+$defineVer = "--dart-define=APP_VERSION=$Tag"
+& flutter build apk --release $defineApi $defineVer 2>&1
 if ($LASTEXITCODE -ne 0) { throw 'flutter build failed' }
 
 $apk = Join-Path (Get-Location) 'build\app\outputs\flutter-apk\app-release.apk'
