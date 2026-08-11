@@ -138,7 +138,10 @@ class _FaceAttendanceAppState extends State<FaceAttendanceApp> {
       listenable: AppState.instance,
       builder: (context, _) {
         if (AppState.instance.adminMode) {
-          return const AdminGate();
+          // NOT const: the gate must rebuild when login state changes
+          // (a const instance would be identical and skipped by Flutter).
+          // ignore: prefer_const_constructors
+          return AdminGate();
         }
         return ScannerScreen(
           controller: _scanner,
