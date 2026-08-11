@@ -109,7 +109,7 @@ class _AttendanceTabState extends State<AttendanceTab> {
       final dir = await getTemporaryDirectory();
       final file = '${dir.path}/attendance-${DateTime.now().millisecondsSinceEpoch}.csv';
       await File(file).writeAsString(csv);
-      await SharePlus.instance.share(ShareParams(files: [XFile(file)], subject: 'Attendance export'));
+      await Share.shareXFiles([XFile(file)], subject: 'Attendance export');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

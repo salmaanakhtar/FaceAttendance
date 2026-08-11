@@ -11,7 +11,7 @@ Set-Location (Join-Path $root 'app')
 
 $defineApi = "--dart-define=API_BASE=$ApiBase"
 $defineVer = "--dart-define=APP_VERSION=$Tag"
-& flutter build apk --release $defineApi $defineVer 2>&1
+& flutter build apk --release $defineApi $defineVer
 if ($LASTEXITCODE -ne 0) { throw 'flutter build failed' }
 
 $apk = Join-Path (Get-Location) 'build\app\outputs\flutter-apk\app-release.apk'
