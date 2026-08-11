@@ -93,7 +93,8 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
     _busy = true;
     try {
       final rotation = camera.description.sensorOrientation % 360;
-      final upright = yuvToUprightRgba(image, rotation);
+      final isFront = camera.description.lensDirection == CameraLensDirection.front;
+      final upright = yuvToUprightRgba(image, rotation, mirrorX: isFront);
       final inputImage = InputImage.fromBytes(
         bytes: upright.bytes,
         metadata: InputImageMetadata(
@@ -253,11 +254,7 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
         fit: StackFit.expand,
         children: [
           if (_camera != null && _camera!.value.isInitialized)
-            Transform(
-              alignment: Alignment.center,
-              transform: Matrix4.diagonal3Values(-1, 1, 1),
-              child: CameraPreview(_camera!),
-            )
+            CameraPreview(_camera!)
           else
             const Center(child: CircularProgressIndicator(color: Colors.white24)),
           if (_state == _CaptureState.done)

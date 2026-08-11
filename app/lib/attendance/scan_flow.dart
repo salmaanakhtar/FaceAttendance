@@ -156,9 +156,10 @@ class ScanFlowController extends ChangeNotifier {
 
     _busy = true;
     try {
-      // Upright conversion once per frame (rotation from sensor orientation).
+      // Upright conversion once per frame (rotation + front-camera mirror).
       final rotation = selectedCamera!.sensorOrientation % 360;
-      final upright = yuvToUprightRgba(image, rotation);
+      final isFront = selectedCamera!.lensDirection == CameraLensDirection.front;
+      final upright = yuvToUprightRgba(image, rotation, mirrorX: isFront);
       final inputImage = InputImage.fromBytes(
         bytes: upright.bytes,
         metadata: InputImageMetadata(

@@ -76,15 +76,7 @@ class _CameraLayer extends StatelessWidget {
             child: CircularProgressIndicator(color: Colors.white24),
           );
         }
-        // Mirror the selfie feed so the employee sees themselves naturally.
-        final mirrored = controller.isFrontCamera;
-        return mirrored
-            ? Transform(
-                alignment: Alignment.center,
-                transform: Matrix4.diagonal3Values(-1, 1, 1),
-                child: CameraPreview(camera),
-              )
-            : CameraPreview(camera);
+        return CameraPreview(camera);
       },
     );
   }

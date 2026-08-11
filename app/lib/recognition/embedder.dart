@@ -177,11 +177,14 @@ double _bilinearAt(Uint8List bgra, int w, int h, double fx, double fy, int chann
 
 /// YUV420 (NV21 or YUV_420_888) -> upright BGRA bytes (bgra8888 for ML Kit).
 /// The image is rotated by [rotationDeg] (90/180/270/0) so the output is
-/// always upright. Returns (bytes, width, height).
+/// always upright. Front cameras additionally mirror horizontally
+/// ([mirrorX]) — the sensor image is flipped, matching the ML Kit quickstart
+/// convention. Returns (bytes, width, height).
 ({Uint8List bytes, int width, int height}) yuvToUprightRgba(
   CameraImage image,
-  int rotationDeg,
-) {
+  int rotationDeg, {
+  bool mirrorX = false,
+}) {
   final uvRows = image.planes.length > 2;
   final yPlane = image.planes.first;
   final u = uvRows ? image.planes[1] : null;
@@ -215,6 +218,8 @@ double _bilinearAt(Uint8List bgra, int w, int h, double fx, double fy, int chann
 
   for (var oy = 0; oy < outH; oy++) {
     for (var ox = 0; ox < outW; ox++) {
+      // Mirror in the final upright space for front cameras.
+      final outX = mirrorX ? outW - 1 - ox : ox;
       int sx;
       int sy;
       switch (rotationDeg % 360) {
@@ -237,7 +242,7 @@ double _bilinearAt(Uint8List bgra, int w, int h, double fx, double fy, int chann
       final r = (yv + 1.402 * vv).round().clamp(0, 255);
       final g = (yv - 0.344136 * uv - 0.714136 * vv).round().clamp(0, 255);
       final b = (yv + 1.772 * uv).round().clamp(0, 255);
-      final idx = (oy * outW + ox) * 4;
+      final idx = (oy * outW + outX) * 4;
       out[idx] = b;
       out[idx + 1] = g;
       out[idx + 2] = r;
