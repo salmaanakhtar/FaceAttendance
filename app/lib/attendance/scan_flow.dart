@@ -97,6 +97,7 @@ class ScanFlowController extends ChangeNotifier {
       }
       _detector = FaceDetector(
         options: FaceDetectorOptions(
+          performanceMode: FaceDetectorMode.accurate,
           enableLandmarks: true,
           enableClassification: true,
         ),
@@ -232,8 +233,8 @@ class ScanFlowController extends ChangeNotifier {
       }
       if (phase != ScanPhase.scanning) return;
 
-      final landmarks = _landmarkOffsets(face);
-      if (landmarks == null || landmarks.length != 5) return;
+      final landmarks = _landmarkOffsets(face, faceBox);
+      if (landmarks.length != 5) return;
 
       _liveness.observe(
         leftOpen: face.leftEyeOpenProbability ?? 0.5,
@@ -405,27 +406,37 @@ class ScanFlowController extends ChangeNotifier {
     );
   }
 
-  List<Offset>? _landmarkOffsets(Face face) {
+  /// 5 alignment points. Prefers ML Kit landmarks; falls back to face-box
+  /// geometry so the flow can never stall on missing landmarks.
+  List<Offset> _landmarkOffsets(Face face, Rect box) {
     final lm = face.landmarks;
-    if (lm.isEmpty) return null;
-    final out = <Offset>[];
     Point<int>? get(FaceLandmarkType t) => lm[t]?.position;
     final lEye = get(FaceLandmarkType.leftEye);
     final rEye = get(FaceLandmarkType.rightEye);
     final nose = get(FaceLandmarkType.noseBase);
     final lMouth = get(FaceLandmarkType.leftMouth);
     final rMouth = get(FaceLandmarkType.rightMouth);
-    if (lEye == null || rEye == null || nose == null || lMouth == null || rMouth == null) {
-      return null;
+    if (lEye != null && rEye != null && nose != null && lMouth != null && rMouth != null) {
+      return [
+        Offset(lEye.x.toDouble(), lEye.y.toDouble()),
+        Offset(rEye.x.toDouble(), rEye.y.toDouble()),
+        Offset(nose.x.toDouble(), nose.y.toDouble()),
+        Offset(lMouth.x.toDouble(), lMouth.y.toDouble()),
+        Offset(rMouth.x.toDouble(), rMouth.y.toDouble()),
+      ];
     }
-    out.addAll([
-      Offset(lEye.x.toDouble(), lEye.y.toDouble()),
-      Offset(rEye.x.toDouble(), rEye.y.toDouble()),
-      Offset(nose.x.toDouble(), nose.y.toDouble()),
-      Offset(lMouth.x.toDouble(), lMouth.y.toDouble()),
-      Offset(rMouth.x.toDouble(), rMouth.y.toDouble()),
-    ]);
-    return out;
+    // Fallback: proportional face-box geometry.
+    final x = box.left.toDouble();
+    final y = box.top.toDouble();
+    final bw = box.width.toDouble();
+    final bh = box.height.toDouble();
+    return [
+      Offset(x + 0.33 * bw, y + 0.30 * bh),
+      Offset(x + 0.67 * bw, y + 0.30 * bh),
+      Offset(x + 0.50 * bw, y + 0.50 * bh),
+      Offset(x + 0.38 * bw, y + 0.72 * bh),
+      Offset(x + 0.62 * bw, y + 0.72 * bh),
+    ];
   }
 
   double _meanLuma(Uint8List rgba, int w, int h) {

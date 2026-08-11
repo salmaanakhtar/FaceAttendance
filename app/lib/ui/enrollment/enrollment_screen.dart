@@ -38,6 +38,7 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
   int _captured = 0;
   String _hint = 'Center your face in the frame';
   int _rejected = 0;
+  int _frame = 0;
 
   static const _targetSamples = 8;
 
@@ -52,7 +53,11 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
       _embedder = FaceEmbedder();
       await _embedder!.init();
       _detector = FaceDetector(
-        options: FaceDetectorOptions(enableLandmarks: true, enableClassification: true),
+        options: FaceDetectorOptions(
+          performanceMode: FaceDetectorMode.accurate,
+          enableLandmarks: true,
+          enableClassification: true,
+        ),
       );
       final cameras = await availableCameras();
       final ordered = [
@@ -105,6 +110,12 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
         ),
       );
       final faces = await detector.processImage(inputImage);
+      _frame++;
+      if (_frame % 20 == 0) {
+        // ignore: avoid_print
+        print('[enroll] frame=$_frame w=${upright.width} h=${upright.height} '
+            'rot=$rotation front=$isFront faces=${faces.length} captured=$_captured rejected=$_rejected');
+      }
       if (faces.isEmpty) {
         _setHint('Center your face in the frame');
         return;
@@ -114,6 +125,12 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
         return;
       }
       final face = faces.first;
+      if (_frame % 20 == 0) {
+        // ignore: avoid_print
+        print('[enroll] face box=${face.boundingBox} landmarks=${face.landmarks.length} '
+            'yaw=${face.headEulerAngleY?.toStringAsFixed(1)} '
+            'lEyeOpen=${face.leftEyeOpenProbability?.toStringAsFixed(2)}');
+      }
       final ratio = face.boundingBox.width / upright.width;
       final luma = _meanLuma(upright.bytes, upright.width, upright.height);
       final yaw = face.headEulerAngleY ?? 0;
@@ -128,8 +145,7 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
         }
         return;
       }
-      final landmarks = _landmarks(face);
-      if (landmarks == null) return;
+      final landmarks = _landmarks(face, upright.width, upright.height, face.boundingBox);
       final emb = embedder.embed(
           rgba: upright.bytes,
           width: upright.width,
@@ -194,24 +210,36 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
     }
   }
 
-  List<Offset>? _landmarks(Face face) {
+  /// 5 alignment points. Prefers ML Kit landmarks; falls back to face-box
+  /// geometry so the flow can never stall on missing landmarks.
+  List<Offset> _landmarks(Face face, int w, int h, Rect box) {
     final lm = face.landmarks;
-    if (lm.isEmpty) return null;
     Point<int>? get(FaceLandmarkType t) => lm[t]?.position;
     final lEye = get(FaceLandmarkType.leftEye);
     final rEye = get(FaceLandmarkType.rightEye);
     final nose = get(FaceLandmarkType.noseBase);
     final lMouth = get(FaceLandmarkType.leftMouth);
     final rMouth = get(FaceLandmarkType.rightMouth);
-    if (lEye == null || rEye == null || nose == null || lMouth == null || rMouth == null) {
-      return null;
+    if (lEye != null && rEye != null && nose != null && lMouth != null && rMouth != null) {
+      return [
+        Offset(lEye.x.toDouble(), lEye.y.toDouble()),
+        Offset(rEye.x.toDouble(), rEye.y.toDouble()),
+        Offset(nose.x.toDouble(), nose.y.toDouble()),
+        Offset(lMouth.x.toDouble(), lMouth.y.toDouble()),
+        Offset(rMouth.x.toDouble(), rMouth.y.toDouble()),
+      ];
     }
+    // Fallback: proportional face-box geometry (eyes, nose, mouth corners).
+    final x = box.left.toDouble();
+    final y = box.top.toDouble();
+    final bw = box.width.toDouble();
+    final bh = box.height.toDouble();
     return [
-      Offset(lEye.x.toDouble(), lEye.y.toDouble()),
-      Offset(rEye.x.toDouble(), rEye.y.toDouble()),
-      Offset(nose.x.toDouble(), nose.y.toDouble()),
-      Offset(lMouth.x.toDouble(), lMouth.y.toDouble()),
-      Offset(rMouth.x.toDouble(), rMouth.y.toDouble()),
+      Offset(x + 0.33 * bw, y + 0.30 * bh),
+      Offset(x + 0.67 * bw, y + 0.30 * bh),
+      Offset(x + 0.50 * bw, y + 0.50 * bh),
+      Offset(x + 0.38 * bw, y + 0.72 * bh),
+      Offset(x + 0.62 * bw, y + 0.72 * bh),
     ];
   }
 
