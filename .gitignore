@@ -1,0 +1,31 @@
+# Node
+node_modules/
+backend/.pgdata/
+*.log
+
+# Flutter/Dart
+app/build/
+app/.dart_tool/
+app/.flutter-plugins*
+app/.packages
+app/android/.gradle/
+app/android/local.properties
+app/ios/Pods/
+app/*.iml
+app/android/app/.cxx/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+*.pem
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Local tooling
+scripts/*.json
