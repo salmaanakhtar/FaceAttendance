@@ -24,6 +24,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   });
 
   app.get('/health', async () => ({ ok: true, time: new Date().toISOString() }));
+  app.get('/', async () => ({ ok: true, service: 'faceattendance-api' }));
 
   deviceRoutes(app);
   updateRoutes(app);
