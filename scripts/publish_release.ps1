@@ -1,8 +1,8 @@
 # Build a release APK and publish it as a GitHub release (auto-update source).
-# Usage: publish_release.ps1 -Tag v0.1.2 [-ApiBase http://192.168.1.169:4747] [-Notes "what changed"]
+# Usage: publish_release.ps1 -Tag v1.0.1 [-ApiBase https://...] [-Notes "what changed"]
 param(
   [Parameter(Mandatory=$true)][string]$Tag,
-  [string]$ApiBase = 'http://192.168.1.169:4747',
+  [string]$ApiBase = 'https://faceattendance-api.salmaan.dev',
   [string]$Notes = 'FaceAttendance release'
 )
 $ErrorActionPreference = 'Stop'
