@@ -2,82 +2,42 @@ import 'package:flutter/foundation.dart';
 
 import 'update_checker.dart';
 
-enum UpdatePhase { checking, idle, available, downloading, downloaded, error }
-
-/// Holds the app-update state machine: checked → available → downloading →
-/// downloaded → install handed to the OS.
+enum UpdatePhase { idle, downloading, installing }
+/// Fully automatic updater: checks on launch, downloads silently, installs
+/// through the system installer, and the app relaunches automatically after
+/// the package is replaced. No user-facing buttons or banners.
 class UpdateState extends ChangeNotifier {
   UpdateState._();
   static final UpdateState instance = UpdateState._();
 
   UpdatePhase phase = UpdatePhase.idle;
-  UpdateInfo? info;
   double progress = 0;
   String? error;
-  String? _downloadedPath;
 
   Future<void> check() async {
-    if (phase != UpdatePhase.idle && phase != UpdatePhase.checking) return;
-    phase = UpdatePhase.checking;
-    notifyListeners();
-    final result = await UpdateChecker.instance.check();
-    if (result == null) {
-      phase = UpdatePhase.idle;
-    } else if (result.upToDate || result.assetId == null) {
-      phase = UpdatePhase.idle;
-    } else {
-      phase = UpdatePhase.available;
-      info = result;
-    }
-    notifyListeners();
-  }
-
-  /// Called from the "Install now" pill after a completed download.
-  Future<void> installDownloaded() async {
-    final path = _downloadedPath;
-    if (phase != UpdatePhase.downloaded || path == null) return;
-    try {
-      final ok = await UpdateChecker.instance.install(path);
-      if (!ok) {
-        error = 'installer did not start — allow "install unknown apps" for FaceAttendance';
-        phase = UpdatePhase.error;
-        notifyListeners();
-      }
-    } catch (e) {
-      error = 'install failed: $e';
-      phase = UpdatePhase.error;
-      notifyListeners();
-    }
-  }
-
-  /// Full flow from the "Install" pill on the available banner.
-  Future<void> downloadAndInstall() async {
-    final assetId = info?.assetId;
-    if (phase != UpdatePhase.available || assetId == null) return;
+    if (phase != UpdatePhase.idle) return;
+    final info = await UpdateChecker.instance.check();
+    if (info == null || info.upToDate || info.assetId == null) return;
     phase = UpdatePhase.downloading;
     progress = 0;
     notifyListeners();
     try {
-      final path = await UpdateChecker.instance.download(assetId, (f) {
+      final path = await UpdateChecker.instance.download(info.assetId!, (f) {
         progress = f;
         notifyListeners();
       });
-      _downloadedPath = path;
-      phase = UpdatePhase.downloaded;
+      // Let the UI repaint the 100% state, then hand to the installer.
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      phase = UpdatePhase.installing;
       notifyListeners();
-      // Hand straight to the installer after a short beat so the UI repaints.
-      await Future<void>.delayed(const Duration(milliseconds: 400));
-      await installDownloaded();
+      await UpdateChecker.instance.install(path);
+      // The system installer takes over; MY_PACKAGE_REPLACED relaunches us.
+      phase = UpdatePhase.idle;
+      notifyListeners();
     } catch (e) {
-      error = 'download failed: $e';
-      phase = UpdatePhase.error;
+      error = '$e';
+      phase = UpdatePhase.idle;
       notifyListeners();
     }
-  }
-
-  void dismiss() {
-    phase = UpdatePhase.idle;
-    info = null;
-    notifyListeners();
   }
 }

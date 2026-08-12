@@ -241,128 +241,22 @@ class _UpdateBanner extends StatelessWidget {
       listenable: UpdateState.instance,
       builder: (context, _) {
         final s = UpdateState.instance;
-        switch (s.phase) {
-          case UpdatePhase.available:
-            return Positioned(
-              top: 64,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: _pill(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.system_update_alt_rounded, color: Colors.white70, size: 18),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Update ${s.info?.latest ?? ''} available',
-                        style: const TextStyle(color: Colors.white70, fontSize: 13),
-                      ),
-                      const SizedBox(width: 10),
-                      _tapTarget('Install', onTap: s.downloadAndInstall),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          case UpdatePhase.downloading:
-            return Positioned(
-              top: 64,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: _pill(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white70),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        'Downloading ${(s.progress * 100).toStringAsFixed(0)}%',
-                        style: const TextStyle(color: Colors.white70, fontSize: 13),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          case UpdatePhase.downloaded:
-            return Positioned(
-              top: 64,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: _pill(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.download_done_rounded, color: Color(0xFF2FBF71), size: 18),
-                      const SizedBox(width: 8),
-                      const Text('Ready to install', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                      const SizedBox(width: 10),
-                      _tapTarget('Install now', onTap: UpdateState.instance.installDownloaded),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          case UpdatePhase.error:
-            return Positioned(
-              top: 64,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: _pill(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.error_outline_rounded, color: Color(0xFFFF5D5D), size: 18),
-                      const SizedBox(width: 8),
-                      Text('Update failed — ${s.error}', style: const TextStyle(color: Colors.white70, fontSize: 13)),
-                      const SizedBox(width: 10),
-                      _tapTarget('Retry', onTap: () {
-                        UpdateState.instance.dismiss();
-                        UpdateState.instance.check();
-                      }),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          default:
-            return const SizedBox.shrink();
+        if (s.phase == UpdatePhase.downloading) {
+          // Silent auto-update: a thin progress strip, no popups.
+          return Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: LinearProgressIndicator(
+              value: s.progress <= 0 ? null : s.progress,
+              minHeight: 3,
+              backgroundColor: Colors.white12,
+              color: const Color(0xFF2F6BFF),
+            ),
+          );
         }
+        return const SizedBox.shrink();
       },
-    );
-  }
-
-  Widget _pill({required Widget child}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xEE161A20),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: child,
-    );
-  }
-
-  Widget _tapTarget(String label, {required VoidCallback onTap}) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: const Color(0xFF2F6BFF),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
-      ),
     );
   }
 }

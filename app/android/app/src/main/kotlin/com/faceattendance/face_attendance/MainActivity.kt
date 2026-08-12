@@ -1,5 +1,7 @@
 package com.faceattendance.face_attendance
 
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.core.content.FileProvider
@@ -42,3 +44,15 @@ class MainActivity : FlutterActivity() {
         startActivity(intent)
     }
 }
+
+/** After a silent update install completes, relaunch the kiosk app. */
+class PackageReplacedReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) {
+            val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
+                ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (launch != null) context.startActivity(launch)
+        }
+    }
+}
+

@@ -175,63 +175,109 @@ double _bilinearAt(Uint8List bgra, int w, int h, double fx, double fy, int chann
   return top + (bottom - top) * wy;
 }
 
-/// YUV420 (NV21 2-plane or YUV_420_888 3-plane) -> upright BGRA bytes.
-/// The image is rotated by [rotationDeg] (90/180/270/0) so the output is
-/// always upright; [mirrorX] mirrors horizontally in the upright space.
-/// Returns (bytes, width, height).
-({Uint8List bytes, int width, int height}) yuvToUprightRgba(
-  CameraImage image,
+/// Build a canonical NV21 buffer (Y plane + interleaved V,U) from raw
+/// plane buffers: 1 plane (packed NV21), 2 planes (Y + VU), or 3 planes
+/// (Y + U + V, YV12-style). ML Kit requires a single NV21 byte array, and
+/// our RGB decoder reads from this same buffer.
+Uint8List nv21FromPlanes(
+  List<Uint8List> planeBytes,
+  List<int> planeStrides, {
+  required int width,
+  required int height,
+}) {
+  final w = width;
+  final h = height;
+  final ySize = w * h;
+  final total = ySize + ySize ~/ 2;
+  final out = Uint8List(total);
+  final src = planeBytes[0];
+
+  if (planeBytes.length == 1 && src.length >= total) {
+    // Single buffer already contains Y + chroma (NV21 order assumed).
+    out.setRange(0, total, src);
+    return out;
+  }
+
+  // Copy Y with possible row padding.
+  final bpr = planeStrides[0];
+  if (bpr == w) {
+    out.setRange(0, ySize, src);
+  } else {
+    for (var row = 0; row < h; row++) {
+      out.setRange(row * w, row * w + w, src, row * bpr);
+    }
+  }
+
+  if (planeBytes.length >= 3) {
+    // Planar Y + U + V: interleave to V,U (NV21 order).
+    final u = planeBytes[1];
+    final v = planeBytes[2];
+    final ubpr = planeStrides[1];
+    final vbpr = planeStrides[2];
+    final cw = w >> 1;
+    final ch = h >> 1;
+    for (var row = 0; row < ch; row++) {
+      for (var col = 0; col < cw; col++) {
+        final dst = ySize + (row * cw + col) * 2;
+        out[dst] = v[row * vbpr + col];
+        out[dst + 1] = u[row * ubpr + col];
+      }
+    }
+  } else if (planeBytes.length == 2) {
+    // Y + interleaved VU plane.
+    final uv = planeBytes[1];
+    out.setRange(ySize, total, uv, 0);
+  } else {
+    // Single plane but not fully packed — pad chroma to neutral.
+    for (var i = ySize; i < total; i += 2) {
+      out[i] = 128;
+      out[i + 1] = 128;
+    }
+  }
+  return out;
+}
+
+Uint8List nv21Of(CameraImage image) {
+  return nv21FromPlanes(
+    [for (final p in image.planes) p.bytes],
+    [for (final p in image.planes) p.bytesPerRow],
+    width: image.width,
+    height: image.height,
+  );
+}
+
+/// Decode a canonical NV21 buffer into an upright BGRA image.
+({Uint8List bytes, int width, int height}) nv21ToUprightBgra(
+  Uint8List nv21,
+  int width,
+  int height,
   int rotationDeg, {
   bool mirrorX = false,
 }) {
-  final yPlane = image.planes.first;
-  final width = image.width;
-  final height = image.height;
-  final nv21 = image.planes.length == 2;
-
-  int uAt(int x, int y) {
-    final row = (y >> 1);
-    final col = (x >> 1);
-    if (nv21) {
-      // NV21: plane 1 is interleaved V,U — U at odd offsets.
-      return image.planes[1].bytes[image.planes[1].bytesPerRow * row + (col << 1) + 1];
-    }
-    return image.planes[1].bytes[image.planes[1].bytesPerRow * row + col];
-  }
-
-  int vAt(int x, int y) {
-    final row = (y >> 1);
-    final col = (x >> 1);
-    if (nv21) {
-      // V at even offsets.
-      return image.planes[1].bytes[image.planes[1].bytesPerRow * row + (col << 1)];
-    }
-    return image.planes[2].bytes[image.planes[2].bytesPerRow * row + col];
-  }
-
-  int yAt(int x, int y) {
-    return yPlane.bytes[yPlane.bytesPerRow * y + x];
-  }
-
-  // Determine output dims and source mapping for the rotation.
-  final swapped = (rotationDeg % 180) != 0;
-  final outW = swapped ? height : width;
-  final outH = swapped ? width : height;
+  final outW = (rotationDeg % 180) != 0 ? height : width;
+  final outH = (rotationDeg % 180) != 0 ? width : height;
   final out = Uint8List(outW * outH * 4);
+
+  int yAt(int x, int y) => nv21[y * width + x];
+  int chromaAt(int x, int y, bool isV) {
+    final idx = width * height + ((y >> 1) * (width >> 1) + (x >> 1)) * 2;
+    return nv21[idx + (isV ? 0 : 1)];
+  }
 
   for (var oy = 0; oy < outH; oy++) {
     for (var ox = 0; ox < outW; ox++) {
-      // Mirror in the final upright space for front cameras.
       final outX = mirrorX ? outW - 1 - ox : ox;
       int sx;
       int sy;
       switch (rotationDeg % 360) {
         case 90:
-          sx = height - 1 - oy;
+          // 90° CW: dst(ox,oy) = src(w-1-oy, ox)
+          sx = width - 1 - oy;
           sy = ox;
         case 270:
+          // 270° CW: dst(ox,oy) = src(oy, h-1-ox)
           sx = oy;
-          sy = width - 1 - ox;
+          sy = height - 1 - ox;
         case 180:
           sx = width - 1 - ox;
           sy = height - 1 - oy;
@@ -240,8 +286,8 @@ double _bilinearAt(Uint8List bgra, int w, int h, double fx, double fy, int chann
           sy = oy;
       }
       final yv = yAt(sx, sy);
-      final uv = uAt(sx, sy) - 128;
-      final vv = vAt(sx, sy) - 128;
+      final uv = chromaAt(sx, sy, false) - 128;
+      final vv = chromaAt(sx, sy, true) - 128;
       final r = (yv + 1.402 * vv).round().clamp(0, 255);
       final g = (yv - 0.344136 * uv - 0.714136 * vv).round().clamp(0, 255);
       final b = (yv + 1.772 * uv).round().clamp(0, 255);
@@ -253,4 +299,14 @@ double _bilinearAt(Uint8List bgra, int w, int h, double fx, double fy, int chann
     }
   }
   return (bytes: out, width: outW, height: outH);
+}
+
+/// Convenience: CameraImage -> upright BGRA, canonical-NV21 based.
+({Uint8List bytes, int width, int height}) yuvToUprightRgba(
+  CameraImage image,
+  int rotationDeg, {
+  bool mirrorX = false,
+}) {
+  return nv21ToUprightBgra(nv21Of(image), image.width, image.height, rotationDeg,
+      mirrorX: mirrorX);
 }

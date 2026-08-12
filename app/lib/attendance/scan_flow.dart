@@ -161,9 +161,8 @@ class ScanFlowController extends ChangeNotifier {
       // Detection: feed ML Kit the raw NV21 buffer with rotation metadata —
       // the supported path. Coordinates come back in the upright space.
       final rotationDeg = selectedCamera!.sensorOrientation % 360;
-      final nv21Bytes = _toNv21Bytes(image);
       final inputImage = InputImage.fromBytes(
-        bytes: nv21Bytes,
+        bytes: nv21Of(image),
         metadata: InputImageMetadata(
           size: Size(image.width.toDouble(), image.height.toDouble()),
           rotation: InputImageRotation.values[rotationDeg ~/ 90],
@@ -457,16 +456,6 @@ class ScanFlowController extends ChangeNotifier {
       }
     }
     return n == 0 ? 128 : sum / n;
-  }
-
-  /// Concatenate Y + interleaved VU planes into a single NV21 buffer.
-  Uint8List _toNv21Bytes(CameraImage image) {
-    final y = image.planes.first.bytes;
-    final uv = image.planes.length > 1 ? image.planes[1].bytes : null;
-    final out = Uint8List(y.length + (uv?.length ?? 0));
-    out.setRange(0, y.length, y);
-    if (uv != null) out.setRange(y.length, out.length, uv);
-    return out;
   }
 
   void _resetScan() {
