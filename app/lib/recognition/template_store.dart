@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:encrypt/encrypt.dart' as enc;
@@ -118,8 +119,19 @@ class TemplateStore {
     }
   }
 
+  /// AES-256 key from a 64-hex-char secret (32 bytes).
+  static enc.Key aesKeyFromHex(String hex) {
+    final bytes = Uint8List(hex.length ~/ 2);
+    for (var i = 0; i < bytes.length; i++) {
+      bytes[i] = int.parse(hex.substring(i * 2, i * 2 + 2), radix: 16);
+    }
+    return enc.Key(bytes);
+  }
+
+  static enc.Key _aesKey() => aesKeyFromHex(SecureStore.instance.templateKeySync());
+
   String _encrypt(String plain) {
-    final key = enc.Key.fromUtf8(SecureStore.instance.templateKeySync());
+    final key = _aesKey();
     final iv = enc.IV.fromSecureRandom(16);
     final encrypter = enc.Encrypter(enc.AES(key));
     final ct = encrypter.encrypt(plain, iv: iv);
@@ -129,7 +141,7 @@ class TemplateStore {
   String _decrypt(String data) {
     final parts = data.split(':');
     if (parts.length != 3 || parts[0] != 'v1') throw const FormatException('bad bundle');
-    final key = enc.Key.fromUtf8(SecureStore.instance.templateKeySync());
+    final key = _aesKey();
     final iv = enc.IV.fromBase64(parts[1]);
     final encrypter = enc.Encrypter(enc.AES(key));
     return encrypter.decrypt64(parts[2], iv: iv);
