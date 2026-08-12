@@ -79,7 +79,7 @@ class ScanFlowController extends ChangeNotifier {
 
   final LivenessTracker _liveness = LivenessTracker();
   final List<List<double>> _samples = [];
-  int _lastStatusUpdate = 0;
+  bool _presenceLock = false; // re-scan only after the face leaves the frame
 
   CameraController? get camera => _camera;
   bool get isFrontCamera => selectedCamera?.lensDirection == CameraLensDirection.front;
@@ -174,21 +174,17 @@ class ScanFlowController extends ChangeNotifier {
             const Duration(seconds: 4),
           );
 
-      // Live status tick (cheap; ~4/s).
-      final nowMs = DateTime.now().millisecondsSinceEpoch;
-      if (nowMs - _lastStatusUpdate > 250) {
-        _lastStatusUpdate = nowMs;
-        if (faces.isEmpty) {
-          if (phase == ScanPhase.faceDetected || phase == ScanPhase.scanning) {
-            _resetScan();
-            phase = ScanPhase.idle;
-            notifyListeners();
-          }
+      if (faces.isEmpty) {
+        // Face left the frame — clear the presence lock so the next person
+        // can scan.
+        if (_presenceLock) {
+          _presenceLock = false;
+          _resetScan();
+          phase = ScanPhase.idle;
+          notifyListeners();
         }
-        notifyListeners();
+        return;
       }
-
-      if (faces.isEmpty) return;
       if (faces.length > 1) {
         if (phase != ScanPhase.submitting) {
           _resetScan();
@@ -197,6 +193,10 @@ class ScanFlowController extends ChangeNotifier {
         }
         return;
       }
+
+      // Presence lock: after any scan outcome, do not re-scan while the
+      // same person is still standing in front of the camera.
+      if (_presenceLock) return;
 
       final face = faces.first;
       final faceBox = face.boundingBox;
@@ -312,7 +312,7 @@ class ScanFlowController extends ChangeNotifier {
     final direction = matcherHint(match.employeeId!);
     phase = ScanPhase.recognized;
     lastConfidence = match.score;
-    lastLiveness = _liveness.blinks / kMinBlinks;
+    lastLiveness = (_liveness.blinks / kMinBlinks).clamp(0.0, 1.0);
     notifyListeners();
 
     Map<String, dynamic> result;
@@ -327,6 +327,21 @@ class ScanFlowController extends ChangeNotifier {
       );
       queued = result['queued'] == true;
     } on ServerException catch (e) {
+      if (e.status == 429) {
+        // Rate limited — the kiosk is being scanned too fast. Show a calm
+        // "wait" state instead of an error.
+        outcome = ScanOutcome(
+          phase: ScanPhase.duplicate,
+          employeeId: match.employeeId,
+          employeeName: template?.name,
+          message: 'Please wait a moment',
+        );
+        phase = ScanPhase.duplicate;
+        notifyListeners();
+        _resetScan();
+        _scheduleCooldown();
+        return;
+      }
       outcome = ScanOutcome(phase: ScanPhase.backendFailure, employeeId: match.employeeId, message: 'server $e');
       phase = ScanPhase.backendFailure;
       notifyListeners();
@@ -463,6 +478,7 @@ class ScanFlowController extends ChangeNotifier {
   }
 
   void _scheduleCooldown() {
+    _presenceLock = true; // no re-scan until the face leaves the frame
     _cooldownTimer?.cancel();
     _cooldownTimer = Timer(const Duration(milliseconds: kResultHoldMs + kScanCooldownMs), () {
       _resetScan();

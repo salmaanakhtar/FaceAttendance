@@ -57,8 +57,14 @@ export async function requireAdmin(req: FastifyRequest, reply: FastifyReply): Pr
 }
 
 export function appError(reply: FastifyReply, err: unknown): void {
-  const e = err as { status?: number; code?: string; message?: string };
-  const status = e.status ?? 500;
+  const e = err as {
+    status?: number;
+    statusCode?: number;
+    code?: string;
+    message?: string;
+  };
+  // Fastify validation errors carry `statusCode` (400), not `status`.
+  const status = e.statusCode ?? e.status ?? 500;
   if (status >= 500) console.error('[error]', e);
   void reply.code(status).send({
     error: { code: e.code ?? 'INTERNAL', message: e.message ?? 'internal error' },

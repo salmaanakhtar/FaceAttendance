@@ -76,7 +76,13 @@ export function deviceRoutes(app: FastifyInstance): void {
   });
 
   // Scan ingest — the critical path. Server time authoritative; idempotent.
-  app.post('/api/v1/scans', { schema: scanSchema, preHandler: requireDevice }, async (req, reply) => {
+  // Rate limited per device so a person standing at the kiosk cannot
+  // hammer the server (client-side presence lockout is the first line).
+  app.post('/api/v1/scans', {
+    schema: scanSchema,
+    preHandler: requireDevice,
+    config: { rateLimit: { max: 10, timeWindow: '10 seconds' } },
+  }, async (req, reply) => {
     const body = req.body as {
       dedupeKey: string;
       employeeId: string;
