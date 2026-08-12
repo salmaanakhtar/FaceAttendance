@@ -35,6 +35,8 @@ class ApiClient {
     if (org != null) {
       await SecureStore.instance.setOrgId(org['id'] as String);
       await SecureStore.instance.setOrgName(org['name'] as String);
+      final tz = org['timezone'] as String?;
+      if (tz != null) await SecureStore.instance.setOrgTimezone(tz);
     }
     final siteId = body['siteId'];
     if (siteId != null) await SecureStore.instance.setSiteId(siteId as String);

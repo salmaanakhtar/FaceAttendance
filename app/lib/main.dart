@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'app_state.dart';
+import 'app_time.dart';
 import 'attendance/scan_flow.dart';
 import 'device/secure_store.dart';
 import 'recognition/template_store.dart';
@@ -17,6 +18,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
   await SecureStore.instance.ensureTemplateKey();
+  await AppTime.init(); // org-local time for every screen
   await OfflineQueue.instance.init();
   await TemplateStore.instance.init();
   await StatusCache.instance.init();

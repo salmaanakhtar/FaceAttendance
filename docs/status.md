@@ -1,43 +1,42 @@
 # Status
 
-_Updated per meaningful change. Last update: 2026-08-11 (Phase 1 complete)._
+_Last update: 2026-08-12 — PROJECT COMPLETE (v1.0.0)._
 
-## What works
+## Deployed (production)
 
-- **Backend (Phase 1) complete and verified against the running API:**
-  - Fastify + PostgreSQL (project cluster :5434, API :4747)
-  - Schema + migrations + seed (org, site, admin, device, 8 employees)
-  - Device handshake (rate-limited), scan ingest (idempotent via dedupe key,
-    server-time authoritative, offline syncState), template bundle, config
-  - Admin auth: login/refresh/logout/me, Argon2-style scrypt hashes, revocable
-    server-side sessions, failed-login audit
-  - Employees CRUD + search/filter + soft deactivate/delete + enrollment with
-    encrypted-at-rest templates + same-face duplicate guard
-  - Attendance engine (pure module, 16 unit tests): check-in/out, min-interval
-    duplicate suppression, same-day second shift gap rule, overnight shifts,
-    break deduction, late/early/overtime classification, rollover
-  - Corrections (add/remove check-in/out, edit timestamps/break/note/date) with
-    full audit trail; corrections list endpoint
-  - Attendance queries: currently-in, sessions w/ filters, per-employee history
-    + totals, stats aggregates + anomaly detection, CSV export
-  - Audit log endpoint, raw scan-events transparency endpoint
+- **Backend**: https://faceattendance-api.salmaan.dev (containerized on
+  VPS 169.58.162.229 via hermes platform, traefik TLS).
+- **Database**: postgres:16 container `hermes-db-faceattendance`.
+- **Org**: Yabil — timezone `Africa/Johannesburg` (business timezone;
+  system clocks untouched; the app displays org-local time everywhere).
+- **Device key**: `device@yabil` (kiosk provisioning).
+- **Admin**: `admin` / `admin123` (role owner).
+- **Employees**: none seeded — enrollment happens in-app (by design).
 
-## In progress
+## App (final APK)
 
-- Phase 2: Flutter scanner-first client.
-- Phase 3: admin experience.
-- Phase 4: kiosk/device polish + responsive verification.
+- `app/releases/FaceAttendance-v1.0.0-lan.apk` + GitHub release v1.0.0.
+- Points at the VPS by default. Displays South Africa time via the org
+  timezone (timezone package; local location = org tz on every launch).
+- Scanner-first kiosk: on-device MobileFaceNet recognition, NV21 pipeline,
+  presence lockout (one scan per presence), offline queue, auto-update
+  (GitHub releases via backend proxy; needs `gh` authed in the API
+  container to be active), admin console with enrollment, attendance,
+  corrections + audit, CSV export.
 
-## Verified (smoke tests, 2026-08-11)
+## Local machine (this PC)
 
-- device handshake → token; admin login; employees list
-- check_in → checked_in; duplicate dedupe-key replay returns prior outcome;
-  checkout within min-interval correctly suppressed; check_out → closed
-- correction changed checkout 19:01→04:30 UTC with audit trail
-- stats aggregates + employee history + CSV export (clean rows)
-- offline syncState scan accepted with server time; login_failed audited
+- Project Postgres (:5434) stopped, API (:4747) stopped, firewall rule
+  removed, UDP dynamic port range restored. Nothing from this project is
+  running locally anymore.
+- `scripts/db_start.ps1` / `api_start.ps1` can bring it back for dev if
+  ever needed (device key `kiosk-demo-001`, admin/admin123 — dev only).
 
-## Next
+## History highlights
 
-- Scaffold Flutter app: scanner-first kiosk, camera + ML Kit + TFLite
-  recognition, offline queue, admin screens.
+- v0.1.x–v0.2.x: built scanner pipeline; fixed in order — bgra8888→NV21
+  (ML Kit only accepts NV21/YV12/JPEG), single-plane NV21 delivery (Nothing
+  3a), 90/270 rotation mapping, AES key length bug, liveness clamp + 429
+  handling + presence lockout, silent auto-update.
+- v0.3.0: VPS deployment (API base, auto re-handshake, Yabil rename).
+- v1.0.0: clean VPS bootstrap, SA timezone on the frontend, project end.

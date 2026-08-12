@@ -24,6 +24,8 @@ class SecureStore {
   Future<String?> getDeviceId() => _storage.read(key: 'device_id');
   Future<void> setOrgName(String name) => _storage.write(key: 'org_name', value: name);
   Future<String?> getOrgName() => _storage.read(key: 'org_name');
+  Future<void> setOrgTimezone(String tz) => _storage.write(key: 'org_timezone', value: tz);
+  Future<String?> getOrgTimezone() => _storage.read(key: 'org_timezone');
 
   Future<void> setAdminRefreshToken(String token) =>
       _storage.write(key: 'admin_refresh', value: token);
