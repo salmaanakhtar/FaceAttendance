@@ -7,18 +7,21 @@ import 'package:encrypt/encrypt.dart' as enc;
 import '../config.dart';
 import '../device/api.dart';
 import '../device/secure_store.dart';
+import 'matcher.dart';
 
 class StoredTemplate {
   final String employeeId;
   final String name;
   final String employeeCode;
   final List<double> embedding;
+  final List<List<double>> sampleEmbeddings;
 
   StoredTemplate({
     required this.employeeId,
     required this.name,
     required this.employeeCode,
     required this.embedding,
+    this.sampleEmbeddings = const [],
   });
 
   Map<String, dynamic> toJson() => {
@@ -26,14 +29,23 @@ class StoredTemplate {
         'name': name,
         'employeeCode': employeeCode,
         'embedding': embedding,
+        'sampleEmbeddings': sampleEmbeddings,
       };
 
-  factory StoredTemplate.fromJson(Map<String, dynamic> j) => StoredTemplate(
-        employeeId: j['employeeId'] as String,
-        name: j['name'] as String,
-        employeeCode: j['employeeCode'] as String,
-        embedding: (j['embedding'] as List).cast<num>().map((e) => e.toDouble()).toList(),
-      );
+  factory StoredTemplate.fromJson(Map<String, dynamic> j) {
+    final samples = <List<double>>[];
+    final raw = j['sampleEmbeddings'] as List<dynamic>? ?? const [];
+    for (final s in raw) {
+      samples.add((s as List).cast<num>().map((e) => e.toDouble()).toList());
+    }
+    return StoredTemplate(
+      employeeId: j['employeeId'] as String,
+      name: j['name'] as String,
+      employeeCode: j['employeeCode'] as String,
+      embedding: (j['embedding'] as List).cast<num>().map((e) => e.toDouble()).toList(),
+      sampleEmbeddings: samples,
+    );
+  }
 }
 
 /// Local template store: encrypted at rest (AES via secure-storage key),
@@ -52,6 +64,19 @@ class TemplateStore {
   int get count => _templates.length;
   Map<String, List<double>> get all => _templates;
   String? lastSyncError;
+
+  /// Build the matcher candidate list: every employee's fused template
+  /// plus each individual enrollment sample (multi-view matching).
+  List<TemplateCandidate> candidates() {
+    final out = <TemplateCandidate>[];
+    for (final t in _meta.values) {
+      out.add(TemplateCandidate(t.employeeId, t.embedding));
+      for (final s in t.sampleEmbeddings) {
+        out.add(TemplateCandidate(t.employeeId, s));
+      }
+    }
+    return out;
+  }
 
   /// Force a template resync and return its outcome (for UI feedback).
   /// Errors include the stack trace so failures are diagnosable on-device.
@@ -100,11 +125,21 @@ class TemplateStore {
     for (final t in templates) {
       final emb = t['embedding'];
       if (emb == null) continue;
+      // Per-sample embeddings live in enrollment quality (server passthrough).
+      final quality = t['quality'] as Map<String, dynamic>?;
+      final rawSamples = quality?['embeddings'] as List<dynamic>? ?? const [];
+      final samples = <List<double>>[];
+      for (final s in rawSamples) {
+        if (s is List) {
+          samples.add((s).cast<num>().map((e) => e.toDouble()).toList());
+        }
+      }
       list.add(StoredTemplate(
         employeeId: t['employeeId'] as String,
         name: t['name'] as String,
         employeeCode: t['employeeCode'] as String,
         embedding: (emb as List).cast<num>().map((e) => e.toDouble()).toList(),
+        sampleEmbeddings: samples,
       ));
     }
     _templates = {for (final t in list) t.employeeId: t.embedding};

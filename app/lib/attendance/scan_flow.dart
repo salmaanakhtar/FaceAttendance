@@ -238,6 +238,16 @@ class ScanFlowController extends ChangeNotifier {
       }
       if (phase != ScanPhase.scanning) return;
 
+      // Sharpness gate: skip blurry frames so they never pollute the fused
+      // embedding (motion blur while the subject moves is the main cause of
+      // unreliable scans).
+      final sharpness = ImageSharpness.faceRegionSharpness(
+        upright.bytes, upright.width, upright.height,
+        faceBox.left.round(), faceBox.top.round(),
+        faceBox.width.round(), faceBox.height.round(),
+      );
+      if (!ImageSharpness.acceptable(sharpness)) return;
+
       final landmarks = _landmarkOffsets(face, faceBox);
       if (landmarks.length != 5) return;
 
@@ -290,9 +300,8 @@ class ScanFlowController extends ChangeNotifier {
     phase = ScanPhase.submitting;
     notifyListeners();
 
-    final fused = fuseEmbeddings(_samples);
-    final templates = TemplateStore.instance.all;
-    final match = matchEmbedding(fused, templates);
+    final fused = robustFuse(_samples);
+    final match = matchEmbedding(fused, TemplateStore.instance.candidates());
 
     if (!match.matched) {
       if (match.ambiguous) {

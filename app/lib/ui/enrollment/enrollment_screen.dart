@@ -3,6 +3,7 @@ import 'dart:math' show Point;
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
@@ -156,6 +157,18 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
         return;
       }
       final landmarks = _landmarks(face, upright.width, upright.height, face.boundingBox);
+      // Sharpness gate: skip motion-blurred frames so they never pollute
+      // the template.
+      final sharpness = ImageSharpness.faceRegionSharpness(
+        upright.bytes, upright.width, upright.height,
+        face.boundingBox.left.round(), face.boundingBox.top.round(),
+        face.boundingBox.width.round(), face.boundingBox.height.round(),
+      );
+      if (!ImageSharpness.acceptable(sharpness)) {
+        _rejected++;
+        _setHint('Hold still — capturing a sharp frame');
+        return;
+      }
       final emb = embedder.embed(
           rgba: upright.bytes,
           width: upright.width,
@@ -206,12 +219,15 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
       return;
     }
     setState(() => _state = _CaptureState.busy);
-    final fused = fuseEmbeddings(_samples);
+    final fused = robustFuse(_samples);
     final quality = {
       'samples': _samples.length,
       'model': 'w600k_mbf',
       'yawSpreadDeg': yawSpread.round(),
       'rejectedFrames': _rejected,
+      // Per-sample embeddings: the kiosk matches against all of them for
+      // multi-view accuracy.
+      'embeddings': _samples,
     };
     try {
       await AdminApi.instance.enrollEmployee(widget.employeeId,
@@ -223,6 +239,17 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
         setState(() => _state = _CaptureState.done);
       }
       await FeedbackFx.success();
+    } on DioException catch (e) {
+      final message = e.response?.statusCode == 409
+          ? 'This face is already enrolled to another employee. '
+              'Deactivate that enrollment before re-enrolling this face.'
+          : 'Enrollment failed (${e.response?.statusCode ?? 'network'}): $e';
+      if (mounted) {
+        setState(() {
+          _state = _CaptureState.error;
+          _error = message;
+        });
+      }
     } catch (e) {
       if (mounted) {
         setState(() {

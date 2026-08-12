@@ -40,6 +40,23 @@ List<double> fuseEmbeddings(List<List<double>> embeddings) {
   return l2Normalize(sum);
 }
 
+/// Outlier-robust fusion: iteratively drops samples that disagree with the
+/// mean (cosine < [keepCosine]), then re-averages. Blurred or misaligned
+/// frames can no longer drag the template.
+List<double> robustFuse(List<List<double>> embeddings,
+    {double keepCosine = 0.80}) {
+  if (embeddings.isEmpty) return const [];
+  var current = fuseEmbeddings(embeddings);
+  for (var iter = 0; iter < 4; iter++) {
+    final kept = embeddings
+        .where((e) => cosineSimilarity(e, current) >= keepCosine)
+        .toList();
+    if (kept.isEmpty || kept.length == embeddings.length) break;
+    current = fuseEmbeddings(kept);
+  }
+  return current;
+}
+
 class MatchResult {
   final String? employeeId;
   final double score;
@@ -50,23 +67,33 @@ class MatchResult {
   bool get matched => employeeId != null && !ambiguous;
 }
 
-/// Nearest-neighbour match with acceptance threshold + ambiguity margin.
+/// One comparison target: an employee's fused template or a single
+/// enrollment sample (matching against all samples improves accuracy).
+class TemplateCandidate {
+  final String employeeId;
+  final List<double> embedding;
+  const TemplateCandidate(this.employeeId, this.embedding);
+}
+
+/// Nearest-neighbour match across candidates (each employee may contribute
+/// several: the fused template plus enrollment samples). Acceptance uses
+/// the threshold + ambiguity margin against the two best DISTINCT employees.
 MatchResult matchEmbedding(
   List<double> query,
-  Map<String, List<double>> templates, {
+  List<TemplateCandidate> candidates, {
   double acceptThreshold = kAcceptThreshold,
   double ambiguityMargin = kAmbiguityMargin,
 }) {
   String? bestId;
   var bestScore = -2.0;
   var secondScore = -2.0;
-  for (final entry in templates.entries) {
-    final s = cosineSimilarity(query, entry.value);
+  for (final c in candidates) {
+    final s = cosineSimilarity(query, c.embedding);
     if (s > bestScore) {
       secondScore = bestScore;
       bestScore = s;
-      bestId = entry.key;
-    } else if (s > secondScore) {
+      bestId = c.employeeId;
+    } else if (s > secondScore && c.employeeId != bestId) {
       secondScore = s;
     }
   }
