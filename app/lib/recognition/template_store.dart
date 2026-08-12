@@ -53,13 +53,14 @@ class TemplateStore {
   String? lastSyncError;
 
   /// Force a template resync and return its outcome (for UI feedback).
+  /// Errors include the stack trace so failures are diagnosable on-device.
   Future<String> resync() async {
     try {
       await syncFromServer();
       lastSyncError = null;
       return 'ok:${_templates.length} templates';
-    } catch (e) {
-      lastSyncError = '$e';
+    } catch (e, st) {
+      lastSyncError = '$e\n$st';
       return 'failed: $e';
     }
   }
@@ -86,13 +87,15 @@ class TemplateStore {
   }
 
   StoredTemplate? byId(String id) => _meta[id];
-
   /// Replace the local bundle from the server. Delta-aware on the server
   /// side is future work; for now replace atomically.
+  /// The in-memory matcher is updated BEFORE persistence so a storage
+  /// failure can never break live scanning.
   Future<void> syncFromServer() async {
     final res = await ApiClient.instance.fetchTemplates();
     final templates = (res['templates'] as List<dynamic>? ?? const [])
-        .cast<Map<String, dynamic>>();    final list = <StoredTemplate>[];
+        .cast<Map<String, dynamic>>();
+    final list = <StoredTemplate>[];
     for (final t in templates) {
       final emb = t['embedding'];
       if (emb == null) continue;
@@ -103,10 +106,16 @@ class TemplateStore {
         embedding: (emb as List).cast<num>().map((e) => e.toDouble()).toList(),
       ));
     }
-    final json = jsonEncode(list.map((t) => t.toJson()).toList());
-    await _box!.put('bundle', _encrypt(json));
     _templates = {for (final t in list) t.employeeId: t.embedding};
     _meta = {for (final t in list) t.employeeId: t};
+    try {
+      final json = jsonEncode(list.map((t) => t.toJson()).toList());
+      await _box!.put('bundle', _encrypt(json));
+    } catch (e, st) {
+      // Persistence failure must not break the live matcher.
+      lastSyncError = 'persist: $e\n$st';
+      rethrow;
+    }
   }
 
   String _encrypt(String plain) {
@@ -188,14 +197,18 @@ void schedulePeriodicTemplateSync() {
   Future<void> once() async {
     try {
       await TemplateStore.instance.syncFromServer();
-    } catch (_) {
-      // offline — retry next tick
+    } catch (e) {
+      TemplateStore.instance.lastSyncError ??= 'periodic: $e';
     }
   }
 
   Future<void> loop() async {
     while (true) {
-      await Future<void>.delayed(kTemplateSyncInterval);
+      // Retry fast while the store is empty (broken sync self-heals).
+      final delay = TemplateStore.instance.count == 0
+          ? const Duration(seconds: 30)
+          : kTemplateSyncInterval;
+      await Future<void>.delayed(delay);
       await once();
     }
   }

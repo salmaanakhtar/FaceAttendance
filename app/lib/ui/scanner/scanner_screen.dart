@@ -265,6 +265,7 @@ class _UpdateBanner extends StatelessWidget {
 
 /// Live template-sync diagnostics (debug aid): template count and any sync
 /// failure, so a broken sync is visible on screen instead of silent.
+/// Tapping the warning opens the full error + stack trace.
 class _TemplateDiag extends StatelessWidget {
   const _TemplateDiag();
 
@@ -279,15 +280,40 @@ class _TemplateDiag extends StatelessWidget {
       left: 0,
       right: 0,
       child: Center(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: const Color(0xCC3A2E14),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Text(
-            tplCount == 0 ? 'No face templates synced — sync failed: $err' : 'templates: $tplCount',
-            style: const TextStyle(color: Color(0xFFFFC857), fontSize: 12),
+        child: GestureDetector(
+          onTap: () {
+            if (err == null) return;
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                backgroundColor: const Color(0xFF161A20),
+                title: const Text('Template sync error',
+                    style: TextStyle(color: Colors.white, fontSize: 16)),
+                content: SingleChildScrollView(
+                  child: Text(err,
+                      style: const TextStyle(color: Colors.white54, fontSize: 11, fontFamily: 'monospace')),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Close', style: TextStyle(color: Colors.white70)),
+                  ),
+                ],
+              ),
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xCC3A2E14),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Text(
+              tplCount == 0
+                  ? 'No face templates synced — tap for details'
+                  : 'templates: $tplCount',
+              style: const TextStyle(color: Color(0xFFFFC857), fontSize: 12),
+            ),
           ),
         ),
       ),
