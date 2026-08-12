@@ -43,18 +43,38 @@ class ApiClient {
     _provisioned = true;
   }
 
-  Future<Map<String, dynamic>> _authedGet(String path) async {
+  /// Auth-aware GET with automatic re-handshake when the server rotates
+  /// secrets (e.g. migrating to a new deployment): a 401 triggers one
+  /// handshake retry using the stored provisioning key.
+  Future<Map<String, dynamic>> _authedGet(String path, {bool retried = false}) async {
     final token = await SecureStore.instance.getDeviceToken();
     if (token == null) throw _NoToken();
-    final res = await _dio.get(path, options: Options(headers: {'Authorization': 'Bearer $token'}));
-    return res.data as Map<String, dynamic>;
+    try {
+      final res = await _dio.get(path, options: Options(headers: {'Authorization': 'Bearer $token'}));
+      return res.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401 && !retried) {
+        await handshake();
+        return _authedGet(path, retried: true);
+      }
+      rethrow;
+    }
   }
 
-  Future<Map<String, dynamic>> _authedPost(String path, Map<String, dynamic> body) async {
+  Future<Map<String, dynamic>> _authedPost(String path, Map<String, dynamic> body,
+      {bool retried = false}) async {
     final token = await SecureStore.instance.getDeviceToken();
     if (token == null) throw _NoToken();
-    final res = await _dio.post(path, data: body, options: Options(headers: {'Authorization': 'Bearer $token'}));
-    return res.data as Map<String, dynamic>;
+    try {
+      final res = await _dio.post(path, data: body, options: Options(headers: {'Authorization': 'Bearer $token'}));
+      return res.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401 && !retried) {
+        await handshake();
+        return _authedPost(path, body, retried: true);
+      }
+      rethrow;
+    }
   }
 
   /// Scan ingest. Throws [OfflineException] on connectivity loss,

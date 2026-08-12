@@ -24,7 +24,7 @@ function randomEmbedding(seed: number): number[] {
 }
 
 async function seed() {
-  const existing = await pool.query('SELECT id FROM orgs WHERE slug = $1', ['acme-demo']);
+  const existing = await pool.query('SELECT id FROM orgs WHERE slug = $1', ['yabil']);
   if (existing.rowCount) {
     console.log('already seeded');
     await pool.end();
@@ -36,7 +36,7 @@ async function seed() {
   const org = (
     await pool.query(
       `INSERT INTO orgs (id, slug, name, timezone, settings, encryption_key)
-       VALUES (gen_random_uuid(), 'acme-demo', 'Acme Demo Corp', 'Asia/Karachi', $1, $2) RETURNING id`,
+       VALUES (gen_random_uuid(), 'yabil', 'Yabil', 'Asia/Karachi', $1, $2) RETURNING id`,
       [
         JSON.stringify({
           minIntervalMinutes: 1,
@@ -45,7 +45,7 @@ async function seed() {
           overnightCheckoutCutoff: '06:00',
           shiftGapHours: 4,
         }),
-        'acme-demo-encryption-key',
+        'yabil-encryption-key',
       ],
     )
   ).rows[0] as { id: string };
@@ -70,7 +70,7 @@ async function seed() {
     [org.id, site.id, sha256Hex(deviceKey)],
   );
 
-  const key = deriveOrgKey('acme-demo-encryption-key');
+  const key = deriveOrgKey('yabil-encryption-key');
   const names = [
     'Ayesha Khan', 'Bilal Ahmed', 'Fatima Noor', 'Hassan Raza',
     'Imran Shah', 'Maryam Ali', 'Omar Farooq', 'Sana Tariq',
@@ -96,7 +96,7 @@ async function seed() {
        VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, 1, $8, now())`,
       [
         org.id, site.id, `E${String(i + 1).padStart(3, '0')}`, name,
-        `${name.toLowerCase().replace(/[^a-z]+/g, '.')}@acme.demo`,
+        `${name.toLowerCase().replace(/[^a-z]+/g, '.')}@yabil.dev`,
         JSON.stringify(schedule),
         encrypted,
         JSON.stringify({ samples: 8, model: 'mobilefacenet-v1', meanConfidence: 0.93 }),
@@ -105,7 +105,7 @@ async function seed() {
   }
 
   await pool.query('COMMIT');
-  console.log('seeded: org acme-demo, 1 site, 1 admin (admin/admin123), 1 device, 8 employees');
+  console.log('seeded: org yabil, 1 site, 1 admin (admin/admin123), 1 device, 8 employees');
   console.log(`device key for kiosk provisioning: ${deviceKey}`);
   await pool.end();
 }
