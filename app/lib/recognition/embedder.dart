@@ -175,35 +175,38 @@ double _bilinearAt(Uint8List bgra, int w, int h, double fx, double fy, int chann
   return top + (bottom - top) * wy;
 }
 
-/// YUV420 (NV21 or YUV_420_888) -> upright BGRA bytes (bgra8888 for ML Kit).
+/// YUV420 (NV21 2-plane or YUV_420_888 3-plane) -> upright BGRA bytes.
 /// The image is rotated by [rotationDeg] (90/180/270/0) so the output is
-/// always upright. Front cameras additionally mirror horizontally
-/// ([mirrorX]) — the sensor image is flipped, matching the ML Kit quickstart
-/// convention. Returns (bytes, width, height).
+/// always upright; [mirrorX] mirrors horizontally in the upright space.
+/// Returns (bytes, width, height).
 ({Uint8List bytes, int width, int height}) yuvToUprightRgba(
   CameraImage image,
   int rotationDeg, {
   bool mirrorX = false,
 }) {
-  final uvRows = image.planes.length > 2;
   final yPlane = image.planes.first;
-  final u = uvRows ? image.planes[1] : null;
-  final v = uvRows ? image.planes[2] : null;
   final width = image.width;
   final height = image.height;
+  final nv21 = image.planes.length == 2;
 
   int uAt(int x, int y) {
-    if (u == null) return 128;
     final row = (y >> 1);
     final col = (x >> 1);
-    return u.bytes[u.bytesPerRow * row + col];
+    if (nv21) {
+      // NV21: plane 1 is interleaved V,U — U at odd offsets.
+      return image.planes[1].bytes[image.planes[1].bytesPerRow * row + (col << 1) + 1];
+    }
+    return image.planes[1].bytes[image.planes[1].bytesPerRow * row + col];
   }
 
   int vAt(int x, int y) {
-    if (v == null) return 128;
     final row = (y >> 1);
     final col = (x >> 1);
-    return v.bytes[v.bytesPerRow * row + col];
+    if (nv21) {
+      // V at even offsets.
+      return image.planes[1].bytes[image.planes[1].bytesPerRow * row + (col << 1)];
+    }
+    return image.planes[2].bytes[image.planes[2].bytesPerRow * row + col];
   }
 
   int yAt(int x, int y) {

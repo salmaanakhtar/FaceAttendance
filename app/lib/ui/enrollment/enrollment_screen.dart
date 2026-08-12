@@ -11,7 +11,6 @@ import '../../../config.dart';
 import '../../../recognition/embedder.dart';
 import '../../../recognition/liveness.dart';
 import '../../../recognition/matcher.dart';
-import '../../../recognition/orientation.dart';
 import '../../../recognition/template_store.dart';
 import '../../../util/feedback.dart';
 
@@ -40,8 +39,6 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
   String _hint = 'Center your face in the frame';
   int _rejected = 0;
   int _frame = 0;
-  FrameOrientation? _orientation;
-  static const _probeEvery = 5;
   String _diag = '';
 
   static const _targetSamples = 8;
@@ -70,7 +67,7 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
       ];
       for (final candidate in ordered) {
         final c = CameraController(candidate, kCameraResolution,
-            enableAudio: false, imageFormatGroup: ImageFormatGroup.yuv420);
+            enableAudio: false, imageFormatGroup: ImageFormatGroup.nv21);
         try {
           await c.initialize();
           _camera = c;
@@ -101,62 +98,28 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
     if (detector == null || embedder == null || camera == null) return;
     _busy = true;
     try {
-      // Adaptive orientation: lock the first rotation/mirror combo where a
-      // face is actually found, instead of trusting a device formula.
-      var orientation = _orientation;
-      if (orientation == null) {
-        final sensor = camera.description.sensorOrientation % 360;
-        final candidates = orientationCandidates(sensor);
-        for (var i = 0; i < candidates.length; i++) {
-          final cand = candidates[i];
-          _setDiagOnly('probing $i/6 $cand faces:0');
-          final probe = yuvToUprightRgba(image, cand.rotationDeg, mirrorX: cand.mirrorX);
-          final probeInput = InputImage.fromBytes(
-            bytes: probe.bytes,
-            metadata: InputImageMetadata(
-              size: Size(probe.width.toDouble(), probe.height.toDouble()),
-              rotation: InputImageRotation.rotation0deg,
-              format: InputImageFormat.bgra8888,
-              bytesPerRow: probe.width * 4,
-            ),
-          );
-          final probeFaces = await detector.processImage(probeInput).timeout(
-                const Duration(seconds: 4),
-              );
-          if (probeFaces.isNotEmpty) {
-            orientation = cand;
-            _orientation = cand;
-            _setDiagOnly('orientation locked: $cand');
-            // ignore: avoid_print
-            print('[enroll] orientation locked: $cand');
-            break;
-          }
-        }
-        if (orientation == null) {
-          _frame++;
-          _setDiagOnly('probing done — no face under any orientation '
-              '(faces:0, frame:$_frame)');
-          if (_frame % _probeEvery == 0) {
-            _setHint('Center your face in the frame');
-          }
-          return;
-        }
-      }
+      final camera = _camera!;
+      final rotationDeg = camera.description.sensorOrientation % 360;
 
-      final upright = yuvToUprightRgba(image, orientation.rotationDeg, mirrorX: orientation.mirrorX);
+      // Detection: raw NV21 buffer + rotation metadata (the supported path).
+      final nv21Bytes = _toNv21Bytes(image);
       final inputImage = InputImage.fromBytes(
-        bytes: upright.bytes,
+        bytes: nv21Bytes,
         metadata: InputImageMetadata(
-          size: Size(upright.width.toDouble(), upright.height.toDouble()),
-          rotation: InputImageRotation.rotation0deg,
-          format: InputImageFormat.bgra8888,
-          bytesPerRow: upright.width * 4,
+          size: Size(image.width.toDouble(), image.height.toDouble()),
+          rotation: InputImageRotation.values[rotationDeg ~/ 90],
+          format: InputImageFormat.nv21,
+          bytesPerRow: 0,
         ),
       );
       final faces = await detector.processImage(inputImage).timeout(
             const Duration(seconds: 4),
           );
       _frame++;
+
+      // Embedding crop: same rotation as ML Kit (raw sensor buffer is
+      // unmirrored, so upright coordinate spaces match exactly).
+      final upright = yuvToUprightRgba(image, rotationDeg, mirrorX: false);
       if (faces.isEmpty) {
         _setHint('Center your face in the frame');
         _updateDiag(faces: 0, landmarks: 0);
@@ -216,13 +179,23 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
       // diagnosable without a PC.
       // ignore: avoid_print
       print('[enroll] frame error: $e');
-      if (_frame % 10 == 0) {
+      if (_frame % 5 == 0) {
         final msg = e.toString();
         _setDiagOnly('err: ${msg.length > 140 ? msg.substring(0, 140) : msg}');
       }
     } finally {
       _busy = false;
     }
+  }
+
+  /// Concatenate Y + interleaved VU planes into a single NV21 buffer.
+  Uint8List _toNv21Bytes(CameraImage image) {
+    final y = image.planes.first.bytes;
+    final uv = image.planes.length > 1 ? image.planes[1].bytes : null;
+    final out = Uint8List(y.length + (uv?.length ?? 0));
+    out.setRange(0, y.length, y);
+    if (uv != null) out.setRange(y.length, out.length, uv);
+    return out;
   }
 
   void _setDiagOnly(String text) {
@@ -334,7 +307,7 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
     final l = luma == null ? '' : ' luma:$luma';
     final y = yaw == null ? '' : ' yaw:${yaw.round()}°';
     final text = 'F:$faces L:$landmarks $r$l$y cap:$_captured/$_targetSamples'
-        ' rej:$_rejected ${_orientation ?? ''}';
+        ' rej:$_rejected';
     if (mounted && _diag != text) setState(() => _diag = text);
   }
 

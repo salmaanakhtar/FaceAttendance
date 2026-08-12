@@ -11,7 +11,6 @@ import '../device/api.dart';
 import '../recognition/embedder.dart';
 import '../recognition/liveness.dart';
 import '../recognition/matcher.dart';
-import '../recognition/orientation.dart';
 import '../recognition/template_store.dart';
 import '../util/feedback.dart';
 import 'offline_queue.dart';
@@ -81,8 +80,6 @@ class ScanFlowController extends ChangeNotifier {
   final LivenessTracker _liveness = LivenessTracker();
   final List<List<double>> _samples = [];
   int _lastStatusUpdate = 0;
-  FrameOrientation? _orientation;
-  int _probeTries = 0;
 
   CameraController? get camera => _camera;
   bool get isFrontCamera => selectedCamera?.lensDirection == CameraLensDirection.front;
@@ -117,7 +114,8 @@ class ScanFlowController extends ChangeNotifier {
           candidate,
           kCameraResolution,
           enableAudio: false,
-          imageFormatGroup: ImageFormatGroup.yuv420,
+          // NV21: the only byte format ML Kit's fromByteArray accepts.
+          imageFormatGroup: ImageFormatGroup.nv21,
         );
         try {
           await c.initialize();
@@ -160,55 +158,22 @@ class ScanFlowController extends ChangeNotifier {
 
     _busy = true;
     try {
-      // Adaptive orientation: lock the first rotation/mirror combo where a
-      // face is actually found (device-agnostic; some sensors are unusual).
-      var orientation = _orientation;
-      if (orientation == null) {
-        if (_probeTries >= 3) {
-          // Give up probing; fall back to the classic formula.
-          final s = selectedCamera!.sensorOrientation % 360;
-          final isFront = selectedCamera!.lensDirection == CameraLensDirection.front;
-          orientation = FrameOrientation(s, isFront);
-          _orientation = orientation;
-        } else {
-          _probeTries++;
-          final candidates = orientationCandidates(selectedCamera!.sensorOrientation);
-          for (final cand in candidates) {
-            final probe = yuvToUprightRgba(image, cand.rotationDeg, mirrorX: cand.mirrorX);
-            final probeInput = InputImage.fromBytes(
-              bytes: probe.bytes,
-              metadata: InputImageMetadata(
-                size: Size(probe.width.toDouble(), probe.height.toDouble()),
-                rotation: InputImageRotation.rotation0deg,
-                format: InputImageFormat.bgra8888,
-                bytesPerRow: probe.width * 4,
-              ),
-            );
-            final probeFaces = await detector.processImage(probeInput);
-            if (probeFaces.isNotEmpty) {
-              orientation = cand;
-              _orientation = cand;
-              debugPrint('[scan] orientation locked: $cand');
-              break;
-            }
-          }
-          if (orientation == null) return; // no face under any orientation yet
-        }
-      }
-
-      // Upright conversion once per frame (rotation + front-camera mirror).
-      final upright =
-          yuvToUprightRgba(image, orientation.rotationDeg, mirrorX: orientation.mirrorX);
+      // Detection: feed ML Kit the raw NV21 buffer with rotation metadata —
+      // the supported path. Coordinates come back in the upright space.
+      final rotationDeg = selectedCamera!.sensorOrientation % 360;
+      final nv21Bytes = _toNv21Bytes(image);
       final inputImage = InputImage.fromBytes(
-        bytes: upright.bytes,
+        bytes: nv21Bytes,
         metadata: InputImageMetadata(
-          size: Size(upright.width.toDouble(), upright.height.toDouble()),
-          rotation: InputImageRotation.rotation0deg,
-          format: InputImageFormat.bgra8888,
-          bytesPerRow: upright.width * 4,
+          size: Size(image.width.toDouble(), image.height.toDouble()),
+          rotation: InputImageRotation.values[rotationDeg ~/ 90],
+          format: InputImageFormat.nv21,
+          bytesPerRow: 0,
         ),
       );
-      final faces = await detector.processImage(inputImage);
+      final faces = await detector.processImage(inputImage).timeout(
+            const Duration(seconds: 4),
+          );
 
       // Live status tick (cheap; ~4/s).
       final nowMs = DateTime.now().millisecondsSinceEpoch;
@@ -236,6 +201,9 @@ class ScanFlowController extends ChangeNotifier {
 
       final face = faces.first;
       final faceBox = face.boundingBox;
+      // Embedding crop: same rotation as ML Kit (no mirror — the raw sensor
+      // buffer is unmirrored, so upright spaces match exactly).
+      final upright = yuvToUprightRgba(image, rotationDeg, mirrorX: false);
       final meanLuma = _meanLuma(upright.bytes, upright.width, upright.height);
       final issue = ScanQuality.check(
         faceWidthPx: faceBox.width.round(),
@@ -489,6 +457,16 @@ class ScanFlowController extends ChangeNotifier {
       }
     }
     return n == 0 ? 128 : sum / n;
+  }
+
+  /// Concatenate Y + interleaved VU planes into a single NV21 buffer.
+  Uint8List _toNv21Bytes(CameraImage image) {
+    final y = image.planes.first.bytes;
+    final uv = image.planes.length > 1 ? image.planes[1].bytes : null;
+    final out = Uint8List(y.length + (uv?.length ?? 0));
+    out.setRange(0, y.length, y);
+    if (uv != null) out.setRange(y.length, out.length, uv);
+    return out;
   }
 
   void _resetScan() {
