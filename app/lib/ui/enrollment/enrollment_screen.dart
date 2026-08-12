@@ -191,6 +191,8 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
     if (mounted && _diag != text) setState(() => _diag = text);
   }
 
+  String _syncResult = '';
+
   Future<void> _finish() async {
     // Pose variety guard: if the face barely moved, ask for one more pass.
     final yawSpread = _yaws.isEmpty
@@ -214,10 +216,9 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
     try {
       await AdminApi.instance.enrollEmployee(widget.employeeId,
           embedding: fused, quality: quality);
-      // Push the new template to this kiosk immediately.
-      try {
-        await TemplateStore.instance.syncFromServer();
-      } catch (_) {}
+      // Push the new template to this kiosk immediately and report the
+      // outcome so a broken sync is visible, not silent.
+      _syncResult = await TemplateStore.instance.resync();
       if (mounted) {
         setState(() => _state = _CaptureState.done);
       }
@@ -327,7 +328,7 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
             const Center(child: CircularProgressIndicator(color: Colors.white24)),
           if (_state == _CaptureState.done)
             _overlay(const Icon(Icons.check_circle_rounded, color: Color(0xFF2FBF71), size: 64),
-                'Face enrolled', 'You can now check in with this face.')
+                'Face enrolled', 'You can now check in with this face.\nsync: $_syncResult')
           else if (_state == _CaptureState.error)
             _overlay(const Icon(Icons.error_outline_rounded, color: Color(0xFFFF5D5D), size: 64),
                 'Enrollment failed', _error ?? 'Please try again.')

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../attendance/scan_flow.dart';
 import '../../device/secure_store.dart';
 import '../../app_state.dart';
+import '../../recognition/template_store.dart';
 import '../../updater/update_state.dart';
 
 /// The kiosk's primary surface: live camera + scan state feedback.
@@ -54,6 +55,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
             _TopBar(orgName: _orgName, onAdmin: widget.onAdminRequested),
             _OfflineBadge(controller: widget.controller),
             const _UpdateBanner(),
+            const _TemplateDiag(),
           ],
         ),
       ),
@@ -257,6 +259,38 @@ class _UpdateBanner extends StatelessWidget {
         }
         return const SizedBox.shrink();
       },
+    );
+  }
+}
+
+/// Live template-sync diagnostics (debug aid): template count and any sync
+/// failure, so a broken sync is visible on screen instead of silent.
+class _TemplateDiag extends StatelessWidget {
+  const _TemplateDiag();
+
+  @override
+  Widget build(BuildContext context) {
+    final store = TemplateStore.instance;
+    final tplCount = store.count;
+    final err = store.lastSyncError;
+    if (tplCount > 0 && err == null) return const SizedBox.shrink();
+    return Positioned(
+      top: 108,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: const Color(0xCC3A2E14),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Text(
+            tplCount == 0 ? 'No face templates synced — sync failed: $err' : 'templates: $tplCount',
+            style: const TextStyle(color: Color(0xFFFFC857), fontSize: 12),
+          ),
+        ),
+      ),
     );
   }
 }

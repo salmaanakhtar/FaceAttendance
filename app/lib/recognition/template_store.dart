@@ -50,6 +50,19 @@ class TemplateStore {
   bool get loaded => _loaded;
   int get count => _templates.length;
   Map<String, List<double>> get all => _templates;
+  String? lastSyncError;
+
+  /// Force a template resync and return its outcome (for UI feedback).
+  Future<String> resync() async {
+    try {
+      await syncFromServer();
+      lastSyncError = null;
+      return 'ok:${_templates.length} templates';
+    } catch (e) {
+      lastSyncError = '$e';
+      return 'failed: $e';
+    }
+  }
 
   Future<void> init() async {
     await SecureStore.instance.ensureTemplateKey();
@@ -79,8 +92,7 @@ class TemplateStore {
   Future<void> syncFromServer() async {
     final res = await ApiClient.instance.fetchTemplates();
     final templates = (res['templates'] as List<dynamic>? ?? const [])
-        .cast<Map<String, dynamic>>();
-    final list = <StoredTemplate>[];
+        .cast<Map<String, dynamic>>();    final list = <StoredTemplate>[];
     for (final t in templates) {
       final emb = t['embedding'];
       if (emb == null) continue;
