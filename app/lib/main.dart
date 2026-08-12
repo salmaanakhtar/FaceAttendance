@@ -6,6 +6,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'app_state.dart';
 import 'app_time.dart';
 import 'attendance/scan_flow.dart';
+import 'config.dart';
 import 'device/secure_store.dart';
 import 'recognition/template_store.dart';
 import 'attendance/offline_queue.dart';
@@ -14,9 +15,20 @@ import 'ui/provision/provision_screen.dart';
 import 'ui/scanner/scanner_screen.dart';
 import 'updater/update_state.dart';
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+/// One-time storage reset: when the installed build tag changes, wipe all
+/// local Hive boxes (templates, status cache, offline queue) and every
+/// credential so no stale face data or tokens survive across deployments.
+Future<void> _wipeIfNewBuild() async {
+  final prev = await SecureStore.instance.getInstalledVersion();
+  if (prev == kAppVersion) return;
+  await Hive.deleteFromDisk();
+  await SecureStore.instance.clearAll();
+  await SecureStore.instance.setInstalledVersion(kAppVersion);
+}
+
+Future<void> main() async {  WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
+  await _wipeIfNewBuild();
   await SecureStore.instance.ensureTemplateKey();
   await AppTime.init(); // org-local time for every screen
   await OfflineQueue.instance.init();

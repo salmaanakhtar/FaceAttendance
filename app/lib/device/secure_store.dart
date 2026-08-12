@@ -32,6 +32,22 @@ class SecureStore {
   Future<String?> getAdminRefreshToken() => _storage.read(key: 'admin_refresh');
   Future<void> clearAdminTokens() => _storage.delete(key: 'admin_refresh');
 
+  Future<void> setInstalledVersion(String v) => _storage.write(key: 'installed_version', value: v);
+  Future<String?> getInstalledVersion() => _storage.read(key: 'installed_version');
+
+  /// Wipe every credential/secret (device key, tokens, org data, admin
+  /// session, template key). Used once when a new build ships a storage
+  /// reset so no stale data can survive across deployments.
+  Future<void> clearAll() async {
+    for (final key in [
+      'device_key', 'device_token', 'org_id', 'org_name', 'org_timezone',
+      'site_id', 'device_id', 'admin_refresh', 'template_key',
+    ]) {
+      await _storage.delete(key: key);
+    }
+    _templateKeyCache = null;
+  }
+
   String? _templateKeyCache;
 
   /// Ensure the template encryption key is materialized in memory.
