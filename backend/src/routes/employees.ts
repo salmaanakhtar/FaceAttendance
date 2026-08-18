@@ -244,14 +244,19 @@ export function employeeRoutes(app: FastifyInstance): void {
     );
     if (!existing) throw notFound('employee not found');
 
-    // duplicate-face guard: reject enrolling a face already enrolled to another employee
+    // duplicate-face guard: reject enrolling a face already enrolled to another employee.
+    // Only templates from the same pipeline version are comparable — older
+    // versions live in a different embedding space and must not be matched
+    // (that caused false "same person" hits after the channel-order fix).
     const org = await queryOne<{ encryption_key: string }>(
       'SELECT encryption_key FROM orgs WHERE id = $1',
       [req.admin!.orgId],
     );
     const key = deriveOrgKey(org?.encryption_key ?? 'dev');
-    const allTemplates = await query<{ id: string; face_template: Buffer }>(
-      `SELECT id, face_template FROM employees WHERE org_id = $1 AND face_template IS NOT NULL AND id <> $2`,
+    const templateVersion = body.templateVersion ?? 1;
+    const allTemplates = await query<{ id: string; face_template: Buffer; template_version: number | null }>(
+      `SELECT id, face_template, template_version FROM employees
+        WHERE org_id = $1 AND face_template IS NOT NULL AND id <> $2`,
       [req.admin!.orgId, id],
     );
     const cosine = (a: number[], b: number[]): number => {
@@ -265,6 +270,7 @@ export function employeeRoutes(app: FastifyInstance): void {
     };
     const SAME_FACE = 0.6; // conservative "same person" distance
     for (const t of allTemplates) {
+      if ((t.template_version ?? 0) !== templateVersion) continue;
       let other: number[] | null = null;
       try {
         other = JSON.parse(decryptAesGcm(t.face_template, key).toString('utf8')) as number[];
@@ -272,7 +278,9 @@ export function employeeRoutes(app: FastifyInstance): void {
         continue;
       }
       if (other && body.embedding.length === other.length && cosine(body.embedding, other) > SAME_FACE) {
-        throw conflict('this face is already enrolled to another employee');
+        throw conflict(
+          `this face is already enrolled to another employee (cosine ${cosine(body.embedding, other).toFixed(2)})`,
+        );
       }
     }
 

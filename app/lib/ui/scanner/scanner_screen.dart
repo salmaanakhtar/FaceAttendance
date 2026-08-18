@@ -419,6 +419,12 @@ class _ResultCard extends StatelessWidget {
         return (Icons.radio_button_checked_rounded, const Color(0xFFFFC857), 'Already checked out', outcome.employeeName ?? '');
       case ScanPhase.backendFailure:
         return (Icons.error_outline_rounded, const Color(0xFFFF5D5D), 'Server error', 'Please try again');
+      case ScanPhase.unknown:
+        return (Icons.person_off_outlined, const Color(0xFFFFC857), 'Face not recognized',
+            'Not enrolled — ask an admin to enroll you');
+      case ScanPhase.ambiguous:
+        return (Icons.help_outline_rounded, const Color(0xFFFFC857), 'Unclear match',
+            'Try again or ask an admin');
       default:
         return (Icons.error_outline_rounded, const Color(0xFFFF5D5D), 'Scan error', 'Please try again');
     }

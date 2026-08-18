@@ -294,12 +294,17 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
   }
 
   double _meanLuma(Uint8List bgra, int w, int h) {
+    // True BT.601 luma (the old code read only the red channel).
     const step = 16;
     var sum = 0.0;
     var n = 0;
     for (var y = 0; y < h; y += step) {
       for (var x = 0; x < w; x += step) {
-        sum += bgra[(y * w + x) * 4 + 2];
+        final i = (y * w + x) * 4;
+        final b = bgra[i].toDouble();
+        final g = bgra[i + 1].toDouble();
+        final r = bgra[i + 2].toDouble();
+        sum += 0.299 * r + 0.587 * g + 0.114 * b;
         n++;
       }
     }

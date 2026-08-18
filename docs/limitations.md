@@ -7,6 +7,10 @@ iteration loop.
   frozen-video replay; a high-quality real-time video replay of a co-worker
   could in principle spoof. Mitigated by liveness score logging, rate limits,
   and kiosk placement. Depth-camera upgrade path documented.
+- **Re-enrollment required after pipeline changes**: any change to the
+  embedding pipeline (model, preprocessing, channel order) bumps
+  `templateVersion`; older templates are ignored by the matcher and must be
+  re-enrolled (see docs/accuracy.md).
 - **Lighting sensitivity**: recognition degrades in very low/high light;
   enrollment gates require good lighting so templates are reliable.
 - **First-scan latency**: on slow devices the first frame analysis can take

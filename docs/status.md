@@ -1,6 +1,26 @@
 # Status
 
-_Last update: 2026-08-12 — PROJECT COMPLETE (v1.0.0)._
+_Last update: 2026-08-19 — accuracy rework (template v2): BGR channel fix,
+calibrated thresholds, template versioning._
+
+## Accuracy rework (v2) — 2026-08-19
+
+Reported: enrolled users' check-ins failing silently; two unrelated people
+being confused (enrollment said "already enrolled"; a scan checked in as the
+other person). See `docs/accuracy.md` for the full investigation.
+
+Root causes fixed:
+- **Channel order**: the embedding tensor was RGB; InsightFace models are
+  trained on BGR. Fixed in `app/lib/recognition/embedder.dart`.
+- **Accept threshold 0.38** was inside the impostor tail (measured impostor
+  cosine peaks ~0.17 even under heavy degradation). Raised to **0.45** with
+  ambiguity margin **0.10** (`app/lib/config.dart`).
+- **Template versioning**: new `templateVersion = 2`; the app and server only
+  match/enroll against same-version templates so stale (buggy-pipeline)
+  templates can never be confused with new ones. **All users must re-enroll.**
+- **Diagnostics**: unknown/ambiguous scans now show a clear card with the
+  match score; a stalled recognition engine surfaces an error instead of
+  hanging on "Scanning…".
 
 ## Deployed (production)
 

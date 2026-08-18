@@ -13,6 +13,7 @@ class StoredTemplate {
   final String employeeId;
   final String name;
   final String employeeCode;
+  final int templateVersion;
   final List<double> embedding;
   final List<List<double>> sampleEmbeddings;
 
@@ -21,6 +22,7 @@ class StoredTemplate {
     required this.name,
     required this.employeeCode,
     required this.embedding,
+    this.templateVersion = kTemplateVersion,
     this.sampleEmbeddings = const [],
   });
 
@@ -28,6 +30,7 @@ class StoredTemplate {
         'employeeId': employeeId,
         'name': name,
         'employeeCode': employeeCode,
+        'templateVersion': templateVersion,
         'embedding': embedding,
         'sampleEmbeddings': sampleEmbeddings,
       };
@@ -42,6 +45,7 @@ class StoredTemplate {
       employeeId: j['employeeId'] as String,
       name: j['name'] as String,
       employeeCode: j['employeeCode'] as String,
+      templateVersion: (j['templateVersion'] as num?)?.toInt() ?? 0,
       embedding: (j['embedding'] as List).cast<num>().map((e) => e.toDouble()).toList(),
       sampleEmbeddings: samples,
     );
@@ -60,16 +64,20 @@ class TemplateStore {
   Map<String, StoredTemplate> _meta = {};
   bool _loaded = false;
 
-  bool get loaded => _loaded;
+  /// Number of templates usable by the current matcher (version-gated).
   int get count => _templates.length;
+  bool get loaded => _loaded;
   Map<String, List<double>> get all => _templates;
   String? lastSyncError;
 
   /// Build the matcher candidate list: every employee's fused template
-  /// plus each individual enrollment sample (multi-view matching).
+  /// plus each individual enrollment sample (multi-view matching). Only
+  /// templates from the current pipeline version are usable — stale ones
+  /// (different embedding space) are excluded so they can never be matched.
   List<TemplateCandidate> candidates() {
     final out = <TemplateCandidate>[];
     for (final t in _meta.values) {
+      if (t.templateVersion != kTemplateVersion) continue;
       out.add(TemplateCandidate(t.employeeId, t.embedding));
       for (final s in t.sampleEmbeddings) {
         out.add(TemplateCandidate(t.employeeId, s));
@@ -102,6 +110,7 @@ class TemplateStore {
         final json = jsonDecode(_decrypt(raw)) as List<dynamic>;
         for (final item in json) {
           final t = StoredTemplate.fromJson(item as Map<String, dynamic>);
+          if (t.templateVersion != kTemplateVersion) continue; // stale pipeline
           _templates[t.employeeId] = t.embedding;
           _meta[t.employeeId] = t;
         }
@@ -138,11 +147,15 @@ class TemplateStore {
         employeeId: t['employeeId'] as String,
         name: t['name'] as String,
         employeeCode: t['employeeCode'] as String,
+        templateVersion: (t['templateVersion'] as num?)?.toInt() ?? 0,
         embedding: (emb as List).cast<num>().map((e) => e.toDouble()).toList(),
         sampleEmbeddings: samples,
       ));
     }
-    _templates = {for (final t in list) t.employeeId: t.embedding};
+    _templates = {
+      for (final t in list)
+        if (t.templateVersion == kTemplateVersion) t.employeeId: t.embedding
+    };
     _meta = {for (final t in list) t.employeeId: t};
     try {
       final json = jsonEncode(list.map((t) => t.toJson()).toList());

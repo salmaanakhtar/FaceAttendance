@@ -148,7 +148,7 @@ class AdminApi {
   }) =>
       post('/api/v1/admin/employees/$id/enroll', {
         'embedding': embedding,
-        'templateVersion': 1,
+        'templateVersion': kTemplateVersion,
         'quality': quality ?? {},
       });
 

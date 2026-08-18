@@ -80,6 +80,7 @@ class ScanFlowController extends ChangeNotifier {
   final LivenessTracker _liveness = LivenessTracker();
   final List<List<double>> _samples = [];
   bool _presenceLock = false; // re-scan only after the face leaves the frame
+  int _embedFails = 0;
 
   CameraController? get camera => _camera;
   bool get isFrontCamera => selectedCamera?.lensDirection == CameraLensDirection.front;
@@ -262,7 +263,23 @@ class ScanFlowController extends ChangeNotifier {
         height: upright.height,
         landmarks: landmarks,
       );
-      if (embedding == null) return;
+      if (embedding == null) {
+        // A face is in frame but the model keeps refusing frames. Surface
+        // it instead of hanging on "Scanning…" forever.
+        _embedFails++;
+        if (_embedFails > 30 && phase != ScanPhase.submitting) {
+          _resetScan();
+          outcome = ScanOutcome(
+            phase: ScanPhase.backendFailure,
+            message: 'face recognition engine stalled — restart the kiosk',
+          );
+          phase = ScanPhase.backendFailure;
+          notifyListeners();
+          _scheduleCooldown();
+        }
+        return;
+      }
+      _embedFails = 0;
       _samples.add(embedding);
       lastConfidence = _progressiveScore(_samples);
 
@@ -468,14 +485,19 @@ class ScanFlowController extends ChangeNotifier {
     ];
   }
 
-  double _meanLuma(Uint8List rgba, int w, int h) {
-    // Sample a coarse grid of pixels from the Y channel (every R).
+  double _meanLuma(Uint8List bgra, int w, int h) {
+    // True BT.601 luma from the BGRA frame (weighted R/G/B, not a single
+    // color channel — the blue channel alone is a poor brightness proxy).
     const step = 16;
     var sum = 0.0;
     var n = 0;
     for (var y = 0; y < h; y += step) {
       for (var x = 0; x < w; x += step) {
-        sum += rgba[(y * w + x) * 4];
+        final i = (y * w + x) * 4;
+        final b = bgra[i].toDouble();
+        final g = bgra[i + 1].toDouble();
+        final r = bgra[i + 2].toDouble();
+        sum += 0.299 * r + 0.587 * g + 0.114 * b;
         n++;
       }
     }

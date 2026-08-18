@@ -93,14 +93,16 @@ class FaceEmbedder {
       for (var x = 0; x < 112; x++) {
         final sx = inv[0] * x + inv[1] * y + inv[4];
         final sy = inv[2] * x + inv[3] * y + inv[5];
-        // BGRA layout: [B, G, R, A]
+        // BGRA layout: [B, G, R, A]. InsightFace models are trained on
+        // OpenCV (BGR) images, so channel order 0,1,2 must be B,G,R.
+        // (Feeding R,G,B measurably degrades recognition — see docs/accuracy.md.)
         final b = _bilinearAt(rgba, width, height, sx, sy, 0);
         final g = _bilinearAt(rgba, width, height, sx, sy, 1);
         final r = _bilinearAt(rgba, width, height, sx, sy, 2);
         // ArcFace normalization: (v / 255 - 0.5) / 0.5  ==  v/127.5 - 1
-        out[idx++] = r / 127.5 - 1.0;
-        out[idx++] = g / 127.5 - 1.0;
         out[idx++] = b / 127.5 - 1.0;
+        out[idx++] = g / 127.5 - 1.0;
+        out[idx++] = r / 127.5 - 1.0;
       }
     }
     return out;

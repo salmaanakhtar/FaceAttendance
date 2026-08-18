@@ -1,8 +1,11 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:face_attendance/recognition/embedder.dart';
 import 'package:face_attendance/recognition/matcher.dart';
 import 'package:face_attendance/recognition/liveness.dart';
+import 'package:face_attendance/config.dart';
+import 'package:face_attendance/recognition/template_store.dart';
 
 List<double> vec(double seed) {
   var s = seed;
@@ -98,6 +101,30 @@ void main() {
       expect(hintDirection(lastDirection: 'in', isCurrentlyIn: true), 'out');
       expect(hintDirection(lastDirection: null, isCurrentlyIn: false), 'in');
     });
+
+    test('default thresholds sit safely above the impostor tail', () {
+      // Calibrated in docs/accuracy.md: impostor cosine peaks ~0.17 even
+      // under heavy kiosk-like degradation. These constants are load-bearing —
+      // dropping them re-opens the false-accept bug.
+      expect(kAcceptThreshold, greaterThanOrEqualTo(0.45));
+      expect(kAmbiguityMargin, greaterThanOrEqualTo(0.10));
+    });
+
+    test('impostor at 0.3 cosine is rejected at production defaults', () {
+      final q = vec(1);
+      final raw = vec(2);
+      // Orthogonalize raw against q so the impostor sits at a *known* cosine.
+      var dot = 0.0;
+      for (var i = 0; i < 128; i++) {
+        dot += raw[i] * q[i];
+      }
+      final r = l2Normalize(List<double>.generate(128, (i) => raw[i] - dot * q[i]));
+      final impostor = l2Normalize(List<double>.generate(
+          128, (i) => 0.3 * q[i] + 0.953939 * r[i])); // cosine(q, impostor) == 0.3
+      final res = matchEmbedding(impostor, candidatesOf({'b': q}));
+      expect(res.employeeId, isNull);
+      expect(res.matched, isFalse);
+    });
   });
 
   group('liveness', () {
@@ -145,6 +172,59 @@ void main() {
       expect(ImageSharpness.acceptable(ImageSharpness.laplacianVariance(edge, 8, 8),
               minScore: 100),
           isTrue);
+    });
+  });
+
+  group('embedder tensor', () {
+    // InsightFace models are trained on OpenCV (BGR) images. The tensor must
+    // carry B,G,R in channels 0,1,2 — feeding RGB measurably degrades
+    // recognition (see docs/accuracy.md).
+    test('aligned tensor writes BGR channel order', () {
+      const target = <Offset>[
+        Offset(38.2946, 51.6963),
+        Offset(73.5318, 51.5014),
+        Offset(56.0252, 71.7366),
+        Offset(41.5493, 92.3655),
+        Offset(70.7299, 92.2041),
+      ];
+      final bgra = Uint8List(112 * 112 * 4); // all black
+      const i = (10 * 112 + 10) * 4;
+      bgra[i] = 0;       // B
+      bgra[i + 1] = 128; // G
+      bgra[i + 2] = 255; // R
+      bgra[i + 3] = 255; // A
+
+      // Landmarks == target -> identity transform, so output pixel (10,10)
+      // samples source pixel (10,10) exactly.
+      final tensor = FaceEmbedder().alignedFaceTensor(bgra, 112, 112, target);
+      const idx = (10 * 112 + 10) * 3;
+      expect(tensor[idx], closeTo(0 / 127.5 - 1, 1e-3));       // B -> ch0
+      expect(tensor[idx + 1], closeTo(128 / 127.5 - 1, 1e-3)); // G -> ch1
+      expect(tensor[idx + 2], closeTo(255 / 127.5 - 1, 1e-3)); // R -> ch2
+    });
+  });
+
+  group('template version gating', () {
+    test('missing version parses as stale (0) so old bundles are excluded', () {
+      final t = StoredTemplate.fromJson({
+        'employeeId': 'a',
+        'name': 'n',
+        'employeeCode': 'c',
+        'embedding': [1, 0],
+      });
+      expect(t.templateVersion, 0);
+      expect(t.templateVersion == kTemplateVersion, isFalse);
+    });
+
+    test('current version is parsed and matches the app pipeline', () {
+      final t = StoredTemplate.fromJson({
+        'employeeId': 'a',
+        'name': 'n',
+        'employeeCode': 'c',
+        'templateVersion': 2,
+        'embedding': [1, 0],
+      });
+      expect(t.templateVersion, kTemplateVersion);
     });
   });
 }
