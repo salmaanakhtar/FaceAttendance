@@ -22,6 +22,16 @@ Root causes fixed:
   match score; a stalled recognition engine surfaces an error instead of
   hanging on "Scanning…".
 
+## v1.1.0 deployed — 2026-08-22
+
+- Backend: container `hermes-app-faceattendance-api` already running commit
+  `827b776` (auto-built by the hermes platform; verified the v2 same-face
+  guard in the live container; API healthy at
+  https://faceattendance-api.salmaan.dev).
+- App: GitHub release **v1.1.0** published (auto-update source); local
+  sideload copy `app/releases/FaceAttendance-v1.1.0-lan.apk`.
+- Build infra: Kotlin bumped 1.7.10 → 1.8.22 (core-ktx metadata required it).
+
 ## Deployed (production)
 
 - **Backend**: https://faceattendance-api.salmaan.dev (containerized on
