@@ -29,8 +29,8 @@ android {
     ndkVersion = flutter.ndkVersion
 
     configurations.all {
-        resolutionStrategy.force 'org.jetbrains.kotlin:kotlin-stdlib:1.8.10',
-                                  'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.10'
+        resolutionStrategy.force 'org.jetbrains.kotlin:kotlin-stdlib:1.8.22',
+                                  'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22'
     }
 
     compileOptions {
