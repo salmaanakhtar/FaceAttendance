@@ -22,6 +22,19 @@ Root causes fixed:
   match score; a stalled recognition engine surfaces an error instead of
   hanging on "Scanning…".
 
+## v1.1.1 hotfix — 2026-08-22 (current)
+
+Field bug: a correctly enrolled user's scan showed **"Unclear match"** at a
+genuine **match 86%**. Root cause: `matchEmbedding` computed the ambiguity
+margin between the top-1 and top-2 **candidates**, but a genuine scan scores
+high against several candidates of the SAME employee (fused template +
+samples), so the "rival" was the same person's own sample — margin ~0.02
+always flagged ambiguous. Fixed to compare the two best **distinct
+employees**. No re-enrollment needed (template v2 unchanged).
+
+- GitHub release **v1.1.1** (auto-update source); local sideload
+  `app/releases/FaceAttendance-v1.1.1-lan.apk`.
+
 ## v1.1.0 deployed — 2026-08-22
 
 - Backend: container `hermes-app-faceattendance-api` already running commit
