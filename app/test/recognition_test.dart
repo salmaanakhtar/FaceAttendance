@@ -76,6 +76,31 @@ void main() {
       expect(r.ambiguous, isFalse);
     });
 
+    test('single employee with varied sample scores is a clear match', () {
+      // Regression: a genuine scan scores high against several of the SAME
+      // employee's samples. The ambiguity margin must compare DISTINCT
+      // employees, otherwise this is wrongly flagged "unclear" (the bug that
+      // showed "Unclear match / match 86%" for a correctly enrolled user).
+      final t = vec(1);
+      List<double> near(double mag, double seed) {
+        var s = seed;
+        final v = List<double>.generate(128, (i) {
+          s = (s * 1103515245 + 12345) % 2147483647;
+          return t[i] + (s / 2147483647 - 0.5) * mag;
+        });
+        return l2Normalize(v);
+      }
+
+      final r = matchEmbedding(t, [
+        TemplateCandidate('a', near(0.5, 11)),
+        TemplateCandidate('a', near(0.3, 22)),
+        TemplateCandidate('a', near(0.4, 33)),
+      ], acceptThreshold: 0.45, ambiguityMargin: 0.10);
+      expect(r.employeeId, 'a');
+      expect(r.ambiguous, isFalse);
+      expect(r.matched, isTrue);
+    });
+
     test('fuse averages and normalizes', () {
       final fused = fuseEmbeddings([vec(1), vec(1), vec(1)]);
       expect(fused.length, 128);

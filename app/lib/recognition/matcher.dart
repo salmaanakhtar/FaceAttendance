@@ -78,31 +78,39 @@ class TemplateCandidate {
 /// Nearest-neighbour match across candidates (each employee may contribute
 /// several: the fused template plus enrollment samples). Acceptance uses
 /// the threshold + ambiguity margin against the two best DISTINCT employees.
+///
+/// The margin is computed between the best score of the top employee and the
+/// best score of the runner-up employee — NOT between two candidates of the
+/// same employee (a genuine scan scores high against its own samples too, so
+/// comparing same-employee candidates would wrongly flag every genuine match
+/// as "unclear").
 MatchResult matchEmbedding(
   List<double> query,
   List<TemplateCandidate> candidates, {
   double acceptThreshold = kAcceptThreshold,
   double ambiguityMargin = kAmbiguityMargin,
 }) {
-  String? bestId;
-  var bestScore = -2.0;
-  var secondScore = -2.0;
+  final bestByEmployee = <String, double>{};
   for (final c in candidates) {
     final s = cosineSimilarity(query, c.embedding);
-    if (s > bestScore) {
-      secondScore = bestScore;
-      bestScore = s;
-      bestId = c.employeeId;
-    } else if (s > secondScore && c.employeeId != bestId) {
-      secondScore = s;
+    final current = bestByEmployee[c.employeeId];
+    if (current == null || s > current) {
+      bestByEmployee[c.employeeId] = s;
     }
   }
-  if (bestId == null) return MatchResult(score: -1, margin: 0, ambiguous: false);
+  if (bestByEmployee.isEmpty) {
+    return MatchResult(score: -1, margin: 0, ambiguous: false);
+  }
+  final ranked = bestByEmployee.entries.toList()
+    ..sort((a, b) => b.value.compareTo(a.value));
+  final best = ranked.first;
+  final bestScore = best.value;
+  final secondScore = ranked.length > 1 ? ranked[1].value : -2.0;
   final margin = bestScore - secondScore;
   final ambiguous = margin < ambiguityMargin;
   final accepted = bestScore >= acceptThreshold;
   return MatchResult(
-    employeeId: accepted ? bestId : null,
+    employeeId: accepted ? best.key : null,
     score: bestScore,
     margin: margin,
     ambiguous: ambiguous && accepted,
