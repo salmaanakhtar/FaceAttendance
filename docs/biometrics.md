@@ -32,12 +32,17 @@
 ## Enrollment quality gates (fail the enrollment, don't ship a bad template)
 
 - Minimum N samples with pose spread (yaw/pitch within range, varied)
+- Capture is staged (front, one side, opposite side, front) with spacing between
+  accepted frames, so a burst of identical frames cannot cause an endless
+  reject-and-restart loop.
 - Sharpness and brightness floors per sample
 - Reject if the fused embedding is within a "same-face" distance of any
   existing employee's template but the claimed identity differs (prevents
   enrolling the same face twice under different names)
 - Enrollment UI must pass every gate; poor data cannot silently produce a
   template.
+- Face regions are clamped to image bounds before sharpness analysis because
+  detectors may return boxes that extend slightly beyond the camera frame.
 
 ## Accuracy measurements
 

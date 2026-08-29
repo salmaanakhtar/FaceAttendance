@@ -198,6 +198,34 @@ void main() {
               minScore: 100),
           isTrue);
     });
+
+    test('sharpness safely clamps a face box outside the frame', () {
+      final bgra = Uint8List(10 * 10 * 4);
+      expect(
+        () => ImageSharpness.faceRegionSharpness(bgra, 10, 10, -4, -3, 20, 20),
+        returnsNormally,
+      );
+      expect(ImageSharpness.faceRegionSharpness(bgra, 10, 10, 20, 20, 5, 5), 0);
+    });
+
+    test('enrollment guide requires front, both sides, then front', () {
+      final guide = EnrollmentCaptureGuide();
+      expect(guide.hint, contains('straight'));
+      for (final yaw in [0.0, 2.0, -1.0]) {
+        expect(guide.accept(yaw), isTrue);
+      }
+      expect(guide.accept(3), isFalse);
+      expect(guide.hint, contains('one side'));
+      expect(guide.accept(12), isTrue);
+      expect(guide.accept(14), isTrue);
+      expect(guide.accept(13), isFalse);
+      expect(guide.hint, contains('other side'));
+      expect(guide.accept(-12), isTrue);
+      expect(guide.accept(-15), isTrue);
+      expect(guide.accept(0), isTrue);
+      expect(guide.complete, isTrue);
+      expect(guide.captured, EnrollmentCaptureGuide.targetSamples);
+    });
   });
 
   group('embedder tensor', () {

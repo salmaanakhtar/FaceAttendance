@@ -62,6 +62,63 @@ class EnrollmentQuality {
   }
 }
 
+/// Guides enrollment through deliberately different poses instead of taking
+/// a burst of nearly identical frames and rejecting the whole batch later.
+/// The first side may be either direction, which avoids relying on camera
+/// mirroring or device-specific yaw sign conventions.
+class EnrollmentCaptureGuide {
+  static const int targetSamples = 8;
+  static const double _frontMaxYaw = 7;
+  static const double _sideMinYaw = 9;
+  static const double _sideMaxYaw = 25;
+
+  int _front = 0;
+  int _firstSide = 0;
+  int _otherSide = 0;
+  int _finalFront = 0;
+  int? _firstSideSign;
+
+  int get captured => _front + _firstSide + _otherSide + _finalFront;
+  bool get complete => captured >= targetSamples;
+
+  String get hint {
+    if (_front < 3) return 'Look straight at the camera';
+    if (_firstSide < 2) return 'Turn your head slightly to one side';
+    if (_otherSide < 2) return 'Now turn slightly to the other side';
+    if (_finalFront < 1) return 'Look straight at the camera again';
+    return 'Finishing enrollment…';
+  }
+
+  /// Returns true only when [yaw] satisfies the pose currently requested.
+  bool accept(double yaw) {
+    if (complete || !yaw.isFinite) return false;
+    final absYaw = yaw.abs();
+    if (_front < 3) {
+      if (absYaw > _frontMaxYaw) return false;
+      _front++;
+      return true;
+    }
+    if (_firstSide < 2) {
+      if (absYaw < _sideMinYaw || absYaw > _sideMaxYaw) return false;
+      final sign = yaw.isNegative ? -1 : 1;
+      if (_firstSideSign != null && sign != _firstSideSign) return false;
+      _firstSideSign ??= sign;
+      _firstSide++;
+      return true;
+    }
+    if (_otherSide < 2) {
+      if (absYaw < _sideMinYaw || absYaw > _sideMaxYaw) return false;
+      final sign = yaw.isNegative ? -1 : 1;
+      if (sign == _firstSideSign) return false;
+      _otherSide++;
+      return true;
+    }
+    if (absYaw > _frontMaxYaw) return false;
+    _finalFront++;
+    return true;
+  }
+}
+
 /// Frame sharpness via Laplacian variance on the (already aligned) luma
 /// crop. Blurry frames are rejected during enrollment AND scanning so they
 /// never pollute the embedding.
@@ -99,15 +156,26 @@ class ImageSharpness {
     int boxWidth,
     int boxHeight,
   ) {
-    final bw = boxWidth ~/ 2;
-    final bh = boxHeight ~/ 2;
+    // ML Kit boxes may extend a few pixels outside the image. Clamp before
+    // indexing so an edge-of-frame face cannot stall enrollment with a
+    // swallowed RangeError.
+    final left = boxLeft.clamp(0, w).toInt();
+    final top = boxTop.clamp(0, h).toInt();
+    final right = (boxLeft + boxWidth).clamp(0, w).toInt();
+    final bottom = (boxTop + boxHeight).clamp(0, h).toInt();
+    final bw = (right - left) ~/ 2;
+    final bh = (bottom - top) ~/ 2;
     if (bw < 3 || bh < 3) return 0;
     final luma = Uint8List(bw * bh);
     for (var y = 0; y < bh; y++) {
-      final sy = boxTop + y * 2;
+      final sy = top + y * 2;
       for (var x = 0; x < bw; x++) {
-        final sx = boxLeft + x * 2;
-        luma[y * bw + x] = bgra[(sy * w + sx) * 4 + 2];
+        final sx = left + x * 2;
+        final i = (sy * w + sx) * 4;
+        final b = bgra[i];
+        final g = bgra[i + 1];
+        final r = bgra[i + 2];
+        luma[y * bw + x] = (0.299 * r + 0.587 * g + 0.114 * b).round();
       }
     }
     return laplacianVariance(luma, bw, bh);

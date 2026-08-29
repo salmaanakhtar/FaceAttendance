@@ -1,7 +1,24 @@
 # Status
 
-_Last update: 2026-08-19 — accuracy rework (template v2): BGR channel fix,
-calibrated thresholds, template versioning._
+_Last update: 2026-08-29 — enrollment reliability and attendance exception inbox._
+
+## Enrollment reliability + operations — 2026-08-29 (source complete; APK pending)
+
+- Fixed an enrollment loop that captured eight near-identical frames before
+  asking for pose variety, rejected the batch, and could repeat forever.
+  Enrollment now guides the person through front, both side poses, and front
+  again, with 350 ms spacing between accepted samples.
+- Face sharpness crops now clamp ML Kit boxes to the camera frame, preventing
+  edge-of-frame `RangeError` failures; luma uses all BGR channels.
+- Added an admin “Needs attention” inbox for missed check-outs, late arrivals,
+  early departures, and overtime. Items open the session correction view.
+- Dashboard “Today” totals are now actually scoped to the organization-local
+  current date; the exception inbox is scoped to the latest 14 days.
+- Added `docs/workforce-management-roadmap.md`, benchmarked against Deputy,
+  UKG, and QuickBooks Time. Payroll-ready approval/break handling is Phase 1.
+- Backend verification: 18 tests pass and TypeScript typecheck passes. Flutter
+  tooling/Android SDK are not installed in the current Windows profile, so the
+  Dart tests and real-camera gauntlet remain pending on a configured machine.
 
 ## Accuracy rework (v2) — 2026-08-19
 

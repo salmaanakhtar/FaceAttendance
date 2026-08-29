@@ -35,14 +35,15 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
   _CaptureState _state = _CaptureState.ready;
   String? _error;
   final List<List<double>> _samples = [];
-  final List<double> _yaws = [];
+  final EnrollmentCaptureGuide _guide = EnrollmentCaptureGuide();
+  DateTime? _lastCaptureAt;
   int _captured = 0;
   String _hint = 'Center your face in the frame';
   int _rejected = 0;
   int _frame = 0;
   String _diag = '';
 
-  static const _targetSamples = 8;
+  static const _captureSpacing = Duration(milliseconds: 350);
 
   @override
   void initState() {
@@ -92,7 +93,7 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
   }
 
   Future<void> _onFrame(CameraImage image) async {
-    if (_busy || _captured >= _targetSamples || _state != _CaptureState.ready) return;
+    if (_busy || _guide.complete || _state != _CaptureState.ready) return;
     final detector = _detector;
     final embedder = _embedder;
     final camera = _camera;
@@ -169,21 +170,32 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
         _setHint('Hold still — capturing a sharp frame');
         return;
       }
+      final now = DateTime.now();
+      if (_lastCaptureAt != null && now.difference(_lastCaptureAt!) < _captureSpacing) {
+        return;
+      }
       final emb = embedder.embed(
           rgba: upright.bytes,
           width: upright.width,
           height: upright.height,
           landmarks: landmarks);
-      if (emb == null) return;
+      if (emb == null) {
+        _setHint('Face model could not capture this frame — try again');
+        return;
+      }
+      if (!_guide.accept(yaw)) {
+        _setHint(_guide.hint);
+        return;
+      }
       _samples.add(emb);
-      _yaws.add(yaw);
-      _captured++;
+      _lastCaptureAt = now;
+      _captured = _guide.captured;
       await FeedbackFx.scanCapture();
       if (mounted) setState(() {});
-      if (_captured >= _targetSamples) {
+      if (_guide.complete) {
         await _finish();
       } else {
-        _setHint('Keep still — $_captured/$_targetSamples');
+        _setHint(_guide.hint);
       }
     } catch (e) {
       _frame++;
@@ -207,23 +219,12 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
   String _syncResult = '';
 
   Future<void> _finish() async {
-    // Pose variety guard: if the face barely moved, ask for one more pass.
-    final yawSpread = _yaws.isEmpty
-        ? 0.0
-        : _yaws.reduce((a, b) => a > b ? a : b) - _yaws.reduce((a, b) => a < b ? a : b);
-    if (yawSpread < 6.0) {
-      _samples.clear();
-      _yaws.clear();
-      _captured = 0;
-      _setHint('Turn your head slightly left and right');
-      return;
-    }
     setState(() => _state = _CaptureState.busy);
     final fused = robustFuse(_samples);
     final quality = {
       'samples': _samples.length,
       'model': 'w600k_mbf',
-      'yawSpreadDeg': yawSpread.round(),
+      'guidedPoses': true,
       'rejectedFrames': _rejected,
       // Per-sample embeddings: the kiosk matches against all of them for
       // multi-view accuracy.
@@ -328,7 +329,7 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
     final r = ratio == null ? '' : 'w:${(ratio * 100).round()}%';
     final l = luma == null ? '' : ' luma:$luma';
     final y = yaw == null ? '' : ' yaw:${yaw.round()}°';
-    final text = 'F:$faces L:$landmarks $r$l$y cap:$_captured/$_targetSamples'
+    final text = 'F:$faces L:$landmarks $r$l$y cap:$_captured/${EnrollmentCaptureGuide.targetSamples}'
         ' rej:$_rejected';
     if (mounted && _diag != text) setState(() => _diag = text);
   }
@@ -396,7 +397,7 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        for (var i = 0; i < _targetSamples; i++)
+                        for (var i = 0; i < EnrollmentCaptureGuide.targetSamples; i++)
                           Container(
                             width: 14,
                             height: 14,

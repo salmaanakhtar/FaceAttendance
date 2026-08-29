@@ -1,9 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:timezone/timezone.dart' as tz;
 
 import '../../../admin/admin_api.dart';
 import '../../../admin/models.dart';
+import '../session_detail.dart';
 
 /// Live operations snapshot: who is in right now + today's numbers.
 class DashboardTab extends StatefulWidget {
@@ -16,6 +18,7 @@ class DashboardTab extends StatefulWidget {
 class _DashboardTabState extends State<DashboardTab> {
   List<AttendanceSession> _now = [];
   Map<String, dynamic>? _stats;
+  List<Map<String, dynamic>> _exceptions = [];
   bool _loading = true;
   String? _error;
   Timer? _poll;
@@ -36,14 +39,22 @@ class _DashboardTabState extends State<DashboardTab> {
   Future<void> _load({bool silent = false}) async {
     if (!silent) setState(() => _loading = true);
     try {
+      final now = tz.TZDateTime.now(tz.local);
+      String date(DateTime value) =>
+          '${value.year}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
+      final today = date(now);
+      final exceptionFrom = date(now.subtract(const Duration(days: 14)));
       final nowRes = await AdminApi.instance.attendanceNow();
-      final statsRes = await AdminApi.instance.attendanceStats();
+      final statsRes = await AdminApi.instance.attendanceStats(from: today, to: today);
+      final exceptionRes = await AdminApi.instance.attendanceExceptions(from: exceptionFrom, to: today, limit: 20);
       if (mounted) {
         setState(() {
           _now = (nowRes['currentlyIn'] as List<dynamic>)
               .map((e) => AttendanceSession.fromJson(e as Map<String, dynamic>))
               .toList();
           _stats = statsRes['aggregate'] as Map<String, dynamic>?;
+          _exceptions = (exceptionRes['exceptions'] as List<dynamic>? ?? const [])
+              .cast<Map<String, dynamic>>();
           _loading = false;
           _error = null;
         });
@@ -126,7 +137,52 @@ class _DashboardTabState extends State<DashboardTab> {
                 ],
               ),
             ),
+        const SizedBox(height: 20),
+        Row(
+          children: [
+            const Text('Needs attention',
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+            const Spacer(),
+            Text('${_exceptions.length} exceptions',
+                style: const TextStyle(color: Colors.white38, fontSize: 12)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (_exceptions.isEmpty)
+          const _EmptyCard(text: 'No attendance exceptions in this period.')
+        else
+          for (final issue in _exceptions.take(6)) _exceptionCard(issue),
       ],
+    );
+  }
+
+  Widget _exceptionCard(Map<String, dynamic> issue) {
+    final session = AttendanceSession.fromJson(issue['session'] as Map<String, dynamic>);
+    final type = issue['type'] as String? ?? 'exception';
+    final minutes = (issue['minutes'] as num?)?.toInt();
+    final label = switch (type) {
+      'missed_checkout' => 'Missing clock-out',
+      'late_arrival' => 'Late arrival',
+      'early_departure' => 'Early departure',
+      'overtime' => 'Overtime',
+      _ => 'Attendance exception',
+    };
+    final high = issue['severity'] == 'high';
+    return Card(
+      color: const Color(0xFF161A20),
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        onTap: () => Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => SessionDetailScreen(session: session)))
+            .then((_) => _load(silent: true)),
+        leading: Icon(high ? Icons.error_outline_rounded : Icons.warning_amber_rounded,
+            color: high ? const Color(0xFFFF5D5D) : const Color(0xFFFFC857)),
+        title: Text(session.employeeName,
+            style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)),
+        subtitle: Text('$label${minutes == null ? '' : ' · $minutes min'} · ${session.workDate}',
+            style: const TextStyle(color: Colors.white54, fontSize: 12)),
+        trailing: const Icon(Icons.chevron_right_rounded, color: Colors.white24),
+      ),
     );
   }
 

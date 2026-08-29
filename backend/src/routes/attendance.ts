@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { query, queryOne } from '../db.js';
 import { requireAdmin } from '../auth/guards.js';
 import { notFound } from '../lib/errors.js';
+import { attendanceExceptions } from '../services/attendance/exceptions.js';
 
 interface SessionRow {
   id: string;
@@ -60,6 +61,49 @@ export function attendanceRoutes(app: FastifyInstance): void {
       [req.admin!.orgId],
     );
     return reply.send({ currentlyIn: rows.map(sessionDto), count: rows.length });
+  });
+
+  // Actionable exception inbox. A session can produce more than one issue;
+  // managers see the individual reasons instead of only aggregate counters.
+  app.get('/api/v1/admin/attendance/exceptions', { preHandler: requireAdmin }, async (req, reply) => {
+    const q = req.query as { from?: string; to?: string; limit?: string };
+    const where = [
+      's.org_id = $1',
+      `(s.status = 'incomplete'
+        OR coalesce((s.stats->>'lateMinutes')::int, 0) > 0
+        OR coalesce((s.stats->>'earlyMinutes')::int, 0) > 0
+        OR coalesce((s.stats->>'overtimeMinutes')::int, 0) > 0)`,
+    ];
+    const params: unknown[] = [req.admin!.orgId];
+    if (q.from) {
+      params.push(q.from);
+      where.push(`s.work_date >= $${params.length}`);
+    }
+    if (q.to) {
+      params.push(q.to);
+      where.push(`s.work_date <= $${params.length}`);
+    }
+    const requestedLimit = Number(q.limit ?? 50);
+    const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 200) : 50;
+    const rows = await query<SessionRow>(
+      `SELECT ${sessionColumns} WHERE ${where.join(' AND ')}
+       ORDER BY s.work_date DESC, s.check_in_at DESC LIMIT $${params.length + 1}`,
+      [...params, limit],
+    );
+    const exceptions = rows.flatMap((row) => {
+      const session = sessionDto(row);
+      return attendanceExceptions({
+        status: session.status,
+        lateMinutes: session.lateMinutes,
+        earlyMinutes: session.earlyMinutes,
+        overtimeMinutes: session.overtimeMinutes,
+      }).map((issue) => ({ ...issue, session }));
+    });
+    const counts = exceptions.reduce<Record<string, number>>((acc, issue) => {
+      acc[issue.type] = (acc[issue.type] ?? 0) + 1;
+      return acc;
+    }, {});
+    return reply.send({ exceptions, counts, count: exceptions.length });
   });
 
   // Sessions within a range, optionally filtered by employee

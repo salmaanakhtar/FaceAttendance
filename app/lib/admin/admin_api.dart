@@ -156,6 +156,13 @@ class AdminApi {
 
   Future<Map<String, dynamic>> attendanceNow() => get('/api/v1/admin/attendance/now');
 
+  Future<Map<String, dynamic>> attendanceExceptions({String? from, String? to, int limit = 50}) =>
+      get('/api/v1/admin/attendance/exceptions', {
+        if (from != null) 'from': from,
+        if (to != null) 'to': to,
+        'limit': '$limit',
+      });
+
   Future<Map<String, dynamic>> attendanceList({
     String? from,
     String? to,
