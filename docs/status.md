@@ -1,8 +1,8 @@
 # Status
 
-_Last update: 2026-08-29 — enrollment reliability and attendance exception inbox._
+_Last update: 2026-08-31 — v1.1.2 APK built with enrollment reliability fix._
 
-## Enrollment reliability + operations — 2026-08-29 (source complete; APK pending)
+## Enrollment reliability + operations — 2026-08-29 / v1.1.2 APK — 2026-08-31
 
 - Fixed an enrollment loop that captured eight near-identical frames before
   asking for pose variety, rejected the batch, and could repeat forever.
@@ -16,9 +16,13 @@ _Last update: 2026-08-29 — enrollment reliability and attendance exception inb
   current date; the exception inbox is scoped to the latest 14 days.
 - Added `docs/workforce-management-roadmap.md`, benchmarked against Deputy,
   UKG, and QuickBooks Time. Payroll-ready approval/break handling is Phase 1.
-- Backend verification: 18 tests pass and TypeScript typecheck passes. Flutter
-  tooling/Android SDK are not installed in the current Windows profile, so the
-  Dart tests and real-camera gauntlet remain pending on a configured machine.
+- Backend verification: 18 tests pass and TypeScript typecheck passes.
+- Flutter verification: analyze clean; all 32 Flutter tests pass. Release APK
+  built and metadata verified: `com.faceattendance.face_attendance`, version
+  `1.1.2` (code 4), 58.1 MB. Artifact: `app/releases/FaceAttendance-v1.1.2-lan.apk`.
+- Real-camera enrollment gauntlet is still pending on a physical/emulator
+  device; this build was produced from the isolated Flutter 3.22.1 + Android
+  SDK 34 toolchain.
 
 ## Accuracy rework (v2) — 2026-08-19
 

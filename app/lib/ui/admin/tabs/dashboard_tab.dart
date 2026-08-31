@@ -46,7 +46,13 @@ class _DashboardTabState extends State<DashboardTab> {
       final exceptionFrom = date(now.subtract(const Duration(days: 14)));
       final nowRes = await AdminApi.instance.attendanceNow();
       final statsRes = await AdminApi.instance.attendanceStats(from: today, to: today);
-      final exceptionRes = await AdminApi.instance.attendanceExceptions(from: exceptionFrom, to: today, limit: 20);
+      // Older servers do not expose the exception inbox yet. Keep the rest of
+      // the dashboard usable during a rolling app/backend deployment.
+      Map<String, dynamic> exceptionRes = const {'exceptions': <dynamic>[]};
+      try {
+        exceptionRes = await AdminApi.instance
+            .attendanceExceptions(from: exceptionFrom, to: today, limit: 20);
+      } catch (_) {}
       if (mounted) {
         setState(() {
           _now = (nowRes['currentlyIn'] as List<dynamic>)
