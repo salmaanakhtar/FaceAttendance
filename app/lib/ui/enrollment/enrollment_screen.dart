@@ -241,9 +241,17 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
       }
       await FeedbackFx.success();
     } on DioException catch (e) {
+      String? serverMessage;
+      final responseData = e.response?.data;
+      if (responseData is Map) {
+        final error = responseData['error'];
+        if (error is Map && error['message'] is String) {
+          serverMessage = error['message'] as String;
+        }
+      }
       final message = e.response?.statusCode == 409
-          ? 'This face is already enrolled to another employee. '
-              'Deactivate that enrollment before re-enrolling this face.'
+          ? (serverMessage ?? 'This face is already enrolled to another active employee. '
+              'Open that employee and use Re-enroll, or deactivate the obsolete record first.')
           : 'Enrollment failed (${e.response?.statusCode ?? 'network'}): $e';
       if (mounted) {
         setState(() {

@@ -1,8 +1,8 @@
 # Status
 
-_Last update: 2026-08-31 — v1.1.2 APK built with enrollment reliability fix._
+_Last update: 2026-08-31 — v1.1.3 APK built with enrollment duplicate-guard fix._
 
-## Enrollment reliability + operations — 2026-08-29 / v1.1.2 APK — 2026-08-31
+## Enrollment reliability + operations — 2026-08-29 / v1.1.3 APK — 2026-08-31
 
 - Fixed an enrollment loop that captured eight near-identical frames before
   asking for pose variety, rejected the batch, and could repeat forever.
@@ -23,6 +23,9 @@ _Last update: 2026-08-31 — v1.1.2 APK built with enrollment reliability fix._
 - Real-camera enrollment gauntlet is still pending on a physical/emulator
   device; this build was produced from the isolated Flutter 3.22.1 + Android
   SDK 34 toolchain.
+- Duplicate-face enrollment checks now ignore inactive employees (their faces
+  are already excluded from scanner matching), while active conflicts identify
+  the employee to re-enroll in the error message.
 
 ## Accuracy rework (v2) — 2026-08-19
 

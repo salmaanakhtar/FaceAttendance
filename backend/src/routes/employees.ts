@@ -254,9 +254,15 @@ export function employeeRoutes(app: FastifyInstance): void {
     );
     const key = deriveOrgKey(org?.encryption_key ?? 'dev');
     const templateVersion = body.templateVersion ?? 1;
-    const allTemplates = await query<{ id: string; face_template: Buffer; template_version: number | null }>(
-      `SELECT id, face_template, template_version FROM employees
-        WHERE org_id = $1 AND face_template IS NOT NULL AND id <> $2`,
+    const allTemplates = await query<{
+      id: string;
+      name: string;
+      employee_code: string;
+      face_template: Buffer;
+      template_version: number | null;
+    }>(
+      `SELECT id, name, employee_code, face_template, template_version FROM employees
+        WHERE org_id = $1 AND status = 'active' AND face_template IS NOT NULL AND id <> $2`,
       [req.admin!.orgId, id],
     );
     const cosine = (a: number[], b: number[]): number => {
@@ -279,7 +285,9 @@ export function employeeRoutes(app: FastifyInstance): void {
       }
       if (other && body.embedding.length === other.length && cosine(body.embedding, other) > SAME_FACE) {
         throw conflict(
-          `this face is already enrolled to another employee (cosine ${cosine(body.embedding, other).toFixed(2)})`,
+          `this face is already enrolled to active employee ${t.name} (${t.employee_code}). ` +
+            `Open that employee to re-enroll, or deactivate the obsolete record first ` +
+            `(cosine ${cosine(body.embedding, other).toFixed(2)})`,
         );
       }
     }
