@@ -1,6 +1,14 @@
 # Status
 
-_Last update: 2026-08-31 — v1.1.4 APK rebuilt with voice scan confirmation and admin workflow improvements._
+_Last update: 2026-08-31 — v1.1.5 APK rebuilt with scan-latency improvements._
+
+## Scan latency — 2026-08-31
+
+- Face detection runs in fast mode and progressive matching no longer scans the
+  full employee template list on every captured frame; it evaluates at the
+  final decision point instead.
+- The four-frame liveness minimum remains unchanged to preserve anti-spoofing
+  and recognition quality.
 
 ## Kiosk feedback and admin operations — 2026-08-31
 

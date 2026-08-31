@@ -283,7 +283,11 @@ class ScanFlowController extends ChangeNotifier {
       }
       _embedFails = 0;
       _samples.add(embedding);
-      lastConfidence = _progressiveScore(_samples);
+      // Progressive matching is expensive on large employee lists. Only
+      // calculate it at the decision point; the final match remains unchanged.
+      if (_samples.length == kMinSamples) {
+        lastConfidence = _progressiveScore(_samples);
+      }
 
       if (_liveness.isSatisfied && _samples.length >= kMinSamples) {
         await _finishScan(embedder);
