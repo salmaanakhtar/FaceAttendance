@@ -174,6 +174,9 @@ export function processScan(params: {
   const t = event.scanTime;
 
   const duplicateGuard = (): boolean => {
+    // A check-out is a legitimate transition from the open check-in session;
+    // never let the anti-double-scan interval block that transition.
+    if (openSession && event.directionHint === 'out') return false;
     if (!lastEventAt) return false;
     const gapMin = (t.getTime() - lastEventAt.getTime()) / 60000;
     return gapMin >= 0 && gapMin < policy.minIntervalMinutes;

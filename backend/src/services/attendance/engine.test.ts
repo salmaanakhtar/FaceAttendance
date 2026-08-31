@@ -127,6 +127,19 @@ describe('duplicates and guards', () => {
     expect(r.action).toBe('already_in');
   });
 
+  it('allows an immediate check-out after check-in despite the duplicate interval', () => {
+    const checkedIn = processScan(base(ev('e1', '2026-08-11T09:00:00Z', 'in')));
+    expect(checkedIn.action).toBe('check_in');
+    if (checkedIn.action !== 'check_in') return;
+    const checkedOut = processScan({
+      ...base(ev('e1', '2026-08-11T09:00:10Z', 'out')),
+      openSession: checkedIn.session,
+      lastSession: checkedIn.session,
+      lastEventAt: new Date('2026-08-11T09:00:00Z'),
+    });
+    expect(checkedOut.action).toBe('check_out');
+  });
+
   it('reports already_out with no open session', () => {
     const r = processScan(base(ev('e1', '2026-08-11T06:00:00Z', 'out')));
     expect(r.action).toBe('already_out');
