@@ -56,6 +56,7 @@ class AttendanceSession {
   final String checkInSource;
   final String checkOutSource;
   final String status;
+  final int breakMinutes;
   final int workedMinutes;
   final int lateMinutes;
   final int earlyMinutes;
@@ -77,6 +78,7 @@ class AttendanceSession {
     this.checkInSource = 'auto',
     this.checkOutSource = 'auto',
     this.status = 'open',
+    this.breakMinutes = 0,
     this.workedMinutes = 0,
     this.lateMinutes = 0,
     this.earlyMinutes = 0,
@@ -99,6 +101,7 @@ class AttendanceSession {
         checkInSource: j['checkInSource'] as String? ?? 'auto',
         checkOutSource: j['checkOutSource'] as String? ?? 'auto',
         status: j['status'] as String? ?? 'open',
+        breakMinutes: (j['breakMinutes'] as num?)?.toInt() ?? 0,
         workedMinutes: (j['workedMinutes'] as num?)?.toInt() ?? 0,
         lateMinutes: (j['lateMinutes'] as num?)?.toInt() ?? 0,
         earlyMinutes: (j['earlyMinutes'] as num?)?.toInt() ?? 0,

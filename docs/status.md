@@ -2,6 +2,18 @@
 
 _Last update: 2026-08-31 — v1.1.3 APK built with enrollment duplicate-guard fix._
 
+## Timesheet editing and totals — 2026-08-31
+
+- Manual check-in, check-out, work-date, note, and break edits now
+  immediately recalculate worked, late, early, and overtime minutes from the
+  corrected session inputs.
+- Attendance now shows period-level total worked time, overtime, and open-shift
+  counts above the register.
+- Session correction UI now supports editing unpaid break minutes, with the
+  same required reason and audit trail as timestamp edits.
+- This follows established timesheet workflows where managers edit start/end
+  and breaks, review calculated totals, and retain an approval/audit history.
+
 ## Enrollment reliability + operations — 2026-08-29 / v1.1.3 APK — 2026-08-31
 
 - Fixed an enrollment loop that captured eight near-identical frames before

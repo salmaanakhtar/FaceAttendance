@@ -174,12 +174,34 @@ class _AttendanceTabState extends State<AttendanceTab> {
             style: TextStyle(color: Colors.white38, fontSize: 14)),
       );
     }
-    return ListView.builder(
+    final worked = _sessions.fold<int>(0, (sum, s) => sum + s.workedMinutes);
+    final overtime = _sessions.fold<int>(0, (sum, s) => sum + s.overtimeMinutes);
+    final open = _sessions.where((s) => s.status == 'open').length;
+    return ListView(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-      itemCount: _sessions.length,
-      itemBuilder: (context, i) {
-        final s = _sessions[i];
-        return Container(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(14),
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF161A20),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              _summary('Total worked', _hours(worked)),
+              _summary('Overtime', _hours(overtime)),
+              _summary('Open shifts', '$open'),
+            ],
+          ),
+        ),
+        for (final s in _sessions) _sessionTile(s),
+      ],
+    );
+  }
+
+  Widget _sessionTile(AttendanceSession s) {
+    return Container(
           margin: const EdgeInsets.only(bottom: 8),
           decoration: BoxDecoration(
             color: const Color(0xFF161A20),
@@ -215,8 +237,19 @@ class _AttendanceTabState extends State<AttendanceTab> {
               ],
             ),
           ),
-        );
-      },
     );
   }
+
+  Widget _summary(String label, String value) => Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: const TextStyle(color: Colors.white38, fontSize: 11)),
+            const SizedBox(height: 3),
+            Text(value, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+          ],
+        ),
+      );
+
+  String _hours(int minutes) => '${minutes ~/ 60}h ${minutes % 60}m';
 }

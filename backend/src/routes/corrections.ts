@@ -3,6 +3,7 @@ import { pool, query, queryOne } from '../db.js';
 import { requireAdmin } from '../auth/guards.js';
 import { badRequest, notFound } from '../lib/errors.js';
 import { audit } from '../services/audit.js';
+import { classify, DEFAULT_POLICY, type Session } from '../services/attendance/engine.js';
 
 const correctionSchema = {
   body: {
@@ -59,6 +60,32 @@ export function correctionRoutes(app: FastifyInstance): void {
            newValue === null ? null : JSON.stringify(newValue), req.admin!.id, reason],
         );
       };
+      const recalculate = async (id: string) => {
+        const refreshed = await client.query(
+          'SELECT check_in_at, check_out_at, break_minutes, policy, status, work_date FROM attendance_sessions WHERE id = $1',
+          [id],
+        );
+        const current = refreshed.rows[0];
+        const recalculated = {
+          id,
+          employeeId,
+          workDate: String(current.work_date),
+          checkInAt: current.check_in_at ? new Date(current.check_in_at) : null,
+          checkOutAt: current.check_out_at ? new Date(current.check_out_at) : null,
+          checkInSource: 'manual' as const,
+          checkOutSource: 'manual' as const,
+          status: current.status as Session['status'],
+          breakMinutes: Number(current.break_minutes ?? 0),
+          policy: { ...DEFAULT_POLICY, ...(current.policy ?? {}) },
+          stats: {} as Session['stats'],
+          note: null,
+        } satisfies Session;
+        classify(recalculated, new Date());
+        await client.query(
+          'UPDATE attendance_sessions SET stats = $2, updated_at = now() WHERE id = $1',
+          [id, JSON.stringify(recalculated.stats)],
+        );
+      };
 
       if (field === 'add_check_in' || field === 'add_check_out') {
         if (sessionId) throw badRequest('sessionId must be empty when adding an event');
@@ -113,6 +140,7 @@ export function correctionRoutes(app: FastifyInstance): void {
             'add_check_out', null, { at: at.toISOString() });
           sessionId = target.id;
         }
+        await recalculate(sessionId!);
         await audit({
           orgId, actorType: 'admin', actorId: req.admin!.id,
           action: `correction_${field}`, targetType: 'attendance_session', targetId: sessionId,
@@ -174,6 +202,11 @@ export function correctionRoutes(app: FastifyInstance): void {
         default:
           throw badRequest(`unsupported field ${field}`);
       }
+
+      // Corrections change the derived session inputs. Recompute all payable
+      // and exception stats immediately so totals and reports never show the
+      // old hours after an edit.
+      await recalculate(sessionId);
 
       await audit({
         orgId, actorType: 'admin', actorId: req.admin!.id,

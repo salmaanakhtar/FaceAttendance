@@ -50,6 +50,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
   }) async {
     AppState.instance.touchAdminActivity();
     DateTime? picked = initialValue;
+    String? valueOverride = presetValue;
     if (field == 'check_in' || field == 'check_out') {
       final now = DateTime.now();
       picked = await showDatePicker(
@@ -77,6 +78,27 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
       );
       if (time == null || !mounted) return;
       picked = DateTime(picked.year, picked.month, picked.day, time.hour, time.minute);
+    } else if (field == 'break_minutes') {
+      final controller = TextEditingController(text: presetValue ?? '30');
+      final entered = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: const Color(0xFF161A20),
+          title: const Text('Edit unpaid break', style: TextStyle(color: Colors.white, fontSize: 17)),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            style: const TextStyle(color: Colors.white),
+            decoration: const InputDecoration(labelText: 'Break minutes', labelStyle: TextStyle(color: Colors.white54)),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text('Next')),
+          ],
+        ),
+      );
+      if (entered == null || !mounted) return;
+      valueOverride = entered;
     }
 
     final reasonController = TextEditingController(text: reasonHint ?? '');
@@ -88,11 +110,11 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (picked != null)
+            if (picked != null || field == 'break_minutes')
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  'New time: ${_fmt(picked)}',
+                field == 'break_minutes' ? 'New break: $valueOverride minutes' : 'New time: ${_fmt(picked!)}',
                   style: const TextStyle(color: Colors.white70, fontSize: 14),
                 ),
               ),
@@ -137,7 +159,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
         sessionId: _session.id,
         field: field,
         reason: reason,
-        value: picked?.toIso8601String() ?? presetValue,
+        value: picked?.toIso8601String() ?? valueOverride,
       );
       // Refresh the session from the server.
       final res = await AdminApi.instance.attendanceList(limit: 200);
@@ -229,6 +251,12 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
               enabled: !_busy),
           _actionButton(Icons.logout_rounded, 'Add missing check-out',
               onTap: () => _correction(field: 'add_check_out', title: 'Add check-out'),
+              enabled: !_busy),
+          _actionButton(Icons.free_breakfast_outlined, 'Edit unpaid break',
+              onTap: () => _correction(
+                  field: 'break_minutes',
+                  title: 'Edit unpaid break',
+                  presetValue: '${_session.breakMinutes}'),
               enabled: !_busy),
           const SizedBox(height: 20),
           const Text('Audit trail',
