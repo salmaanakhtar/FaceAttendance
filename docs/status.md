@@ -1,6 +1,6 @@
 # Status
 
-_Last update: 2026-08-31 — v1.1.3 APK built with enrollment duplicate-guard fix._
+_Last update: 2026-08-31 — v1.1.3 APK rebuilt with timesheet totals and edit improvements._
 
 ## Timesheet editing and totals — 2026-08-31
 
@@ -29,9 +29,9 @@ _Last update: 2026-08-31 — v1.1.3 APK built with enrollment duplicate-guard fi
 - Added `docs/workforce-management-roadmap.md`, benchmarked against Deputy,
   UKG, and QuickBooks Time. Payroll-ready approval/break handling is Phase 1.
 - Backend verification: 18 tests pass and TypeScript typecheck passes.
-- Flutter verification: analyze clean; all 32 Flutter tests pass. Release APK
-  built and metadata verified: `com.faceattendance.face_attendance`, version
-  `1.1.2` (code 4), 58.1 MB. Artifact: `app/releases/FaceAttendance-v1.1.2-lan.apk`.
+- Flutter verification: analyze clean; all 33 Flutter tests pass. Release APK
+  rebuilt: `com.faceattendance.face_attendance`, version `1.1.3` (code 5),
+  58.1 MB. Artifact: `app/releases/FaceAttendance-v1.1.3-lan.apk`.
 - Real-camera enrollment gauntlet is still pending on a physical/emulator
   device; this build was produced from the isolated Flutter 3.22.1 + Android
   SDK 34 toolchain.
