@@ -26,6 +26,8 @@ _Last update: 2026-08-31 — v1.1.3 APK built with enrollment duplicate-guard fi
 - Duplicate-face enrollment checks now ignore inactive employees (their faces
   are already excluded from scanner matching), while active conflicts identify
   the employee to re-enroll in the error message.
+- Deactivating an employee now clears their biometric template; reactivation
+  requires fresh enrollment.
 
 ## Accuracy rework (v2) — 2026-08-19
 

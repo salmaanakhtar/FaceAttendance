@@ -187,7 +187,8 @@ export function employeeRoutes(app: FastifyInstance): void {
   app.post('/api/v1/admin/employees/:id/deactivate', { preHandler: requireAdmin }, async (req, reply) => {
     const id = (req.params as { id: string }).id;
     const row = await queryOne<EmployeeRow>(
-      `UPDATE employees SET status = 'inactive', updated_at = now() WHERE id = $1 AND org_id = $2 RETURNING *`,
+      `UPDATE employees SET status = 'inactive', face_template = NULL, template_version = NULL,
+        updated_at = now() WHERE id = $1 AND org_id = $2 RETURNING *`,
       [id, req.admin!.orgId],
     );
     if (!row) throw notFound('employee not found');

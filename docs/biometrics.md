@@ -41,6 +41,9 @@
   enrolling the same face twice under different names)
 - Enrollment UI must pass every gate; poor data cannot silently produce a
   template.
+- Deactivating an employee clears their biometric template. Reactivation
+  requires a fresh enrollment, preventing inactive records from blocking a new
+  employee while preserving the audit trail.
 - Face regions are clamped to image bounds before sharpness analysis because
   detectors may return boxes that extend slightly beyond the camera frame.
 
