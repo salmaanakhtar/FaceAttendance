@@ -105,6 +105,29 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
     }
   }
 
+  Future<void> _delete() async {
+    AppState.instance.touchAdminActivity();
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF161A20),
+        title: const Text('Delete worker?', style: TextStyle(color: Colors.white, fontSize: 17)),
+        content: const Text('The worker is removed from active lists and their face template is cleared. Attendance and audit history are retained.', style: TextStyle(color: Colors.white70, fontSize: 14)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    try {
+      await AdminApi.instance.deleteEmployee(_employee.id);
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
+    }
+  }
+
   Future<void> _enroll() async {
     AppState.instance.touchAdminActivity();
     final ok = await Navigator.of(context).push<bool>(
@@ -265,6 +288,17 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
                         icon: const Icon(Icons.block_rounded, size: 18),
                         label: const Text('Deactivate employee'),
                       ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: _delete,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFFFF5D5D),
+                        side: const BorderSide(color: Color(0x55FF5D5D)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                      label: const Text('Delete worker'),
+                    ),
                     const SizedBox(height: 24),
                   ],
                 ),

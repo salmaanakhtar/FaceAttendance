@@ -83,8 +83,17 @@ class _AuditTabState extends State<AuditTab> {
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(e.action,
-                    style: const TextStyle(color: Colors.white, fontSize: 13)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(e.action, style: const TextStyle(color: Colors.white, fontSize: 13)),
+                    if (e.targetType != null)
+                      Text('${e.targetType}${e.targetId == null ? '' : ' · ${e.targetId}'}',
+                          style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                    if (e.details != null && e.details!.isNotEmpty)
+                      Text(e.details.toString(), style: const TextStyle(color: Colors.white54, fontSize: 11), maxLines: 2, overflow: TextOverflow.ellipsis),
+                  ],
+                ),
               ),
               Text(formatLocal(e.createdAt),
                   style: const TextStyle(color: Colors.white38, fontSize: 12)),

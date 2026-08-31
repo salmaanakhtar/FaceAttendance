@@ -117,4 +117,37 @@ export function adminMiscRoutes(app: FastifyInstance): void {
     reply.header('Content-Disposition', `attachment; filename="attendance-${q.from ?? 'all'}-${q.to ?? 'all'}.csv"`);
     return reply.send(csv);
   });
+
+  // Auditable gross-pay estimate for a selected payroll period. This is not a
+  // statutory tax payslip; hourlyRate is read from employee.schedule.
+  app.get('/api/v1/admin/payroll/payslips', { preHandler: requireAdmin }, async (req, reply) => {
+    const q = req.query as { from?: string; to?: string };
+    if (!q.from || !q.to) return reply.code(400).send({ error: { code: 'BAD_REQUEST', message: 'from and to are required' } });
+    const rows = await query(
+      `SELECT e.employee_code, e.name AS employee_name,
+              coalesce(sum((s.stats->>'workedMinutes')::int),0)::int AS worked_minutes,
+              coalesce(sum((s.stats->>'overtimeMinutes')::int),0)::int AS overtime_minutes,
+              coalesce(max((e.schedule->>'hourlyRate')::numeric),0)::numeric AS hourly_rate
+       FROM attendance_sessions s JOIN employees e ON e.id = s.employee_id
+       WHERE s.org_id = $1 AND s.work_date >= $2 AND s.work_date <= $3
+         AND e.status <> 'deleted'
+       GROUP BY e.id, e.employee_code, e.name ORDER BY e.name`,
+      [req.admin!.orgId, q.from, q.to],
+    );
+    const header = ['employee_code', 'employee_name', 'period_from', 'period_to', 'worked_hours', 'overtime_hours', 'hourly_rate', 'overtime_multiplier', 'gross_estimate'];
+    const esc = (v: unknown) => {
+      const s = v === null || v === undefined ? '' : String(v);
+      return /[",\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
+    };
+    const data = rows.map((r) => {
+      const worked = Number(r.worked_minutes ?? 0) / 60;
+      const overtime = Number(r.overtime_minutes ?? 0) / 60;
+      const rate = Number(r.hourly_rate ?? 0);
+      return [r.employee_code, r.employee_name, q.from, q.to, worked.toFixed(2), overtime.toFixed(2), rate.toFixed(2), '1.5', (worked * rate + overtime * rate * 0.5).toFixed(2)].map(esc).join(',');
+    });
+    await audit({ orgId: req.admin!.orgId, actorType: 'admin', actorId: req.admin!.id, action: 'export_payslip_estimate', details: { from: q.from, to: q.to } });
+    reply.header('Content-Type', 'text/csv; charset=utf-8');
+    reply.header('Content-Disposition', `attachment; filename="payslip-estimate-${q.from}-${q.to}.csv"`);
+    return reply.send([header.join(','), ...data].join('\r\n'));
+  });
 }

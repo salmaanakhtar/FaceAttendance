@@ -128,6 +128,7 @@ class CorrectionEntry {
   final String admin;
   final String reason;
   final String createdAt;
+  final Map<String, dynamic>? details;
 
   CorrectionEntry({
     required this.id,
@@ -139,6 +140,7 @@ class CorrectionEntry {
     required this.admin,
     required this.reason,
     required this.createdAt,
+    this.details,
   });
 
   factory CorrectionEntry.fromJson(Map<String, dynamic> j) => CorrectionEntry(
@@ -151,6 +153,7 @@ class CorrectionEntry {
         admin: j['admin'] as String,
         reason: j['reason'] as String,
         createdAt: j['createdAt'] as String,
+        details: j['details'] as Map<String, dynamic>?,
       );
 }
 
@@ -162,6 +165,7 @@ class AuditEvent {
   final String? targetType;
   final String? targetId;
   final String createdAt;
+  final Map<String, dynamic>? details;
 
   AuditEvent({
     required this.id,
@@ -171,6 +175,7 @@ class AuditEvent {
     this.targetType,
     this.targetId,
     required this.createdAt,
+    this.details,
   });
 
   factory AuditEvent.fromJson(Map<String, dynamic> j) => AuditEvent(
@@ -181,6 +186,7 @@ class AuditEvent {
         targetType: j['targetType'] as String?,
         targetId: j['targetId'] as String?,
         createdAt: j['createdAt'] as String,
+        details: j['details'] as Map<String, dynamic>?,
       );
 }
 

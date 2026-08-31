@@ -216,4 +216,7 @@ class AdminApi {
 
   Future<String> exportCsv({String? from, String? to}) =>
       getText('/api/v1/admin/export', {if (from != null) 'from': from, if (to != null) 'to': to});
+
+  Future<String> exportPayslipEstimate({required String from, required String to}) =>
+      getText('/api/v1/admin/payroll/payslips', {'from': from, 'to': to});
 }

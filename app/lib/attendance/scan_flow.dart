@@ -98,7 +98,9 @@ class ScanFlowController extends ChangeNotifier {
       }
       _detector = FaceDetector(
         options: FaceDetectorOptions(
-          performanceMode: FaceDetectorMode.accurate,
+          // Fast mode keeps the kiosk responsive; quality gates and the
+          // embedding matcher still reject weak or ambiguous captures.
+          performanceMode: FaceDetectorMode.fast,
           enableLandmarks: true,
           enableClassification: true,
         ),
@@ -399,13 +401,19 @@ class ScanFlowController extends ChangeNotifier {
         outcome = ScanOutcome(
             phase: ScanPhase.checkIn, employeeId: match.employeeId, employeeName: name, at: at);
         phase = queued ? ScanPhase.offline : ScanPhase.checkIn;
-        if (!queued) await FeedbackFx.success();
+        if (!queued) {
+          await FeedbackFx.success();
+          unawaited(FeedbackFx.speak('Welcome $name'));
+        }
         break;
       case 'check_out':
         outcome = ScanOutcome(
             phase: ScanPhase.checkOut, employeeId: match.employeeId, employeeName: name, at: at);
         phase = queued ? ScanPhase.offline : ScanPhase.checkOut;
-        if (!queued) await FeedbackFx.success();
+        if (!queued) {
+          await FeedbackFx.success();
+          unawaited(FeedbackFx.speak('Goodbye $name'));
+        }
         break;
       case 'duplicate':
         outcome = ScanOutcome(

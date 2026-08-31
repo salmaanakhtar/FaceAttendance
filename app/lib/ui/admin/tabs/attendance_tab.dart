@@ -153,6 +153,12 @@ class _AttendanceTabState extends State<AttendanceTab> {
                 icon: const Icon(Icons.file_download_outlined, size: 18),
                 label: const Text('Export CSV', style: TextStyle(fontSize: 13)),
               ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: _exportPayslips,
+                icon: const Icon(Icons.payments_outlined, size: 18),
+                label: const Text('Pay report', style: TextStyle(fontSize: 13)),
+              ),
             ],
           ),
         ),
@@ -198,6 +204,22 @@ class _AttendanceTabState extends State<AttendanceTab> {
         for (final s in _sessions) _sessionTile(s),
       ],
     );
+  }
+
+  Future<void> _exportPayslips() async {
+    if (_from == null || _to == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Choose a date range for the payroll report')));
+      return;
+    }
+    try {
+      final csv = await AdminApi.instance.exportPayslipEstimate(from: _fmt(_from!), to: _fmt(_to!));
+      final dir = await getTemporaryDirectory();
+      final file = '${dir.path}/payslip-estimate-${DateTime.now().millisecondsSinceEpoch}.csv';
+      await File(file).writeAsString(csv);
+      await Share.shareXFiles([XFile(file)], subject: 'Payslip estimate');
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Payroll report failed: $e')));
+    }
   }
 
   Widget _sessionTile(AttendanceSession s) {

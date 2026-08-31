@@ -4,6 +4,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.speech.tts.TextToSpeech
+import java.util.Locale
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -11,6 +13,8 @@ import io.flutter.plugin.common.MethodChannel
 import java.io.File
 
 class MainActivity : FlutterActivity() {
+    private var tts: TextToSpeech? = null
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "faceattendance/installer")
@@ -31,6 +35,32 @@ class MainActivity : FlutterActivity() {
                     result.notImplemented()
                 }
             }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "faceattendance/voice")
+            .setMethodCallHandler { call, result ->
+                if (call.method == "speak") {
+                    val text = call.argument<String>("text")
+                    if (text.isNullOrBlank()) {
+                        result.error("BAD_TEXT", "text missing", null)
+                        return@setMethodCallHandler
+                    }
+                    if (tts == null) {
+                        tts = TextToSpeech(this) { status ->
+                            if (status == TextToSpeech.SUCCESS) tts?.language = Locale.US
+                        }
+                    }
+                    tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "faceattendance-scan")
+                    result.success(true)
+                } else {
+                    result.notImplemented()
+                }
+            }
+    }
+
+    override fun onDestroy() {
+        tts?.stop()
+        tts?.shutdown()
+        super.onDestroy()
     }
 
     private fun installApk(path: String) {

@@ -1,6 +1,18 @@
 # Status
 
-_Last update: 2026-08-31 — v1.1.3 APK rebuilt with timesheet totals and edit improvements._
+_Last update: 2026-08-31 — v1.1.4 APK rebuilt with voice scan confirmation and admin workflow improvements._
+
+## Kiosk feedback and admin operations — 2026-08-31
+
+- Successful scans now provide employee-specific voice confirmation: “Welcome
+  [name]” on check-in and “Goodbye [name]” on check-out.
+- Face detection uses the fast camera mode while retaining embedding quality
+  gates and ambiguity rejection, reducing kiosk recognition latency.
+- Admin employee details now expose soft-delete (attendance/audit history is
+  retained), and the audit list shows target/details context.
+- Added an auditable payroll-period CSV gross-pay estimate using each worker’s
+  configured `schedule.hourlyRate`; it is intentionally not a statutory tax
+  payslip until tax rules and deductions are configured.
 
 ## Timesheet editing and totals — 2026-08-31
 
