@@ -110,7 +110,7 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
           size: Size(image.width.toDouble(), image.height.toDouble()),
           rotation: InputImageRotation.values[rotationDeg ~/ 90],
           format: InputImageFormat.nv21,
-          bytesPerRow: 0,
+          bytesPerRow: image.width,
         ),
       );
       final faces = await detector.processImage(inputImage).timeout(
