@@ -207,6 +207,13 @@ class AdminApi {
   Future<Map<String, dynamic>> approveAttendance(String id) =>
       post('/api/v1/admin/attendance/$id/approve', {});
 
+  Future<Map<String, dynamic>> bulkApproveAttendance(
+          {String? from, String? to}) =>
+      post('/api/v1/admin/attendance/approve', {
+        if (from != null) 'from': from,
+        if (to != null) 'to': to,
+      });
+
   Future<Map<String, dynamic>> applyCorrection({
     required String employeeId,
     String? sessionId,

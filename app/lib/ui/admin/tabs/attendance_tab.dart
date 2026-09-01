@@ -120,6 +120,27 @@ class _AttendanceTabState extends State<AttendanceTab> {
     }
   }
 
+  Future<void> _bulkApprove() async {
+    AppState.instance.touchAdminActivity();
+    try {
+      final result = await AdminApi.instance.bulkApproveAttendance(
+        from: _from == null ? null : _fmt(_from!),
+        to: _to == null ? null : _fmt(_to!),
+      );
+      await _load();
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text(
+                  '${result['approved'] ?? 0} completed shift(s) approved')),
+        );
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Approval failed: $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -161,6 +182,13 @@ class _AttendanceTabState extends State<AttendanceTab> {
                 onPressed: _exportPayslips,
                 icon: const Icon(Icons.payments_outlined, size: 18),
                 label: const Text('Pay report', style: TextStyle(fontSize: 13)),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: _bulkApprove,
+                icon: const Icon(Icons.verified_outlined, size: 18),
+                label: const Text('Approve completed',
+                    style: TextStyle(fontSize: 13)),
               ),
             ],
           ),

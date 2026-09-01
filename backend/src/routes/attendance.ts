@@ -156,6 +156,28 @@ export function attendanceRoutes(app: FastifyInstance): void {
     return reply.send({ sessions: rows.map(sessionDto), total: Number(total?.count ?? 0) });
   });
 
+  // Bulk approve all completed shifts in a selected period. Open shifts are
+  // intentionally excluded so a missing checkout cannot be hidden.
+  app.post('/api/v1/admin/attendance/approve', { preHandler: requireAdmin }, async (req, reply) => {
+    const body = (req.body ?? {}) as { from?: string; to?: string };
+    const params: unknown[] = [req.admin!.orgId];
+    const where = [
+      'org_id = $1',
+      "status <> 'open'",
+      "review_status = 'needs_review'",
+    ];
+    if (body.from) { params.push(body.from); where.push(`work_date >= $${params.length}`); }
+    if (body.to) { params.push(body.to); where.push(`work_date <= $${params.length}`); }
+    const updated = await query<{ id: string }>(
+      `UPDATE attendance_sessions
+       SET review_status = 'approved', reviewed_by = $${params.length + 1}, reviewed_at = now(), updated_at = now()
+       WHERE ${where.join(' AND ')} RETURNING id`,
+      [...params, req.admin!.id],
+    );
+    await audit({ orgId: req.admin!.orgId, actorType: 'admin', actorId: req.admin!.id, action: 'bulk_approve_timesheets', details: { from: body.from ?? null, to: body.to ?? null, count: updated.length } });
+    return reply.send({ approved: updated.length });
+  });
+
   // Approve a closed/incomplete timesheet for payroll. Raw scans and
   // corrections remain immutable; approval is a separate derived state.
   app.post('/api/v1/admin/attendance/:id/approve', { preHandler: requireAdmin }, async (req, reply) => {
