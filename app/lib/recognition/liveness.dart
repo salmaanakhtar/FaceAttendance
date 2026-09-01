@@ -15,8 +15,10 @@ class ScanQuality {
     int faceCount = 1,
   }) {
     if (faceCount > 1) return QualityIssue.multipleFaces;
-    if (faceWidthPx / frameWidthPx < kMinFaceWidthRatio) return QualityIssue.tooFar;
-    if (meanLuma < kMinBrightness || meanLuma > kMaxBrightness) return QualityIssue.poorLighting;
+    if (faceWidthPx / frameWidthPx < kMinFaceWidthRatio)
+      return QualityIssue.tooFar;
+    if (meanLuma < kMinBrightness || meanLuma > kMaxBrightness)
+      return QualityIssue.poorLighting;
     return QualityIssue.none;
   }
 }
@@ -30,15 +32,21 @@ class LivenessTracker {
   bool? _eyesOpen;
   int _blinks = 0;
   int _frames = 0;
+  bool _eyeSignalsSeen = false;
 
   int get blinks => _blinks;
   int get frames => _frames;
-  bool get isSatisfied => _blinks >= kMinBlinks && _frames >= kMinSamples;
+  // Some Android cameras/ML Kit versions do not provide eye probabilities at
+  // all. In that case the sample-count and face-quality gates still protect
+  // recognition; requiring an impossible blink would make every scan fail.
+  bool get isSatisfied =>
+      _frames >= kMinSamples && (_blinks >= kMinBlinks || !_eyeSignalsSeen);
 
   /// Feed one face observation. [leftOpen]/[rightOpen] are ML Kit
   /// eye-open probabilities (0..1).
   void observe({required double leftOpen, required double rightOpen}) {
     _frames++;
+    if (leftOpen != 0.5 || rightOpen != 0.5) _eyeSignalsSeen = true;
     final open = (leftOpen + rightOpen) / 2 >= kMinBlinkProbability;
     if (_eyesOpen == true && !open) {
       _blinks++; // eyes were open, now closed — a blink started
@@ -135,7 +143,11 @@ class ImageSharpness {
       final rowDown = row + w;
       for (var x = 1; x < w - 1; x++) {
         final c = gray[row + x];
-        final lap = (gray[rowUp + x] + gray[rowDown + x] + gray[row + x - 1] + gray[row + x + 1]) - 4 * c;
+        final lap = (gray[rowUp + x] +
+                gray[rowDown + x] +
+                gray[row + x - 1] +
+                gray[row + x + 1]) -
+            4 * c;
         sum += lap * lap;
         count++;
       }
@@ -143,7 +155,8 @@ class ImageSharpness {
     return count == 0 ? 0 : sum / count;
   }
 
-  static bool acceptable(double score, {double minScore = 140}) => score >= minScore;
+  static bool acceptable(double score, {double minScore = 140}) =>
+      score >= minScore;
 
   /// Laplacian variance of the face region of a BGRA frame (R channel as
   /// luma proxy, 2x downsampled). Used to skip blurry capture frames.

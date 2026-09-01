@@ -83,7 +83,8 @@ class ScanFlowController extends ChangeNotifier {
   int _embedFails = 0;
 
   CameraController? get camera => _camera;
-  bool get isFrontCamera => selectedCamera?.lensDirection == CameraLensDirection.front;
+  bool get isFrontCamera =>
+      selectedCamera?.lensDirection == CameraLensDirection.front;
 
   Future<void> init() async {
     try {
@@ -170,7 +171,9 @@ class ScanFlowController extends ChangeNotifier {
           size: Size(image.width.toDouble(), image.height.toDouble()),
           rotation: InputImageRotation.values[rotationDeg ~/ 90],
           format: InputImageFormat.nv21,
-          bytesPerRow: 0,
+          // NV21 is tightly packed; providing the actual row stride helps ML
+          // Kit decode frames consistently across camera implementations.
+          bytesPerRow: image.width,
         ),
       );
       final faces = await detector.processImage(inputImage).timeout(
@@ -245,9 +248,13 @@ class ScanFlowController extends ChangeNotifier {
       // embedding (motion blur while the subject moves is the main cause of
       // unreliable scans).
       final sharpness = ImageSharpness.faceRegionSharpness(
-        upright.bytes, upright.width, upright.height,
-        faceBox.left.round(), faceBox.top.round(),
-        faceBox.width.round(), faceBox.height.round(),
+        upright.bytes,
+        upright.width,
+        upright.height,
+        faceBox.left.round(),
+        faceBox.top.round(),
+        faceBox.width.round(),
+        faceBox.height.round(),
       );
       if (!ImageSharpness.acceptable(sharpness)) return;
 
@@ -374,7 +381,10 @@ class ScanFlowController extends ChangeNotifier {
         _scheduleCooldown();
         return;
       }
-      outcome = ScanOutcome(phase: ScanPhase.backendFailure, employeeId: match.employeeId, message: 'server $e');
+      outcome = ScanOutcome(
+          phase: ScanPhase.backendFailure,
+          employeeId: match.employeeId,
+          message: 'server $e');
       phase = ScanPhase.backendFailure;
       notifyListeners();
       await FeedbackFx.error();
@@ -383,7 +393,8 @@ class ScanFlowController extends ChangeNotifier {
       return;
     } on OfflineException {
       // Should not happen — enqueue returns queued instead. Safety net.
-      outcome = ScanOutcome(phase: ScanPhase.offline, employeeId: match.employeeId);
+      outcome =
+          ScanOutcome(phase: ScanPhase.offline, employeeId: match.employeeId);
       phase = ScanPhase.offline;
       notifyListeners();
       await FeedbackFx.error();
@@ -398,12 +409,16 @@ class ScanFlowController extends ChangeNotifier {
     final name = template?.name ?? '';
     lastSyncWasOffline = queued;
 
-    StatusCache.instance.recordOutcome(match.employeeId!, action, at ?? DateTime.now());
+    StatusCache.instance
+        .recordOutcome(match.employeeId!, action, at ?? DateTime.now());
 
     switch (action) {
       case 'check_in':
         outcome = ScanOutcome(
-            phase: ScanPhase.checkIn, employeeId: match.employeeId, employeeName: name, at: at);
+            phase: ScanPhase.checkIn,
+            employeeId: match.employeeId,
+            employeeName: name,
+            at: at);
         phase = queued ? ScanPhase.offline : ScanPhase.checkIn;
         if (!queued) {
           await FeedbackFx.success();
@@ -412,7 +427,10 @@ class ScanFlowController extends ChangeNotifier {
         break;
       case 'check_out':
         outcome = ScanOutcome(
-            phase: ScanPhase.checkOut, employeeId: match.employeeId, employeeName: name, at: at);
+            phase: ScanPhase.checkOut,
+            employeeId: match.employeeId,
+            employeeName: name,
+            at: at);
         phase = queued ? ScanPhase.offline : ScanPhase.checkOut;
         if (!queued) {
           await FeedbackFx.success();
@@ -430,13 +448,19 @@ class ScanFlowController extends ChangeNotifier {
         break;
       case 'already_in':
         outcome = ScanOutcome(
-            phase: ScanPhase.alreadyIn, employeeId: match.employeeId, employeeName: name, at: at);
+            phase: ScanPhase.alreadyIn,
+            employeeId: match.employeeId,
+            employeeName: name,
+            at: at);
         phase = queued ? ScanPhase.offline : ScanPhase.alreadyIn;
         if (!queued) await FeedbackFx.error();
         break;
       case 'already_out':
         outcome = ScanOutcome(
-            phase: ScanPhase.alreadyOut, employeeId: match.employeeId, employeeName: name, at: at);
+            phase: ScanPhase.alreadyOut,
+            employeeId: match.employeeId,
+            employeeName: name,
+            at: at);
         phase = queued ? ScanPhase.offline : ScanPhase.alreadyOut;
         if (!queued) await FeedbackFx.error();
         break;
@@ -474,7 +498,11 @@ class ScanFlowController extends ChangeNotifier {
     final nose = get(FaceLandmarkType.noseBase);
     final lMouth = get(FaceLandmarkType.leftMouth);
     final rMouth = get(FaceLandmarkType.rightMouth);
-    if (lEye != null && rEye != null && nose != null && lMouth != null && rMouth != null) {
+    if (lEye != null &&
+        rEye != null &&
+        nose != null &&
+        lMouth != null &&
+        rMouth != null) {
       return [
         Offset(lEye.x.toDouble(), lEye.y.toDouble()),
         Offset(rEye.x.toDouble(), rEye.y.toDouble()),
@@ -523,7 +551,8 @@ class ScanFlowController extends ChangeNotifier {
   void _scheduleCooldown() {
     _presenceLock = true; // no re-scan until the face leaves the frame
     _cooldownTimer?.cancel();
-    _cooldownTimer = Timer(const Duration(milliseconds: kResultHoldMs + kScanCooldownMs), () {
+    _cooldownTimer = Timer(
+        const Duration(milliseconds: kResultHoldMs + kScanCooldownMs), () {
       _resetScan();
       outcome = null;
       phase = ScanPhase.idle;

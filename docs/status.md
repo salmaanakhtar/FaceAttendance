@@ -1,6 +1,16 @@
 # Status
 
-_Last update: 2026-09-01 — v1.1.11 simplified manual entry with optional time-out._
+_Last update: 2026-09-01 — v1.1.12 scanner fallback and weekly/monthly worker totals._
+
+## Scanner and dashboard usability — 2026-09-01
+
+- Scanner no longer requires an impossible blink signal when a camera/ML Kit
+  build does not expose eye probabilities; face quality and multi-sample
+  matching gates remain active.
+- NV21 metadata now supplies the camera row stride to ML Kit for more reliable
+  frame decoding across Android devices.
+- Dashboard includes per-worker worked-hour totals for the current week or
+  month, with a one-tap period switch.
 
 ## Scan latency — 2026-08-31
 

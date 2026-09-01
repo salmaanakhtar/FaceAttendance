@@ -19,6 +19,8 @@ class _DashboardTabState extends State<DashboardTab> {
   List<AttendanceSession> _now = [];
   Map<String, dynamic>? _stats;
   List<Map<String, dynamic>> _exceptions = [];
+  List<AttendanceSession> _periodSessions = [];
+  String _period = 'week';
   bool _loading = true;
   String? _error;
   Timer? _poll;
@@ -27,7 +29,8 @@ class _DashboardTabState extends State<DashboardTab> {
   void initState() {
     super.initState();
     _load();
-    _poll = Timer.periodic(const Duration(seconds: 15), (_) => _load(silent: true));
+    _poll =
+        Timer.periodic(const Duration(seconds: 15), (_) => _load(silent: true));
   }
 
   @override
@@ -45,7 +48,12 @@ class _DashboardTabState extends State<DashboardTab> {
       final today = date(now);
       final exceptionFrom = date(now.subtract(const Duration(days: 14)));
       final nowRes = await AdminApi.instance.attendanceNow();
-      final statsRes = await AdminApi.instance.attendanceStats(from: today, to: today);
+      final statsRes =
+          await AdminApi.instance.attendanceStats(from: today, to: today);
+      final periodStart =
+          now.subtract(Duration(days: _period == 'week' ? 6 : 29));
+      final periodRes = await AdminApi.instance
+          .attendanceList(from: date(periodStart), to: today, limit: 500);
       // Older servers do not expose the exception inbox yet. Keep the rest of
       // the dashboard usable during a rolling app/backend deployment.
       Map<String, dynamic> exceptionRes = const {'exceptions': <dynamic>[]};
@@ -59,8 +67,13 @@ class _DashboardTabState extends State<DashboardTab> {
               .map((e) => AttendanceSession.fromJson(e as Map<String, dynamic>))
               .toList();
           _stats = statsRes['aggregate'] as Map<String, dynamic>?;
-          _exceptions = (exceptionRes['exceptions'] as List<dynamic>? ?? const [])
-              .cast<Map<String, dynamic>>();
+          _exceptions =
+              (exceptionRes['exceptions'] as List<dynamic>? ?? const [])
+                  .cast<Map<String, dynamic>>();
+          _periodSessions = (periodRes['sessions'] as List<dynamic>? ??
+                  const [])
+              .map((e) => AttendanceSession.fromJson(e as Map<String, dynamic>))
+              .toList();
           _loading = false;
           _error = null;
         });
@@ -78,7 +91,8 @@ class _DashboardTabState extends State<DashboardTab> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: Colors.white24));
+      return const Center(
+          child: CircularProgressIndicator(color: Colors.white24));
     }
     if (_error != null) {
       return Center(
@@ -87,7 +101,8 @@ class _DashboardTabState extends State<DashboardTab> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(_error!, textAlign: TextAlign.center,
+              Text(_error!,
+                  textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.white54)),
               const SizedBox(height: 12),
               FilledButton(onPressed: _load, child: const Text('Retry')),
@@ -102,19 +117,61 @@ class _DashboardTabState extends State<DashboardTab> {
       children: [
         _StatRow(
           stats: [
-            (label: 'Currently in', value: '${_now.length}', color: const Color(0xFF2FBF71)),
-            (label: 'Today sessions', value: '${agg['sessions'] ?? 0}', color: const Color(0xFF4DA3FF)),
-            (label: 'Late', value: '${agg['lateCount'] ?? 0}', color: const Color(0xFFFFC857)),
-            (label: 'Incomplete', value: '${agg['incompleteCount'] ?? 0}', color: const Color(0xFFFF5D5D)),
+            (
+              label: 'Currently in',
+              value: '${_now.length}',
+              color: const Color(0xFF2FBF71)
+            ),
+            (
+              label: 'Today sessions',
+              value: '${agg['sessions'] ?? 0}',
+              color: const Color(0xFF4DA3FF)
+            ),
+            (
+              label: 'Late',
+              value: '${agg['lateCount'] ?? 0}',
+              color: const Color(0xFFFFC857)
+            ),
+            (
+              label: 'Incomplete',
+              value: '${agg['incompleteCount'] ?? 0}',
+              color: const Color(0xFFFF5D5D)
+            ),
           ],
         ),
+        const SizedBox(height: 18),
+        Row(children: [
+          const Text('Worker totals',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600)),
+          const Spacer(),
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'week', label: Text('Week')),
+              ButtonSegment(value: 'month', label: Text('Month')),
+            ],
+            selected: {_period},
+            onSelectionChanged: (v) {
+              setState(() => _period = v.first);
+              _load();
+            },
+          ),
+        ]),
+        const SizedBox(height: 8),
+        _workerTotals(),
         const SizedBox(height: 20),
         Row(
           children: [
             const Text('In right now',
-                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600)),
             const Spacer(),
-            Text('worked today ${_fmtHours((agg['workedMinutes'] as num?)?.toInt() ?? 0)}',
+            Text(
+                'worked today ${_fmtHours((agg['workedMinutes'] as num?)?.toInt() ?? 0)}',
                 style: const TextStyle(color: Colors.white38, fontSize: 12)),
           ],
         ),
@@ -132,14 +189,19 @@ class _DashboardTabState extends State<DashboardTab> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.person_rounded, color: Color(0xFF2FBF71), size: 20),
+                  const Icon(Icons.person_rounded,
+                      color: Color(0xFF2FBF71), size: 20),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(s.employeeName,
-                        style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500)),
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500)),
                   ),
                   Text(formatLocal(s.checkInAt),
-                      style: const TextStyle(color: Colors.white54, fontSize: 14)),
+                      style:
+                          const TextStyle(color: Colors.white54, fontSize: 14)),
                 ],
               ),
             ),
@@ -147,7 +209,10 @@ class _DashboardTabState extends State<DashboardTab> {
         Row(
           children: [
             const Text('Needs attention',
-                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600)),
             const Spacer(),
             Text('${_exceptions.length} exceptions',
                 style: const TextStyle(color: Colors.white38, fontSize: 12)),
@@ -162,8 +227,46 @@ class _DashboardTabState extends State<DashboardTab> {
     );
   }
 
+  Widget _workerTotals() {
+    final totals = <String, ({String name, int minutes, int open})>{};
+    for (final s in _periodSessions) {
+      final old = totals[s.employeeId];
+      totals[s.employeeId] = (
+        name: s.employeeName,
+        minutes: (old?.minutes ?? 0) + s.workedMinutes,
+        open: (old?.open ?? 0) + (s.status == 'open' ? 1 : 0)
+      );
+    }
+    if (totals.isEmpty)
+      return const _EmptyCard(
+          text: 'No worker hours recorded for this period.');
+    final rows = totals.values.toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+    return Column(children: [
+      for (final row in rows)
+        Card(
+            color: const Color(0xFF161A20),
+            margin: const EdgeInsets.only(bottom: 6),
+            child: ListTile(
+                dense: true,
+                title: Text(row.name,
+                    style: const TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.w500)),
+                subtitle: Text(
+                    row.open == 0
+                        ? 'Complete shifts'
+                        : '${row.open} open shift${row.open == 1 ? '' : 's'}',
+                    style: const TextStyle(color: Colors.white38)),
+                trailing: Text(_fmtHours(row.minutes),
+                    style: const TextStyle(
+                        color: Color(0xFF4DA3FF),
+                        fontWeight: FontWeight.w600))))
+    ]);
+  }
+
   Widget _exceptionCard(Map<String, dynamic> issue) {
-    final session = AttendanceSession.fromJson(issue['session'] as Map<String, dynamic>);
+    final session =
+        AttendanceSession.fromJson(issue['session'] as Map<String, dynamic>);
     final type = issue['type'] as String? ?? 'exception';
     final minutes = (issue['minutes'] as num?)?.toInt();
     final label = switch (type) {
@@ -179,15 +282,22 @@ class _DashboardTabState extends State<DashboardTab> {
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         onTap: () => Navigator.of(context)
-            .push(MaterialPageRoute(builder: (_) => SessionDetailScreen(session: session)))
+            .push(MaterialPageRoute(
+                builder: (_) => SessionDetailScreen(session: session)))
             .then((_) => _load(silent: true)),
-        leading: Icon(high ? Icons.error_outline_rounded : Icons.warning_amber_rounded,
+        leading: Icon(
+            high ? Icons.error_outline_rounded : Icons.warning_amber_rounded,
             color: high ? const Color(0xFFFF5D5D) : const Color(0xFFFFC857)),
         title: Text(session.employeeName,
-            style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)),
-        subtitle: Text('$label${minutes == null ? '' : ' · $minutes min'} · ${session.workDate}',
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w500)),
+        subtitle: Text(
+            '$label${minutes == null ? '' : ' · $minutes min'} · ${session.workDate}',
             style: const TextStyle(color: Colors.white54, fontSize: 12)),
-        trailing: const Icon(Icons.chevron_right_rounded, color: Colors.white24),
+        trailing:
+            const Icon(Icons.chevron_right_rounded, color: Colors.white24),
       ),
     );
   }
@@ -216,9 +326,13 @@ class _StatRow extends StatelessWidget {
                 children: [
                   Text(s.value,
                       style: TextStyle(
-                          color: s.color, fontSize: 24, fontWeight: FontWeight.w700)),
+                          color: s.color,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w700)),
                   const SizedBox(height: 2),
-                  Text(s.label, style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                  Text(s.label,
+                      style:
+                          const TextStyle(color: Colors.white38, fontSize: 11)),
                 ],
               ),
             ),
@@ -240,7 +354,8 @@ class _EmptyCard extends StatelessWidget {
         color: const Color(0xFF161A20),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Text(text, textAlign: TextAlign.center,
+      child: Text(text,
+          textAlign: TextAlign.center,
           style: const TextStyle(color: Colors.white38, fontSize: 13)),
     );
   }
