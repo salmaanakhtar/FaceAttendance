@@ -237,8 +237,11 @@ class AdminApi {
         'limit': '$limit',
       });
 
-  Future<Map<String, dynamic>> auditLog({int limit = 200}) =>
-      get('/api/v1/admin/audit', {'limit': '$limit'});
+  Future<Map<String, dynamic>> auditLog({int limit = 200, String? action}) =>
+      get('/api/v1/admin/audit', {
+        'limit': '$limit',
+        if (action != null && action.isNotEmpty) 'action': action,
+      });
 
   Future<String> exportCsv({String? from, String? to}) => getText(
       '/api/v1/admin/export',

@@ -15,6 +15,7 @@ class _AuditTabState extends State<AuditTab> {
   List<AuditEvent> _events = [];
   bool _loading = true;
   String? _error;
+  final _filter = TextEditingController();
 
   @override
   void initState() {
@@ -22,10 +23,16 @@ class _AuditTabState extends State<AuditTab> {
     _load();
   }
 
+  @override
+  void dispose() {
+    _filter.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final res = await AdminApi.instance.auditLog();
+      final res = await AdminApi.instance.auditLog(action: _filter.text.trim());
       if (mounted) {
         setState(() {
           _events = (res['events'] as List<dynamic>)
@@ -63,19 +70,32 @@ class _AuditTabState extends State<AuditTab> {
     }
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: _events.length + 1,
+      itemCount: _events.length + 2,
       itemBuilder: (context, i) {
         if (i == 0) {
-          return Align(
-            alignment: Alignment.centerRight,
-            child: IconButton(
-              tooltip: 'Refresh audit log',
-              onPressed: _load,
-              icon: const Icon(Icons.refresh_rounded, color: Colors.white70),
-            ),
+          return Row(
+            children: [
+              Expanded(
+                  child: TextField(
+                controller: _filter,
+                onSubmitted: (_) => _load(),
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+                decoration: const InputDecoration(
+                  hintText: 'Filter by action',
+                  prefixIcon: Icon(Icons.search_rounded),
+                  isDense: true,
+                ),
+              )),
+              IconButton(
+                  tooltip: 'Refresh audit log',
+                  onPressed: _load,
+                  icon:
+                      const Icon(Icons.refresh_rounded, color: Colors.white70)),
+            ],
           );
         }
-        final e = _events[i - 1];
+        if (i == 1) return const SizedBox(height: 10);
+        final e = _events[i - 2];
         return Container(
           margin: const EdgeInsets.only(bottom: 6),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
