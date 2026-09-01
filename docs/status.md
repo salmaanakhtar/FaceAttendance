@@ -1,6 +1,6 @@
 # Status
 
-_Last update: 2026-09-01 — v1.1.9 audit log parsing and manual time-entry flow fixed._
+_Last update: 2026-09-01 — v1.1.10 manual entries no longer require a typed reason._
 
 ## Scan latency — 2026-08-31
 

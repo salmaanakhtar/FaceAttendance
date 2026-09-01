@@ -238,8 +238,6 @@ class _AttendanceTabState extends State<AttendanceTab> {
         return;
       }
       Employee selected = employees.first;
-      final reasonController = TextEditingController();
-      String? reasonError;
       final chosen = await showDialog<bool>(
         context: context,
         builder: (context) => StatefulBuilder(
@@ -265,37 +263,13 @@ class _AttendanceTabState extends State<AttendanceTab> {
                         if (e != null) setDialogState(() => selected = e);
                       },
                     ),
-                    const SizedBox(height: 12),
-                    TextField(
-                        controller: reasonController,
-                        maxLines: 2,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: const InputDecoration(
-                            labelText: 'Reason (required)',
-                            labelStyle: TextStyle(color: Colors.white54))),
-                    if (reasonError != null)
-                      Align(
-                          alignment: Alignment.centerLeft,
-                          child: Padding(
-                            padding: const EdgeInsets.only(top: 6),
-                            child: Text(reasonError!,
-                                style: const TextStyle(
-                                    color: Color(0xFFFF5D5D), fontSize: 12)),
-                          )),
                   ]),
                   actions: [
                     TextButton(
                         onPressed: () => Navigator.pop(context, false),
                         child: const Text('Cancel')),
                     FilledButton(
-                        onPressed: () {
-                          if (reasonController.text.trim().length < 3) {
-                            setDialogState(() => reasonError =
-                                'Enter a reason (at least 3 characters).');
-                            return;
-                          }
-                          Navigator.pop(context, true);
-                        },
+                        onPressed: () => Navigator.pop(context, true),
                         child: const Text('Choose times')),
                   ],
                 )),
@@ -322,7 +296,9 @@ class _AttendanceTabState extends State<AttendanceTab> {
           endMinutes <= startMinutes ? date.add(const Duration(days: 1)) : date;
       final outAt = DateTime(
           outDate.year, outDate.month, outDate.day, end.hour, end.minute);
-      final reason = reasonController.text.trim();
+      // The audit record still receives a clear system reason, but the admin
+      // is not required to type one for a routine manual entry.
+      const reason = 'Manual time entry';
       await AdminApi.instance.applyCorrection(
           employeeId: selected.id,
           field: 'add_check_in',
