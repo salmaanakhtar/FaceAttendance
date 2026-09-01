@@ -1,6 +1,6 @@
 # Status
 
-_Last update: 2026-09-01 — v1.1.7 APK rebuilt with scanner and worker lifecycle fixes._
+_Last update: 2026-09-01 — v1.1.8 worker form now stores department and weekly hours instead of email._
 
 ## Scan latency — 2026-08-31
 

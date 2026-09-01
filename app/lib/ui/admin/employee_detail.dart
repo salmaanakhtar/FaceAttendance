@@ -35,7 +35,8 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
     try {
       final emp = await AdminApi.instance.getEmployee(_employee.id);
       final att = await AdminApi.instance.attendanceEmployee(_employee.id);
-      final corr = await AdminApi.instance.corrections(employeeId: _employee.id);
+      final corr =
+          await AdminApi.instance.corrections(employeeId: _employee.id);
       if (mounted) {
         setState(() {
           _employee = Employee.fromJson(emp);
@@ -89,18 +90,20 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel', style: TextStyle(color: Colors.white54))),
+              child: const Text('Cancel',
+                  style: TextStyle(color: Colors.white54))),
           FilledButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Deactivate', style: TextStyle(color: Colors.white))),
+              child: const Text('Deactivate',
+                  style: TextStyle(color: Colors.white))),
         ],
       ),
     );
     if (confirm == true) {
       await AdminApi.instance.deactivateEmployee(_employee.id);
       if (mounted) {
-        setState(() => _employee = Employee.fromJson(
-            {..._employee.toJson(), 'status': 'inactive'}));
+        setState(() => _employee =
+            Employee.fromJson({..._employee.toJson(), 'status': 'inactive'}));
       }
     }
   }
@@ -111,11 +114,18 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF161A20),
-        title: const Text('Delete worker?', style: TextStyle(color: Colors.white, fontSize: 17)),
-        content: const Text('The worker is removed from active lists and their face template is cleared. Attendance and audit history are retained.', style: TextStyle(color: Colors.white70, fontSize: 14)),
+        title: const Text('Delete worker?',
+            style: TextStyle(color: Colors.white, fontSize: 17)),
+        content: const Text(
+            'The worker is removed from active lists and their face template is cleared. Attendance and audit history are retained.',
+            style: TextStyle(color: Colors.white70, fontSize: 14)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Delete')),
         ],
       ),
     );
@@ -124,7 +134,9 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
       await AdminApi.instance.deleteEmployee(_employee.id);
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Delete failed: $e')));
     }
   }
 
@@ -155,9 +167,12 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: Colors.white24))
+          ? const Center(
+              child: CircularProgressIndicator(color: Colors.white24))
           : _error != null
-              ? Center(child: Text(_error!, style: const TextStyle(color: Colors.white54)))
+              ? Center(
+                  child: Text(_error!,
+                      style: const TextStyle(color: Colors.white54)))
               : ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
@@ -167,9 +182,13 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
                           radius: 28,
                           backgroundColor: const Color(0xFF2F6BFF),
                           child: Text(
-                            _employee.name.isNotEmpty ? _employee.name[0].toUpperCase() : '?',
+                            _employee.name.isNotEmpty
+                                ? _employee.name[0].toUpperCase()
+                                : '?',
                             style: const TextStyle(
-                                color: Colors.white, fontSize: 24, fontWeight: FontWeight.w700),
+                                color: Colors.white,
+                                fontSize: 24,
+                                fontWeight: FontWeight.w700),
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -179,14 +198,24 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
                             children: [
                               Text(_employee.name,
                                   style: const TextStyle(
-                                      color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700)),
+                                      color: Colors.white,
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w700)),
                               Text(
                                 '${_employee.employeeCode}  ·  ${_employee.status}',
-                                style: const TextStyle(color: Colors.white38, fontSize: 13),
+                                style: const TextStyle(
+                                    color: Colors.white38, fontSize: 13),
                               ),
+                              if (_employee.schedule['department'] != null)
+                                Text(
+                                  '${_employee.schedule['department']} · ${_employee.schedule['hoursPerWeek'] ?? 0} hrs/week',
+                                  style: const TextStyle(
+                                      color: Colors.white38, fontSize: 13),
+                                ),
                               if (_employee.email != null)
                                 Text(_employee.email!,
-                                    style: const TextStyle(color: Colors.white38, fontSize: 13)),
+                                    style: const TextStyle(
+                                        color: Colors.white38, fontSize: 13)),
                             ],
                           ),
                         ),
@@ -198,19 +227,24 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
                       style: FilledButton.styleFrom(
                         backgroundColor: const Color(0xFF2F6BFF),
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
                       ),
-                      icon: const Icon(Icons.face_retouching_natural, color: Colors.white),
+                      icon: const Icon(Icons.face_retouching_natural,
+                          color: Colors.white),
                       label: Text(
                         _employee.enrolled ? 'Re-enroll face' : 'Enroll face',
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                        style: const TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w600),
                       ),
                     ),
                     if (_employee.enrolled) ...[
                       const SizedBox(height: 8),
                       Center(
-                        child: Text('Enrolled ${formatLocalDate(_employee.enrolledAt)}',
-                            style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                        child: Text(
+                            'Enrolled ${formatLocalDate(_employee.enrolledAt)}',
+                            style: const TextStyle(
+                                color: Colors.white38, fontSize: 12)),
                       ),
                     ],
                     const SizedBox(height: 20),
@@ -221,7 +255,8 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
                       for (final s in _sessions)
                         Container(
                           margin: const EdgeInsets.only(bottom: 6),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
                           decoration: BoxDecoration(
                             color: const Color(0xFF161A20),
                             borderRadius: BorderRadius.circular(10),
@@ -231,11 +266,14 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
                               Expanded(
                                 child: Text(
                                   '${formatLocal(s.checkInAt)} → ${formatLocal(s.checkOutAt)}',
-                                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                                  style: const TextStyle(
+                                      color: Colors.white, fontSize: 14),
                                 ),
                               ),
-                              Text('${s.workedMinutes ~/ 60}h ${s.workedMinutes % 60}m',
-                                  style: const TextStyle(color: Colors.white54, fontSize: 13)),
+                              Text(
+                                  '${s.workedMinutes ~/ 60}h ${s.workedMinutes % 60}m',
+                                  style: const TextStyle(
+                                      color: Colors.white54, fontSize: 13)),
                               if (s.isLate)
                                 const Padding(
                                   padding: EdgeInsets.only(left: 8),
@@ -245,7 +283,8 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
                               if (s.status == 'open')
                                 const Padding(
                                   padding: EdgeInsets.only(left: 8),
-                                  child: Icon(Icons.circle, color: Color(0xFF2FBF71), size: 10),
+                                  child: Icon(Icons.circle,
+                                      color: Color(0xFF2FBF71), size: 10),
                                 ),
                             ],
                           ),
@@ -268,11 +307,13 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
                             children: [
                               Text(
                                 '${c.field}  ·  ${formatLocalDate(c.createdAt)}  ·  by ${c.admin}',
-                                style: const TextStyle(color: Colors.white54, fontSize: 12),
+                                style: const TextStyle(
+                                    color: Colors.white54, fontSize: 12),
                               ),
                               const SizedBox(height: 4),
                               Text(c.reason,
-                                  style: const TextStyle(color: Colors.white, fontSize: 13)),
+                                  style: const TextStyle(
+                                      color: Colors.white, fontSize: 13)),
                             ],
                           ),
                         ),
@@ -283,7 +324,8 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
                         style: OutlinedButton.styleFrom(
                           foregroundColor: const Color(0xFFFF5D5D),
                           side: const BorderSide(color: Color(0x55FF5D5D)),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
                         ),
                         icon: const Icon(Icons.block_rounded, size: 18),
                         label: const Text('Deactivate employee'),
@@ -294,7 +336,8 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
                       style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFFFF5D5D),
                         side: const BorderSide(color: Color(0x55FF5D5D)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
                       ),
                       icon: const Icon(Icons.delete_outline_rounded, size: 18),
                       label: const Text('Delete worker'),
@@ -308,7 +351,10 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
   Widget _sectionTitle(String t) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: Text(t,
-            style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600)),
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w600)),
       );
 }
 
@@ -321,7 +367,8 @@ class _Empty extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Text(text,
-          textAlign: TextAlign.center, style: const TextStyle(color: Colors.white38, fontSize: 13)),
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Colors.white38, fontSize: 13)),
     );
   }
 }

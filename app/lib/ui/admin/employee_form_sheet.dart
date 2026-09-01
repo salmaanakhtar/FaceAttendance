@@ -15,7 +15,8 @@ class EmployeeFormSheet extends StatefulWidget {
 class _EmployeeFormSheetState extends State<EmployeeFormSheet> {
   final _name = TextEditingController();
   final _code = TextEditingController();
-  final _email = TextEditingController();
+  final _department = TextEditingController();
+  final _hours = TextEditingController();
   bool _busy = false;
   String? _error;
 
@@ -26,7 +27,8 @@ class _EmployeeFormSheetState extends State<EmployeeFormSheet> {
     if (e != null) {
       _name.text = e.name;
       _code.text = e.employeeCode;
-      _email.text = e.email ?? '';
+      _department.text = e.schedule['department']?.toString() ?? '';
+      _hours.text = e.schedule['hoursPerWeek']?.toString() ?? '';
     }
   }
 
@@ -34,7 +36,8 @@ class _EmployeeFormSheetState extends State<EmployeeFormSheet> {
   void dispose() {
     _name.dispose();
     _code.dispose();
-    _email.dispose();
+    _department.dispose();
+    _hours.dispose();
     super.dispose();
   }
 
@@ -44,6 +47,19 @@ class _EmployeeFormSheetState extends State<EmployeeFormSheet> {
       setState(() => _error = 'Name is required.');
       return;
     }
+    if (_department.text.trim().isEmpty) {
+      setState(() => _error = 'Department is required.');
+      return;
+    }
+    final hours = double.tryParse(_hours.text.trim());
+    if (hours == null || hours < 0 || hours > 168) {
+      setState(() => _error = 'Enter weekly hours from 0 to 168.');
+      return;
+    }
+    final schedule = <String, dynamic>{
+      'department': _department.text.trim(),
+      'hoursPerWeek': hours,
+    };
     setState(() {
       _busy = true;
       _error = null;
@@ -54,13 +70,13 @@ class _EmployeeFormSheetState extends State<EmployeeFormSheet> {
         result = await AdminApi.instance.createEmployee(
           name: _name.text.trim(),
           employeeCode: _code.text.trim(),
-          email: _email.text.trim().isEmpty ? null : _email.text.trim(),
+          schedule: schedule,
         );
       } else {
         result = await AdminApi.instance.updateEmployee(
           widget.employee!.id,
           name: _name.text.trim(),
-          email: _email.text.trim(),
+          schedule: schedule,
         );
       }
       if (mounted) Navigator.of(context).pop(result);
@@ -86,7 +102,10 @@ class _EmployeeFormSheetState extends State<EmployeeFormSheet> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(editing ? 'Edit employee' : 'New employee',
-              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700)),
           const SizedBox(height: 16),
           _field(_name, 'Full name'),
           const SizedBox(height: 10),
@@ -94,10 +113,14 @@ class _EmployeeFormSheetState extends State<EmployeeFormSheet> {
             _field(_code, 'Employee code (optional)'),
             const SizedBox(height: 10),
           ],
-          _field(_email, 'Email (optional)', keyboard: TextInputType.emailAddress),
+          _field(_department, 'Department'),
+          const SizedBox(height: 10),
+          _field(_hours, 'Number of hours per week',
+              keyboard: const TextInputType.numberWithOptions(decimal: true)),
           if (_error != null) ...[
             const SizedBox(height: 10),
-            Text(_error!, style: const TextStyle(color: Color(0xFFFF5D5D), fontSize: 13)),
+            Text(_error!,
+                style: const TextStyle(color: Color(0xFFFF5D5D), fontSize: 13)),
           ],
           const SizedBox(height: 16),
           FilledButton(
@@ -105,13 +128,18 @@ class _EmployeeFormSheetState extends State<EmployeeFormSheet> {
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFF2F6BFF),
               padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
             ),
             child: _busy
-                ? const SizedBox(width: 18, height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white))
                 : Text(editing ? 'Save changes' : 'Create employee',
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                    style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -130,7 +158,8 @@ class _EmployeeFormSheetState extends State<EmployeeFormSheet> {
         filled: true,
         fillColor: const Color(0xFF0E1116),
         border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none),
       ),
     );
   }
