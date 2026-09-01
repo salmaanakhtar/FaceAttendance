@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:timezone/timezone.dart' as tz;
 
 import '../../attendance/scan_flow.dart';
 import '../../device/secure_store.dart';
@@ -175,7 +176,7 @@ class _ClockState extends State<_Clock> {
 
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
+    final now = tz.TZDateTime.now(tz.local);
     final time = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
     final date = '${_month(now.month)} ${now.day}, ${now.year}';
     return Text(

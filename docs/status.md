@@ -1,6 +1,6 @@
 # Status
 
-_Last update: 2026-09-01 — v1.1.25 audit empty-state controls fixed._
+_Last update: 2026-09-01 — v1.1.26 kiosk clock now uses organization timezone._
 
 Release tags now publish their matching `app/releases/FaceAttendance-<tag>-lan.apk`
 as a GitHub Release automatically, which is the source used by kiosk auto-update.
