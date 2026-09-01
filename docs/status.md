@@ -1,6 +1,9 @@
 # Status
 
-_Last update: 2026-09-01 — v1.1.17 enrollment frame decoding fixed._
+_Last update: 2026-09-01 — v1.1.18 automated release publishing added._
+
+Release tags now publish their matching `app/releases/FaceAttendance-<tag>-lan.apk`
+as a GitHub Release automatically, which is the source used by kiosk auto-update.
 
 ## Scanner and dashboard usability — 2026-09-01
 
