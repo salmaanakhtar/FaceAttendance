@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../admin/admin_api.dart';
@@ -20,11 +22,18 @@ class _EmployeesTabState extends State<EmployeesTab> {
   String? _error;
   String _query = '';
   String _status = 'all';
+  Timer? _searchDebounce;
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -66,11 +75,12 @@ class _EmployeesTabState extends State<EmployeesTab> {
                 child: TextField(
                   onChanged: (v) {
                     _query = v;
-                    _load();
+                    _searchDebounce?.cancel();
+                    _searchDebounce = Timer(const Duration(milliseconds: 350), _load);
                   },
                   style: const TextStyle(color: Colors.white, fontSize: 14),
                   decoration: InputDecoration(
-                    hintText: 'Search name, code, email',
+                    hintText: 'Search name, code, or department',
                     hintStyle: const TextStyle(color: Colors.white38, fontSize: 14),
                     prefixIcon: const Icon(Icons.search_rounded, color: Colors.white38, size: 20),
                     filled: true,

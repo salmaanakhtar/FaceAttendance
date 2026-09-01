@@ -1,6 +1,6 @@
 # Status
 
-_Last update: 2026-09-01 — v1.1.18 automated release publishing added._
+_Last update: 2026-09-01 — v1.1.19 employee search debounced and department-aware._
 
 Release tags now publish their matching `app/releases/FaceAttendance-<tag>-lan.apk`
 as a GitHub Release automatically, which is the source used by kiosk auto-update.

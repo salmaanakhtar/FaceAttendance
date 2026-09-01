@@ -69,7 +69,7 @@ export function employeeRoutes(app: FastifyInstance): void {
     if (q.search) {
       params.push(`%${q.search.toLowerCase()}%`);
       where.push(
-        `(lower(name) LIKE $${params.length} OR lower(employee_code) LIKE $${params.length} OR lower(coalesce(email,'')) LIKE $${params.length})`,
+        `(lower(name) LIKE $${params.length} OR lower(employee_code) LIKE $${params.length} OR lower(coalesce(email,'')) LIKE $${params.length} OR lower(coalesce(schedule->>'department','')) LIKE $${params.length})`,
       );
     }
     if (q.status && q.status !== 'all') {
