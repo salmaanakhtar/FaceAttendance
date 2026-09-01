@@ -50,8 +50,9 @@ class _DashboardTabState extends State<DashboardTab> {
       final nowRes = await AdminApi.instance.attendanceNow();
       final statsRes =
           await AdminApi.instance.attendanceStats(from: today, to: today);
-      final periodStart =
-          now.subtract(Duration(days: _period == 'week' ? 6 : 29));
+      final periodStart = _period == 'week'
+          ? now.subtract(Duration(days: now.weekday - 1))
+          : tz.TZDateTime(tz.local, now.year, now.month, 1);
       final periodRes = await AdminApi.instance
           .attendanceList(from: date(periodStart), to: today, limit: 500);
       // Older servers do not expose the exception inbox yet. Keep the rest of

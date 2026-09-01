@@ -99,12 +99,17 @@ class _AttendanceTabState extends State<AttendanceTab> {
     _load();
   }
 
-  void _quickRange(int days) {
+  void _quickRange(String period) {
     final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final from = period == 'today'
+        ? today
+        : period == 'week'
+            ? today.subtract(Duration(days: today.weekday - 1))
+            : DateTime(today.year, today.month, 1);
     setState(() {
-      _from = DateTime(now.year, now.month, now.day)
-          .subtract(Duration(days: days - 1));
-      _to = DateTime(now.year, now.month, now.day);
+      _from = from;
+      _to = today;
     });
     _load();
   }
@@ -162,9 +167,9 @@ class _AttendanceTabState extends State<AttendanceTab> {
             child: Wrap(
               spacing: 6,
               children: [
-                _quickChip('Today', 1),
-                _quickChip('This week', 7),
-                _quickChip('This month', 30),
+                _quickChip('Today', 'today'),
+                _quickChip('This week', 'week'),
+                _quickChip('This month', 'month'),
               ],
             ),
           ),
@@ -233,8 +238,8 @@ class _AttendanceTabState extends State<AttendanceTab> {
     );
   }
 
-  Widget _quickChip(String label, int days) =>
-      ActionChip(label: Text(label), onPressed: () => _quickRange(days));
+  Widget _quickChip(String label, String period) =>
+      ActionChip(label: Text(label), onPressed: () => _quickRange(period));
 
   Widget _buildBody() {
     if (_loading) {
