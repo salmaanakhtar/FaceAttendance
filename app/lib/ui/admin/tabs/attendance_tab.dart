@@ -285,17 +285,38 @@ class _AttendanceTabState extends State<AttendanceTab> {
       final start = await showTimePicker(
           context: context, initialTime: const TimeOfDay(hour: 9, minute: 0));
       if (start == null || !mounted) return;
-      final end = await showTimePicker(
-          context: context, initialTime: const TimeOfDay(hour: 17, minute: 0));
-      if (end == null || !mounted) return;
+      final addCheckout = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: const Color(0xFF161A20),
+          title: const Text('Add time out?',
+              style: TextStyle(color: Colors.white, fontSize: 17)),
+          content: const Text(
+              'You can leave this shift open and add the time out later.',
+              style: TextStyle(color: Colors.white70)),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Skip for now')),
+            FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Choose time out')),
+          ],
+        ),
+      );
+      if (addCheckout == null || !mounted) return;
+      TimeOfDay? end;
+      if (addCheckout) {
+        end = await showTimePicker(
+            context: context,
+            initialTime: const TimeOfDay(hour: 17, minute: 0));
+        if (end == null || !mounted) return;
+      }
       final inAt =
           DateTime(date.year, date.month, date.day, start.hour, start.minute);
-      final endMinutes = end.hour * 60 + end.minute;
-      final startMinutes = start.hour * 60 + start.minute;
-      final outDate =
-          endMinutes <= startMinutes ? date.add(const Duration(days: 1)) : date;
-      final outAt = DateTime(
-          outDate.year, outDate.month, outDate.day, end.hour, end.minute);
+      final outAt = end == null
+          ? null
+          : DateTime(date.year, date.month, date.day, end.hour, end.minute);
       // The audit record still receives a clear system reason, but the admin
       // is not required to type one for a routine manual entry.
       const reason = 'Manual time entry';
@@ -304,11 +325,13 @@ class _AttendanceTabState extends State<AttendanceTab> {
           field: 'add_check_in',
           reason: reason,
           value: inAt.toUtc().toIso8601String());
-      await AdminApi.instance.applyCorrection(
-          employeeId: selected.id,
-          field: 'add_check_out',
-          reason: reason,
-          value: outAt.toUtc().toIso8601String());
+      if (outAt != null) {
+        await AdminApi.instance.applyCorrection(
+            employeeId: selected.id,
+            field: 'add_check_out',
+            reason: reason,
+            value: outAt.toUtc().toIso8601String());
+      }
       await _load();
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
