@@ -62,15 +62,9 @@ class _AuditTabState extends State<AuditTab> {
       return Center(
           child: Text(_error!, style: const TextStyle(color: Colors.white54)));
     }
-    if (_events.isEmpty) {
-      return const Center(
-        child: Text('No audit events yet.',
-            style: TextStyle(color: Colors.white38, fontSize: 14)),
-      );
-    }
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: _events.length + 2,
+      itemCount: _events.isEmpty ? 3 : _events.length + 2,
       itemBuilder: (context, i) {
         if (i == 0) {
           return Row(
@@ -95,6 +89,15 @@ class _AuditTabState extends State<AuditTab> {
           );
         }
         if (i == 1) return const SizedBox(height: 10);
+        if (_events.isEmpty) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.only(top: 20),
+              child: Text('No matching audit events.',
+                  style: TextStyle(color: Colors.white38, fontSize: 14)),
+            ),
+          );
+        }
         final e = _events[i - 2];
         return Container(
           margin: const EdgeInsets.only(bottom: 6),
