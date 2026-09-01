@@ -260,6 +260,9 @@ class _AttendanceTabState extends State<AttendanceTab> {
     final overtime =
         _sessions.fold<int>(0, (sum, s) => sum + s.overtimeMinutes);
     final open = _sessions.where((s) => s.status == 'open').length;
+    final needsReview = _sessions
+        .where((s) => s.reviewStatus == 'needs_review' && s.status != 'open')
+        .length;
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
       children: [
@@ -275,6 +278,7 @@ class _AttendanceTabState extends State<AttendanceTab> {
               _summary('Total worked', _hours(worked)),
               _summary('Overtime', _hours(overtime)),
               _summary('Open shifts', '$open'),
+              _summary('Needs review', '$needsReview'),
             ],
           ),
         ),
@@ -454,6 +458,9 @@ class _AttendanceTabState extends State<AttendanceTab> {
             if (s.status == 'open')
               const Text('● in',
                   style: TextStyle(color: Color(0xFF2FBF71), fontSize: 11))
+            else if (s.reviewStatus == 'needs_review')
+              const Text('needs review',
+                  style: TextStyle(color: Color(0xFFFFC857), fontSize: 11))
             else if (s.status == 'incomplete')
               const Text('incomplete',
                   style: TextStyle(color: Color(0xFFFFC857), fontSize: 11))
