@@ -48,21 +48,34 @@ class _AuditTabState extends State<AuditTab> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: Colors.white24));
+      return const Center(
+          child: CircularProgressIndicator(color: Colors.white24));
     }
     if (_error != null) {
-      return Center(child: Text(_error!, style: const TextStyle(color: Colors.white54)));
+      return Center(
+          child: Text(_error!, style: const TextStyle(color: Colors.white54)));
     }
     if (_events.isEmpty) {
       return const Center(
-        child: Text('No audit events yet.', style: TextStyle(color: Colors.white38, fontSize: 14)),
+        child: Text('No audit events yet.',
+            style: TextStyle(color: Colors.white38, fontSize: 14)),
       );
     }
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: _events.length,
+      itemCount: _events.length + 1,
       itemBuilder: (context, i) {
-        final e = _events[i];
+        if (i == 0) {
+          return Align(
+            alignment: Alignment.centerRight,
+            child: IconButton(
+              tooltip: 'Refresh audit log',
+              onPressed: _load,
+              icon: const Icon(Icons.refresh_rounded, color: Colors.white70),
+            ),
+          );
+        }
+        final e = _events[i - 1];
         return Container(
           margin: const EdgeInsets.only(bottom: 6),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -86,12 +99,20 @@ class _AuditTabState extends State<AuditTab> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(e.action, style: const TextStyle(color: Colors.white, fontSize: 13)),
+                    Text(e.action,
+                        style:
+                            const TextStyle(color: Colors.white, fontSize: 13)),
                     if (e.targetType != null)
-                      Text('${e.targetType}${e.targetId == null ? '' : ' · ${e.targetId}'}',
-                          style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                      Text(
+                          '${e.targetType}${e.targetId == null ? '' : ' · ${e.targetId}'}',
+                          style: const TextStyle(
+                              color: Colors.white38, fontSize: 11)),
                     if (e.details != null && e.details!.isNotEmpty)
-                      Text(e.details.toString(), style: const TextStyle(color: Colors.white54, fontSize: 11), maxLines: 2, overflow: TextOverflow.ellipsis),
+                      Text(e.details.toString(),
+                          style: const TextStyle(
+                              color: Colors.white54, fontSize: 11),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis),
                   ],
                 ),
               ),

@@ -90,7 +90,8 @@ class AttendanceSession {
     this.corrected = false,
   });
 
-  factory AttendanceSession.fromJson(Map<String, dynamic> j) => AttendanceSession(
+  factory AttendanceSession.fromJson(Map<String, dynamic> j) =>
+      AttendanceSession(
         id: j['id'] as String,
         employeeId: j['employeeId'] as String,
         employeeName: j['employeeName'] as String,
@@ -179,14 +180,16 @@ class AuditEvent {
   });
 
   factory AuditEvent.fromJson(Map<String, dynamic> j) => AuditEvent(
-        id: (j['id'] as num?)?.toString() ?? '',
+        id: j['id']?.toString() ?? '',
         actorType: j['actorType'] as String? ?? '',
         actorId: j['actorId'] as String?,
         action: j['action'] as String,
         targetType: j['targetType'] as String?,
         targetId: j['targetId'] as String?,
         createdAt: j['createdAt'] as String,
-        details: j['details'] as Map<String, dynamic>?,
+        details: j['details'] is Map
+            ? Map<String, dynamic>.from(j['details'] as Map)
+            : null,
       );
 }
 
@@ -204,6 +207,19 @@ String formatLocalDate(String? iso) {
   final dt = DateTime.tryParse(iso);
   if (dt == null) return iso;
   final l = dt.toLocal();
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec'
+  ];
   return '${months[l.month - 1]} ${l.day}, ${l.year}';
 }
