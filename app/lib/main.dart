@@ -100,13 +100,14 @@ class _FaceAttendanceAppState extends State<FaceAttendanceApp> {
 
     _scanner = ScanFlowController(widget.cameras);
     if (_provisioned) {
-      await _scanner.init();
-      // Kick off template sync + status
+      // Sync templates before opening the camera so the first scan cannot run
+      // against an empty or stale local matcher.
       try {
         await TemplateStore.instance.syncFromServer();
       } catch (_) {
         // offline — sync later via the periodic loop
       }
+      await _scanner.init();
       schedulePeriodicTemplateSync();
       OfflineQueue.instance.flush();
       // GitHub-backed auto-update check (non-blocking).
@@ -150,7 +151,8 @@ class _FaceAttendanceAppState extends State<FaceAttendanceApp> {
     if (!_provisioned) {
       return ProvisionScreen(
         onProvisioned: () async {
-          _scanner.init();
+          try { await TemplateStore.instance.syncFromServer(); } catch (_) {}
+          await _scanner.init();
           setState(() => _provisioned = true);
         },
       );

@@ -93,7 +93,7 @@ export function adminMiscRoutes(app: FastifyInstance): void {
               (s.stats->>'overtimeMinutes')::int AS overtime_minutes,
               s.note, s.corrected
        FROM attendance_sessions s JOIN employees e ON e.id = s.employee_id
-       WHERE ${where.join(' AND ')} ORDER BY s.check_in_at ASC`,
+       WHERE ${where.join(' AND ')} AND e.status <> 'deleted' ORDER BY s.check_in_at ASC`,
       params,
     );
     const header = [

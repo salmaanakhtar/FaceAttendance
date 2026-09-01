@@ -126,7 +126,7 @@ export function employeeRoutes(app: FastifyInstance): void {
         req.admin!.orgId,
         code,
         body.name.trim(),
-        body.email ?? null,
+        body.email?.trim() || null,
         body.phone ?? null,
         JSON.stringify(body.schedule ?? {}),
       ],

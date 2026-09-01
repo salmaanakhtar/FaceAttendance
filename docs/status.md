@@ -1,6 +1,6 @@
 # Status
 
-_Last update: 2026-08-31 — v1.1.6 APK rebuilt with manual time entries._
+_Last update: 2026-09-01 — v1.1.7 APK rebuilt with scanner and worker lifecycle fixes._
 
 ## Scan latency — 2026-08-31
 

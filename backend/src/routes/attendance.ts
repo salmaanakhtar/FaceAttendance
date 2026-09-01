@@ -25,7 +25,7 @@ interface SessionRow {
 const sessionColumns = `
   s.*, e.name AS employee_name, e.employee_code AS employee_code
   FROM attendance_sessions s
-  JOIN employees e ON e.id = s.employee_id`;
+  JOIN employees e ON e.id = s.employee_id AND e.status <> 'deleted'`;
 
 function sessionDto(r: SessionRow) {
   const stats = r.stats as Record<string, number | boolean>;
@@ -67,8 +67,9 @@ export function attendanceRoutes(app: FastifyInstance): void {
   // managers see the individual reasons instead of only aggregate counters.
   app.get('/api/v1/admin/attendance/exceptions', { preHandler: requireAdmin }, async (req, reply) => {
     const q = req.query as { from?: string; to?: string; limit?: string };
-    const where = [
+      const where = [
       's.org_id = $1',
+      "e.status <> 'deleted'",
       `(s.status = 'incomplete'
         OR coalesce((s.stats->>'lateMinutes')::int, 0) > 0
         OR coalesce((s.stats->>'earlyMinutes')::int, 0) > 0
@@ -117,7 +118,7 @@ export function attendanceRoutes(app: FastifyInstance): void {
       offset?: string;
     };
     const orgId = req.admin!.orgId;
-    const where = ['s.org_id = $1'];
+    const where = ['s.org_id = $1', "s.employee_id IN (SELECT id FROM employees WHERE org_id = s.org_id AND status <> 'deleted')"];
     const params: unknown[] = [orgId];
     if (q.from) {
       params.push(q.from);
@@ -159,7 +160,7 @@ export function attendanceRoutes(app: FastifyInstance): void {
       [id, req.admin!.orgId],
     );
     if (!emp) throw notFound('employee not found');
-    const where = ['s.employee_id = $1', 's.org_id = $2'];
+    const where = ['s.employee_id = $1', 's.org_id = $2', "e.status <> 'deleted'"];
     const params: unknown[] = [id, req.admin!.orgId];
     if (q.from) {
       params.push(q.from);
@@ -192,7 +193,7 @@ export function attendanceRoutes(app: FastifyInstance): void {
   app.get('/api/v1/admin/attendance/stats', { preHandler: requireAdmin }, async (req, reply) => {
     const q = req.query as { from?: string; to?: string };
     const orgId = req.admin!.orgId;
-    const where = ['s.org_id = $1'];
+    const where = ['s.org_id = $1', "s.employee_id IN (SELECT id FROM employees WHERE org_id = s.org_id AND status <> 'deleted')"];
     const params: unknown[] = [orgId];
     if (q.from) {
       params.push(q.from);

@@ -54,7 +54,7 @@ class _EmployeeFormSheetState extends State<EmployeeFormSheet> {
         result = await AdminApi.instance.createEmployee(
           name: _name.text.trim(),
           employeeCode: _code.text.trim(),
-          email: _email.text.trim(),
+          email: _email.text.trim().isEmpty ? null : _email.text.trim(),
         );
       } else {
         result = await AdminApi.instance.updateEmployee(
