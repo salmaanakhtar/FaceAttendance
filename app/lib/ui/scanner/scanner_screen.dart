@@ -74,9 +74,27 @@ class _CameraLayer extends StatelessWidget {
       builder: (context, _) {
         final camera = controller.camera;
         if (camera == null || !camera.value.isInitialized) {
-          return const Center(
-            child: CircularProgressIndicator(color: Colors.white24),
-          );
+          final error = controller.initError;
+          if (error != null) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.camera_alt_outlined, color: Colors.white54, size: 42),
+                    const SizedBox(height: 14),
+                    const Text('Scanner unavailable', style: TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 8),
+                    Text(error, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white54, fontSize: 13)),
+                    const SizedBox(height: 18),
+                    FilledButton.icon(onPressed: controller.init, icon: const Icon(Icons.refresh_rounded), label: const Text('Retry scanner')),
+                  ],
+                ),
+              ),
+            );
+          }
+          return const Center(child: CircularProgressIndicator(color: Colors.white24));
         }
         return CameraPreview(camera);
       },

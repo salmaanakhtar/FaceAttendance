@@ -1,6 +1,6 @@
 # Status
 
-_Last update: 2026-09-01 — v1.1.21 calendar week/month boundaries corrected._
+_Last update: 2026-09-01 — v1.1.22 scanner initialization failures now recoverable._
 
 Release tags now publish their matching `app/releases/FaceAttendance-<tag>-lan.apk`
 as a GitHub Release automatically, which is the source used by kiosk auto-update.
