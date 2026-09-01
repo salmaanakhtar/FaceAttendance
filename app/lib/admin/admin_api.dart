@@ -22,7 +22,8 @@ class AdminApi {
   Map<String, dynamic>? get admin => _admin;
   bool get isLoggedIn => _accessToken != null;
 
-  Future<void> login(String username, String password, {String? deviceId}) async {
+  Future<void> login(String username, String password,
+      {String? deviceId}) async {
     final res = await _dio.post('/api/v1/admin/login', data: {
       'username': username,
       'password': password,
@@ -39,8 +40,10 @@ class AdminApi {
     final refresh = await SecureStore.instance.getAdminRefreshToken();
     if (refresh == null) return false;
     try {
-      final res = await _dio.post('/api/v1/admin/refresh', data: {'refreshToken': refresh});
-      _accessToken = (res.data as Map<String, dynamic>)['accessToken'] as String;
+      final res = await _dio
+          .post('/api/v1/admin/refresh', data: {'refreshToken': refresh});
+      _accessToken =
+          (res.data as Map<String, dynamic>)['accessToken'] as String;
       _refreshToken = refresh;
       final me = await _dio.get('/api/v1/admin/me', options: _auth());
       _admin = me.data as Map<String, dynamic>;
@@ -54,7 +57,8 @@ class AdminApi {
   Future<void> logout() async {
     try {
       if (_refreshToken != null) {
-        await _dio.post('/api/v1/admin/logout', data: {'refreshToken': _refreshToken});
+        await _dio.post('/api/v1/admin/logout',
+            data: {'refreshToken': _refreshToken});
       }
     } catch (_) {}
     _accessToken = null;
@@ -63,24 +67,29 @@ class AdminApi {
     await SecureStore.instance.clearAdminTokens();
   }
 
-  Options _auth() => Options(headers: {'Authorization': 'Bearer $_accessToken'});
+  Options _auth() =>
+      Options(headers: {'Authorization': 'Bearer $_accessToken'});
 
-  Future<Map<String, dynamic>> get(String path, [Map<String, dynamic>? query]) async {
+  Future<Map<String, dynamic>> get(String path,
+      [Map<String, dynamic>? query]) async {
     final res = await _dio.get(path, queryParameters: query, options: _auth());
     return res.data as Map<String, dynamic>;
   }
 
-  Future<List<dynamic>> getList(String path, [Map<String, dynamic>? query]) async {
+  Future<List<dynamic>> getList(String path,
+      [Map<String, dynamic>? query]) async {
     final res = await _dio.get(path, queryParameters: query, options: _auth());
     return res.data as List<dynamic>;
   }
 
-  Future<Map<String, dynamic>> post(String path, Map<String, dynamic> body) async {
+  Future<Map<String, dynamic>> post(
+      String path, Map<String, dynamic> body) async {
     final res = await _dio.post(path, data: body, options: _auth());
     return res.data as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>> patch(String path, Map<String, dynamic> body) async {
+  Future<Map<String, dynamic>> patch(
+      String path, Map<String, dynamic> body) async {
     final res = await _dio.patch(path, data: body, options: _auth());
     return res.data as Map<String, dynamic>;
   }
@@ -108,7 +117,8 @@ class AdminApi {
         'offset': '$offset',
       });
 
-  Future<Map<String, dynamic>> getEmployee(String id) => get('/api/v1/admin/employees/$id');
+  Future<Map<String, dynamic>> getEmployee(String id) =>
+      get('/api/v1/admin/employees/$id');
 
   Future<Map<String, dynamic>> createEmployee({
     required String name,
@@ -118,7 +128,8 @@ class AdminApi {
   }) =>
       post('/api/v1/admin/employees', {
         'name': name,
-        if (employeeCode != null && employeeCode.isNotEmpty) 'employeeCode': employeeCode,
+        if (employeeCode != null && employeeCode.isNotEmpty)
+          'employeeCode': employeeCode,
         if (email != null && email.isNotEmpty) 'email': email,
         if (schedule != null) 'schedule': schedule,
       });
@@ -154,9 +165,11 @@ class AdminApi {
 
   // ---- Attendance ----
 
-  Future<Map<String, dynamic>> attendanceNow() => get('/api/v1/admin/attendance/now');
+  Future<Map<String, dynamic>> attendanceNow() =>
+      get('/api/v1/admin/attendance/now');
 
-  Future<Map<String, dynamic>> attendanceExceptions({String? from, String? to, int limit = 50}) =>
+  Future<Map<String, dynamic>> attendanceExceptions(
+          {String? from, String? to, int limit = 50}) =>
       get('/api/v1/admin/attendance/exceptions', {
         if (from != null) 'from': from,
         if (to != null) 'to': to,
@@ -178,7 +191,8 @@ class AdminApi {
         'limit': '$limit',
       });
 
-  Future<Map<String, dynamic>> attendanceEmployee(String id, {String? from, String? to}) =>
+  Future<Map<String, dynamic>> attendanceEmployee(String id,
+          {String? from, String? to}) =>
       get('/api/v1/admin/attendance/employee/$id', {
         if (from != null) 'from': from,
         if (to != null) 'to': to,
@@ -189,6 +203,9 @@ class AdminApi {
         if (from != null) 'from': from,
         if (to != null) 'to': to,
       });
+
+  Future<Map<String, dynamic>> approveAttendance(String id) =>
+      post('/api/v1/admin/attendance/$id/approve', {});
 
   Future<Map<String, dynamic>> applyCorrection({
     required String employeeId,
@@ -205,18 +222,22 @@ class AdminApi {
         'reason': reason,
       });
 
-  Future<Map<String, dynamic>> corrections({String? employeeId, String? sessionId, int limit = 100}) =>
+  Future<Map<String, dynamic>> corrections(
+          {String? employeeId, String? sessionId, int limit = 100}) =>
       get('/api/v1/admin/corrections', {
         if (employeeId != null) 'employeeId': employeeId,
         if (sessionId != null) 'sessionId': sessionId,
         'limit': '$limit',
       });
 
-  Future<Map<String, dynamic>> auditLog({int limit = 200}) => get('/api/v1/admin/audit', {'limit': '$limit'});
+  Future<Map<String, dynamic>> auditLog({int limit = 200}) =>
+      get('/api/v1/admin/audit', {'limit': '$limit'});
 
-  Future<String> exportCsv({String? from, String? to}) =>
-      getText('/api/v1/admin/export', {if (from != null) 'from': from, if (to != null) 'to': to});
+  Future<String> exportCsv({String? from, String? to}) => getText(
+      '/api/v1/admin/export',
+      {if (from != null) 'from': from, if (to != null) 'to': to});
 
-  Future<String> exportPayslipEstimate({required String from, required String to}) =>
+  Future<String> exportPayslipEstimate(
+          {required String from, required String to}) =>
       getText('/api/v1/admin/payroll/payslips', {'from': from, 'to': to});
 }

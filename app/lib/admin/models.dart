@@ -66,6 +66,8 @@ class AttendanceSession {
   final bool hasOvertime;
   final String? note;
   final bool corrected;
+  final String reviewStatus;
+  final String? reviewedAt;
 
   AttendanceSession({
     required this.id,
@@ -88,6 +90,8 @@ class AttendanceSession {
     this.hasOvertime = false,
     this.note,
     this.corrected = false,
+    this.reviewStatus = 'needs_review',
+    this.reviewedAt,
   });
 
   factory AttendanceSession.fromJson(Map<String, dynamic> j) =>
@@ -112,6 +116,8 @@ class AttendanceSession {
         hasOvertime: j['hasOvertime'] as bool? ?? false,
         note: j['note'] as String?,
         corrected: j['corrected'] as bool? ?? false,
+        reviewStatus: j['reviewStatus'] as String? ?? 'needs_review',
+        reviewedAt: j['reviewedAt'] as String?,
       );
 
   String get hoursText => workedMinutes == 0 && checkOutAt == null

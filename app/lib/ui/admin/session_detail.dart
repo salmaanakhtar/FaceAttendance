@@ -41,6 +41,47 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     } catch (_) {}
   }
 
+  Future<void> _approve() async {
+    if (_busy ||
+        _session.status == 'open' ||
+        _session.reviewStatus == 'approved') return;
+    setState(() => _busy = true);
+    try {
+      await AdminApi.instance.approveAttendance(_session.id);
+      if (mounted)
+        setState(() => _session = AttendanceSession(
+            id: _session.id,
+            employeeId: _session.employeeId,
+            employeeName: _session.employeeName,
+            employeeCode: _session.employeeCode,
+            workDate: _session.workDate,
+            checkInAt: _session.checkInAt,
+            checkOutAt: _session.checkOutAt,
+            checkInSource: _session.checkInSource,
+            checkOutSource: _session.checkOutSource,
+            status: _session.status,
+            breakMinutes: _session.breakMinutes,
+            workedMinutes: _session.workedMinutes,
+            lateMinutes: _session.lateMinutes,
+            earlyMinutes: _session.earlyMinutes,
+            overtimeMinutes: _session.overtimeMinutes,
+            isLate: _session.isLate,
+            isEarly: _session.isEarly,
+            hasOvertime: _session.hasOvertime,
+            note: _session.note,
+            corrected: _session.corrected,
+            reviewStatus: 'approved',
+            reviewedAt: DateTime.now().toUtc().toIso8601String()));
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Timesheet approved')));
+    } catch (e) {
+      if (mounted) setState(() => _error = 'Approval failed: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _correction({
     required String field,
     DateTime? initialValue,
@@ -182,6 +223,24 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
           ),
           const SizedBox(height: 12),
           _timeCard('Worked', s.hoursText, s.corrected ? 'corrected' : null),
+          const SizedBox(height: 12),
+          if (s.reviewStatus == 'approved')
+            const ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.verified_rounded, color: Color(0xFF2FBF71)),
+              title: Text('Approved for payroll',
+                  style: TextStyle(
+                      color: Color(0xFF2FBF71), fontWeight: FontWeight.w600)),
+            )
+          else if (s.status == 'open')
+            const Text('Open shift — add a time out before approving.',
+                style: TextStyle(color: Colors.white54, fontSize: 13))
+          else
+            FilledButton.icon(
+              onPressed: _busy ? null : _approve,
+              icon: const Icon(Icons.verified_rounded),
+              label: const Text('Approve timesheet'),
+            ),
           const SizedBox(height: 20),
           const Text('Manual overrides',
               style: TextStyle(

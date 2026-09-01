@@ -1,6 +1,6 @@
 # Status
 
-_Last update: 2026-09-01 — v1.1.14 one-step timesheet edits with automatic audit labels._
+_Last update: 2026-09-01 — v1.1.15 timesheet approval workflow added._
 
 ## Scanner and dashboard usability — 2026-09-01
 

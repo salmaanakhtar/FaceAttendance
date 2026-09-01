@@ -3,6 +3,7 @@ import { query, queryOne } from '../db.js';
 import { requireAdmin } from '../auth/guards.js';
 import { notFound } from '../lib/errors.js';
 import { attendanceExceptions } from '../services/attendance/exceptions.js';
+import { audit } from '../services/audit.js';
 
 interface SessionRow {
   id: string;
@@ -18,6 +19,8 @@ interface SessionRow {
   stats: Record<string, unknown>;
   note: string | null;
   corrected: boolean;
+  review_status: string;
+  reviewed_at: string | null;
   employee_name: string;
   employee_code: string;
 }
@@ -50,6 +53,8 @@ function sessionDto(r: SessionRow) {
     hasOvertime: !!stats.hasOvertime,
     note: r.note,
     corrected: r.corrected,
+    reviewStatus: r.review_status,
+    reviewedAt: r.reviewed_at,
   };
 }
 
@@ -149,6 +154,25 @@ export function attendanceRoutes(app: FastifyInstance): void {
       params,
     );
     return reply.send({ sessions: rows.map(sessionDto), total: Number(total?.count ?? 0) });
+  });
+
+  // Approve a closed/incomplete timesheet for payroll. Raw scans and
+  // corrections remain immutable; approval is a separate derived state.
+  app.post('/api/v1/admin/attendance/:id/approve', { preHandler: requireAdmin }, async (req, reply) => {
+    const id = (req.params as { id: string }).id;
+    const row = await queryOne<{ id: string; employee_id: string; status: string }>(
+      `SELECT id, employee_id, status FROM attendance_sessions WHERE id = $1 AND org_id = $2`,
+      [id, req.admin!.orgId],
+    );
+    if (!row) throw notFound('attendance session not found');
+    if (row.status === 'open') return reply.code(400).send({ error: 'open sessions cannot be approved' });
+    await query(
+      `UPDATE attendance_sessions SET review_status = 'approved', reviewed_by = $2, reviewed_at = now(), updated_at = now()
+       WHERE id = $1 AND org_id = $3`,
+      [id, req.admin!.id, req.admin!.orgId],
+    );
+    await audit({ orgId: req.admin!.orgId, actorType: 'admin', actorId: req.admin!.id, action: 'approve_timesheet', targetType: 'attendance_session', targetId: id, details: { employeeId: row.employee_id } });
+    return reply.send({ ok: true, reviewStatus: 'approved' });
   });
 
   // Per-employee history with running totals
