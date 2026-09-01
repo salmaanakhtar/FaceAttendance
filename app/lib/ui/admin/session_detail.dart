@@ -43,9 +43,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
 
   Future<void> _correction({
     required String field,
-    required String title,
     DateTime? initialValue,
-    String? reasonHint,
     String? presetValue,
   }) async {
     AppState.instance.touchAdminActivity();
@@ -77,23 +75,31 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
         ),
       );
       if (time == null || !mounted) return;
-      picked = DateTime(picked.year, picked.month, picked.day, time.hour, time.minute);
+      picked = DateTime(
+          picked.year, picked.month, picked.day, time.hour, time.minute);
     } else if (field == 'break_minutes') {
       final controller = TextEditingController(text: presetValue ?? '30');
       final entered = await showDialog<String>(
         context: context,
         builder: (context) => AlertDialog(
           backgroundColor: const Color(0xFF161A20),
-          title: const Text('Edit unpaid break', style: TextStyle(color: Colors.white, fontSize: 17)),
+          title: const Text('Edit unpaid break',
+              style: TextStyle(color: Colors.white, fontSize: 17)),
           content: TextField(
             controller: controller,
             keyboardType: TextInputType.number,
             style: const TextStyle(color: Colors.white),
-            decoration: const InputDecoration(labelText: 'Break minutes', labelStyle: TextStyle(color: Colors.white54)),
+            decoration: const InputDecoration(
+                labelText: 'Break minutes',
+                labelStyle: TextStyle(color: Colors.white54)),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text('Next')),
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel')),
+            FilledButton(
+                onPressed: () => Navigator.pop(context, controller.text.trim()),
+                child: const Text('Next')),
           ],
         ),
       );
@@ -101,53 +107,10 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
       valueOverride = entered;
     }
 
-    final reasonController = TextEditingController(text: reasonHint ?? '');
-    final reason = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF161A20),
-        title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 17)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (picked != null || field == 'break_minutes')
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                field == 'break_minutes' ? 'New break: $valueOverride minutes' : 'New time: ${_fmt(picked!)}',
-                  style: const TextStyle(color: Colors.white70, fontSize: 14),
-                ),
-              ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: reasonController,
-              maxLines: 3,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-              decoration: InputDecoration(
-                labelText: 'Reason (required)',
-                labelStyle: const TextStyle(color: Colors.white54, fontSize: 13),
-                filled: true,
-                fillColor: const Color(0xFF0E1116),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel', style: TextStyle(color: Colors.white54))),
-          FilledButton(
-              onPressed: () {
-                if (reasonController.text.trim().length < 3) return;
-                Navigator.pop(context, reasonController.text.trim());
-              },
-              child: const Text('Apply', style: TextStyle(color: Colors.white))),
-        ],
-      ),
-    );
-    if (reason == null || !mounted) return;
+    if (!mounted) return;
+    // Keep the server-side audit trail while removing the extra reason form
+    // from routine manager edits.
+    const reason = 'Admin timesheet edit';
 
     setState(() {
       _busy = true;
@@ -183,11 +146,6 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     }
   }
 
-  String _fmt(DateTime d) {
-    String two(int v) => v.toString().padLeft(2, '0');
-    return '${two(d.hour)}:${two(d.minute)}  ${d.year}-${two(d.month)}-${two(d.day)}';
-  }
-
   @override
   Widget build(BuildContext context) {
     final s = _session;
@@ -202,7 +160,10 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           Text(s.employeeName,
-              style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700)),
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700)),
           Text('${s.employeeCode}  ·  ${s.workDate}  ·  ${s.status}',
               style: const TextStyle(color: Colors.white38, fontSize: 13)),
           const SizedBox(height: 16),
@@ -223,19 +184,23 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
           _timeCard('Worked', s.hoursText, s.corrected ? 'corrected' : null),
           const SizedBox(height: 20),
           const Text('Manual overrides',
-              style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600)),
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           if (_error != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: Text(_error!, style: const TextStyle(color: Color(0xFFFF5D5D), fontSize: 13)),
+              child: Text(_error!,
+                  style:
+                      const TextStyle(color: Color(0xFFFF5D5D), fontSize: 13)),
             ),
           _actionButton(Icons.edit_calendar_outlined, 'Edit check-in time',
               onTap: s.checkInAt == null
                   ? null
                   : () => _correction(
                       field: 'check_in',
-                      title: 'Edit check-in time',
                       initialValue: DateTime.tryParse(s.checkInAt!)),
               enabled: !_busy),
           _actionButton(Icons.edit_calendar_outlined, 'Edit check-out time',
@@ -243,24 +208,24 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                   ? null
                   : () => _correction(
                       field: 'check_out',
-                      title: 'Edit check-out time',
                       initialValue: DateTime.tryParse(s.checkOutAt!)),
               enabled: !_busy),
           _actionButton(Icons.login_rounded, 'Add missing check-in',
-              onTap: () => _correction(field: 'add_check_in', title: 'Add check-in'),
-              enabled: !_busy),
+              onTap: () => _correction(field: 'add_check_in'), enabled: !_busy),
           _actionButton(Icons.logout_rounded, 'Add missing check-out',
-              onTap: () => _correction(field: 'add_check_out', title: 'Add check-out'),
+              onTap: () => _correction(field: 'add_check_out'),
               enabled: !_busy),
           _actionButton(Icons.free_breakfast_outlined, 'Edit unpaid break',
               onTap: () => _correction(
                   field: 'break_minutes',
-                  title: 'Edit unpaid break',
                   presetValue: '${_session.breakMinutes}'),
               enabled: !_busy),
           const SizedBox(height: 20),
           const Text('Audit trail',
-              style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600)),
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           if (_corrections.isEmpty)
             const Text('No corrections on this session.',
@@ -278,12 +243,15 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('${c.field} → ${c.newValue}',
-                        style: const TextStyle(color: Colors.white, fontSize: 13)),
+                        style:
+                            const TextStyle(color: Colors.white, fontSize: 13)),
                     Text('by ${c.admin} · ${formatLocalDate(c.createdAt)}',
-                        style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                        style: const TextStyle(
+                            color: Colors.white38, fontSize: 12)),
                     const SizedBox(height: 4),
                     Text(c.reason,
-                        style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                        style: const TextStyle(
+                            color: Colors.white54, fontSize: 12)),
                   ],
                 ),
               ),
@@ -303,12 +271,17 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(color: Colors.white38, fontSize: 12)),
+          Text(label,
+              style: const TextStyle(color: Colors.white38, fontSize: 12)),
           const SizedBox(height: 4),
           Text(value,
-              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600)),
           if (badge != null)
-            Text(badge, style: const TextStyle(color: Color(0xFFFFC857), fontSize: 11)),
+            Text(badge,
+                style: const TextStyle(color: Color(0xFFFFC857), fontSize: 11)),
         ],
       ),
     );
@@ -324,10 +297,12 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
       ),
       child: ListTile(
         onTap: enabled ? onTap : null,
-        leading: Icon(icon, color: enabled ? Colors.white70 : Colors.white24, size: 20),
+        leading: Icon(icon,
+            color: enabled ? Colors.white70 : Colors.white24, size: 20),
         title: Text(label,
             style: TextStyle(
-                color: enabled ? Colors.white70 : Colors.white24, fontSize: 14)),
+                color: enabled ? Colors.white70 : Colors.white24,
+                fontSize: 14)),
         trailing: enabled
             ? const Icon(Icons.chevron_right_rounded, color: Colors.white24)
             : const Icon(Icons.lock_outline, color: Colors.white24, size: 16),
