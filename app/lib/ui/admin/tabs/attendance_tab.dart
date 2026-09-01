@@ -99,6 +99,16 @@ class _AttendanceTabState extends State<AttendanceTab> {
     _load();
   }
 
+  void _quickRange(int days) {
+    final now = DateTime.now();
+    setState(() {
+      _from = DateTime(now.year, now.month, now.day)
+          .subtract(Duration(days: days - 1));
+      _to = DateTime(now.year, now.month, now.day);
+    });
+    _load();
+  }
+
   Future<void> _export() async {
     AppState.instance.touchAdminActivity();
     try {
@@ -145,6 +155,20 @@ class _AttendanceTabState extends State<AttendanceTab> {
   Widget build(BuildContext context) {
     return Column(
       children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Wrap(
+              spacing: 6,
+              children: [
+                _quickChip('Today', 1),
+                _quickChip('This week', 7),
+                _quickChip('This month', 30),
+              ],
+            ),
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
           child: Row(
@@ -208,6 +232,9 @@ class _AttendanceTabState extends State<AttendanceTab> {
       ],
     );
   }
+
+  Widget _quickChip(String label, int days) =>
+      ActionChip(label: Text(label), onPressed: () => _quickRange(days));
 
   Widget _buildBody() {
     if (_loading) {
