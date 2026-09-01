@@ -162,6 +162,17 @@ class _AttendanceTabState extends State<AttendanceTab> {
             ],
           ),
         ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: _manualEntry,
+              icon: const Icon(Icons.edit_calendar_outlined, size: 18),
+              label: const Text('Manual time entry'),
+            ),
+          ),
+        ),
         Expanded(child: _buildBody()),
       ],
     );
@@ -204,6 +215,64 @@ class _AttendanceTabState extends State<AttendanceTab> {
         for (final s in _sessions) _sessionTile(s),
       ],
     );
+  }
+
+  Future<void> _manualEntry() async {
+    AppState.instance.touchAdminActivity();
+    try {
+      final employeeRes = await AdminApi.instance.listEmployees(status: 'active', limit: 500);
+      final employees = (employeeRes['employees'] as List<dynamic>)
+          .map((e) => Employee.fromJson(e as Map<String, dynamic>)).toList();
+      if (!mounted || employees.isEmpty) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Create an active worker first')));
+        return;
+      }
+      Employee selected = employees.first;
+      final reasonController = TextEditingController();
+      final chosen = await showDialog<bool>(
+        context: context,
+        builder: (context) => StatefulBuilder(builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF161A20),
+          title: const Text('Manual time entry', style: TextStyle(color: Colors.white, fontSize: 17)),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            DropdownButtonFormField<Employee>(
+              value: selected,
+              dropdownColor: const Color(0xFF20252D),
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(labelText: 'Worker', labelStyle: TextStyle(color: Colors.white54)),
+              items: [for (final e in employees) DropdownMenuItem(value: e, child: Text('${e.name} (${e.employeeCode})'))],
+              onChanged: (e) { if (e != null) setDialogState(() => selected = e); },
+            ),
+            const SizedBox(height: 12),
+            TextField(controller: reasonController, maxLines: 2, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(labelText: 'Reason (required)', labelStyle: TextStyle(color: Colors.white54))),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () { if (reasonController.text.trim().length >= 3) Navigator.pop(context, true); }, child: const Text('Choose times')),
+          ],
+        )),
+      );
+      if (chosen != true || !mounted) return;
+      final now = DateTime.now();
+      final date = await showDatePicker(context: context, initialDate: now, firstDate: DateTime(now.year - 2), lastDate: now);
+      if (date == null || !mounted) return;
+      final start = await showTimePicker(context: context, initialTime: const TimeOfDay(hour: 9, minute: 0));
+      if (start == null || !mounted) return;
+      final end = await showTimePicker(context: context, initialTime: const TimeOfDay(hour: 17, minute: 0));
+      if (end == null || !mounted) return;
+      final inAt = DateTime(date.year, date.month, date.day, start.hour, start.minute);
+      final endMinutes = end.hour * 60 + end.minute;
+      final startMinutes = start.hour * 60 + start.minute;
+      final outDate = endMinutes <= startMinutes ? date.add(const Duration(days: 1)) : date;
+      final outAt = DateTime(outDate.year, outDate.month, outDate.day, end.hour, end.minute);
+      final reason = reasonController.text.trim();
+      await AdminApi.instance.applyCorrection(employeeId: selected.id, field: 'add_check_in', reason: reason, value: inAt.toUtc().toIso8601String());
+      await AdminApi.instance.applyCorrection(employeeId: selected.id, field: 'add_check_out', reason: reason, value: outAt.toUtc().toIso8601String());
+      await _load();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Manual time entry saved and audited')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Manual entry failed: $e')));
+    }
   }
 
   Future<void> _exportPayslips() async {

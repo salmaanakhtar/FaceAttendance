@@ -1,6 +1,6 @@
 # Status
 
-_Last update: 2026-08-31 — v1.1.5 APK rebuilt with scan-latency improvements._
+_Last update: 2026-08-31 — v1.1.6 APK rebuilt with manual time entries._
 
 ## Scan latency — 2026-08-31
 
@@ -9,6 +9,12 @@ _Last update: 2026-08-31 — v1.1.5 APK rebuilt with scan-latency improvements._
   final decision point instead.
 - The four-frame liveness minimum remains unchanged to preserve anti-spoofing
   and recognition quality.
+
+## Manual time entries — 2026-08-31
+
+- Attendance admins can create a complete historical entry by selecting a
+  worker, date, check-in, check-out, and reason. Both events are audited and
+  derived totals are recalculated immediately.
 
 ## Kiosk feedback and admin operations — 2026-08-31
 
