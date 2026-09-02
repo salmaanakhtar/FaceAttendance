@@ -1,5 +1,10 @@
 # Status
 
+## v1.2.1
+
+- Cached the authenticated active-worker roster in Android Keystore-backed storage so code punches remain usable offline after the first roster sync.
+- Cached roster data contains only worker IDs, names, and codes; no biometric templates or images.
+
 ## v1.2.0 — code-based kiosk punching
 
 - Replaced the kiosk face-scanner surface with a worker-code entry flow: enter a code and press Enter/Punch to alternate check-in and check-out through the server attendance engine.

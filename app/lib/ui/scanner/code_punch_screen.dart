@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:timezone/timezone.dart' as tz;
@@ -53,6 +54,7 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
       final org = await SecureStore.instance.getOrgName();
       final res = await ApiClient.instance.fetchEmployees();
       final raw = (res['employees'] as List<dynamic>? ?? const []);
+      await SecureStore.instance.setKioskRoster(jsonEncode(raw));
       if (mounted) {
         setState(() {
           _orgName = org ?? '';
@@ -64,6 +66,25 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
         });
       }
     } catch (e) {
+      // Keep the last authenticated roster available during WAN outages so
+      // code punching remains usable offline; attendance events still queue
+      // and retain idempotency until delivery.
+      try {
+        final cached = await SecureStore.instance.getKioskRoster();
+        final raw = cached == null
+            ? const <dynamic>[]
+            : jsonDecode(cached) as List<dynamic>;
+        if (mounted && raw.isNotEmpty) {
+          setState(() {
+            _employees = raw
+                .map((e) => _KioskEmployee.fromJson(e as Map<String, dynamic>))
+                .toList();
+            _loading = false;
+            _error = null;
+          });
+          return;
+        }
+      } catch (_) {}
       if (mounted) {
         setState(() {
           _loading = false;
