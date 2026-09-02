@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:timezone/timezone.dart' as tz;
 
 import '../../../admin/admin_api.dart';
 import '../../../admin/models.dart';
@@ -91,10 +92,13 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     DateTime? picked = initialValue;
     String? valueOverride = presetValue;
     if (field == 'check_in' || field == 'check_out') {
-      final now = DateTime.now();
+      final now = tz.TZDateTime.now(tz.local);
+      final initialLocal = initialValue == null
+          ? now
+          : tz.TZDateTime.from(initialValue, tz.local);
       picked = await showDatePicker(
         context: context,
-        initialDate: (initialValue ?? now),
+        initialDate: initialLocal,
         firstDate: DateTime(now.year - 2),
         lastDate: DateTime(now.year + 1),
         builder: (context, child) => Theme(
@@ -107,7 +111,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
       if (picked == null || !mounted) return;
       final time = await showTimePicker(
         context: context,
-        initialTime: TimeOfDay.fromDateTime(initialValue ?? now),
+        initialTime: TimeOfDay.fromDateTime(initialLocal),
         builder: (context, child) => Theme(
           data: ThemeData.dark(useMaterial3: true).copyWith(
             colorScheme: const ColorScheme.dark(primary: Color(0xFF2F6BFF)),
@@ -116,8 +120,8 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
         ),
       );
       if (time == null || !mounted) return;
-      picked = DateTime(
-          picked.year, picked.month, picked.day, time.hour, time.minute);
+      picked = tz.TZDateTime(tz.local, picked.year, picked.month, picked.day,
+          time.hour, time.minute);
     } else if (field == 'break_minutes') {
       final controller = TextEditingController(text: presetValue ?? '30');
       final entered = await showDialog<String>(
@@ -163,7 +167,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
         sessionId: _session.id,
         field: field,
         reason: reason,
-        value: picked?.toIso8601String() ?? valueOverride,
+        value: picked?.toUtc().toIso8601String() ?? valueOverride,
       );
       // Refresh the session from the server.
       final res = await AdminApi.instance.attendanceList(limit: 200);

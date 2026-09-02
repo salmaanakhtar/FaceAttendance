@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:timezone/timezone.dart' as tz;
 
 import '../../../admin/admin_api.dart';
 import '../../../admin/models.dart';
@@ -301,9 +302,9 @@ class _AttendanceTabState extends State<AttendanceTab> {
               const SnackBar(content: Text('Create an active worker first')));
         return;
       }
-      final now = DateTime.now();
+      final now = tz.TZDateTime.now(tz.local);
       Employee selected = employees.first;
-      DateTime date = DateTime(now.year, now.month, now.day);
+      DateTime date = tz.TZDateTime(tz.local, now.year, now.month, now.day);
       TimeOfDay start = const TimeOfDay(hour: 9, minute: 0);
       TimeOfDay? end;
       String? entryError;
@@ -342,7 +343,7 @@ class _AttendanceTabState extends State<AttendanceTab> {
                   final picked = await showDatePicker(
                       context: context,
                       initialDate: date,
-                      firstDate: DateTime(now.year - 2),
+                      firstDate: tz.TZDateTime(tz.local, now.year - 2),
                       lastDate: now);
                   if (picked != null) setDialogState(() => date = picked);
                 }),
@@ -418,12 +419,12 @@ class _AttendanceTabState extends State<AttendanceTab> {
       start = values['start']! as TimeOfDay;
       end = values['end'] as TimeOfDay?;
       final savedEnd = end;
-      final inAt =
-          DateTime(date.year, date.month, date.day, start.hour, start.minute);
+      final inAt = tz.TZDateTime(
+          tz.local, date.year, date.month, date.day, start.hour, start.minute);
       final outAt = savedEnd == null
           ? null
-          : DateTime(
-              date.year, date.month, date.day, savedEnd.hour, savedEnd.minute);
+          : tz.TZDateTime(tz.local, date.year, date.month, date.day,
+              savedEnd.hour, savedEnd.minute);
       // The audit record still receives a clear system reason, but the admin
       // is not required to type one for a routine manual entry.
       const reason = 'Manual time entry';

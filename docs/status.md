@@ -1,6 +1,10 @@
 # Status
 
-_Last update: 2026-09-02 — v1.1.31 shows every active worker in period totals._
+_Last update: 2026-09-02 — v1.1.32 makes admin time edits organization-timezone safe._
+
+## Time edit correctness — 2026-09-02
+
+- Manual-entry and session-edit pickers now use the organization IANA timezone and send explicit UTC timestamps, avoiding incorrect hours when an admin device has a different timezone.
 
 ## Manual checkout recovery — 2026-09-02
 
