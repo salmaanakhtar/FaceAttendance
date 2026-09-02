@@ -66,11 +66,11 @@ class _AttendanceTabState extends State<AttendanceTab> {
 
   Future<void> _pickRange() async {
     AppState.instance.touchAdminActivity();
-    final now = DateTime.now();
+    final now = tz.TZDateTime.now(tz.local);
     final from = await showDatePicker(
       context: context,
       initialDate: _from ?? now,
-      firstDate: DateTime(now.year - 2),
+      firstDate: tz.TZDateTime(tz.local, now.year - 2),
       lastDate: now,
       builder: (context, child) => Theme(
         data: ThemeData.dark(useMaterial3: true).copyWith(
@@ -101,8 +101,8 @@ class _AttendanceTabState extends State<AttendanceTab> {
   }
 
   void _quickRange(String period) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
+    final now = tz.TZDateTime.now(tz.local);
+    final today = tz.TZDateTime(tz.local, now.year, now.month, now.day);
     final from = period == 'today'
         ? today
         : period == 'week'

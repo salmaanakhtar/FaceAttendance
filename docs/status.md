@@ -1,6 +1,10 @@
 # Status
 
-_Last update: 2026-09-02 — v1.1.38 improves correction refresh coverage._
+_Last update: 2026-09-02 — v1.1.39 uses organization timezone for attendance filters._
+
+## Attendance filter timezone — 2026-09-02
+
+- Today/week/month shortcuts and custom attendance date pickers now calculate calendar boundaries in the organization timezone, avoiding off-by-one-day registers for remote admins.
 
 ## Large-organization correction refresh — 2026-09-02
 
