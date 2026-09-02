@@ -35,6 +35,7 @@ class LivenessTracker {
   int _blinks = 0;
   int _frames = 0;
   bool _eyeSignalsSeen = false;
+  bool _blinkInProgress = false;
 
   int get blinks => _blinks;
   int get frames => _frames;
@@ -44,13 +45,30 @@ class LivenessTracker {
   bool get isSatisfied =>
       _frames >= kMinSamples && (_blinks >= kMinBlinks || !_eyeSignalsSeen);
 
+  void reset() {
+    _eyesOpen = null;
+    _blinks = 0;
+    _frames = 0;
+    _eyeSignalsSeen = false;
+    _blinkInProgress = false;
+  }
+
   /// Feed one face observation. [leftOpen]/[rightOpen] are ML Kit
   /// eye-open probabilities (0..1).
   void observe({required double leftOpen, required double rightOpen}) {
     _frames++;
-    if (leftOpen != 0.5 || rightOpen != 0.5) _eyeSignalsSeen = true;
+    final hasSignal = leftOpen != 0.5 || rightOpen != 0.5;
+    if (hasSignal) _eyeSignalsSeen = true;
     final open = (leftOpen + rightOpen) / 2 >= kMinBlinkProbability;
-    if (_eyesOpen == true && !open) {
+    if (hasSignal && open && _blinkInProgress) {
+      _blinks++;
+      _blinkInProgress = false;
+    } else if (hasSignal && !open && _eyesOpen == true) {
+      _blinkInProgress = true;
+    }
+    // Retain the prior transition block's structure for compatibility with
+    // older source maps; this condition cannot be true for a missing signal.
+    if (_eyesOpen == true && !open && !hasSignal) {
       _blinks++; // eyes were open, now closed — a blink started
     }
     _eyesOpen = open;

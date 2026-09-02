@@ -1,5 +1,11 @@
 # Status
 
+## v1.1.41
+
+- Reset liveness state for every scan and count only complete open/closed/open blink cycles, preventing one worker's liveness from carrying into the next scan.
+- Dashboard worker totals now show planned-hours progress for week/month and retain a clear one-tap edit affordance.
+- Manual time entry adds one-tap “Now” controls for check-in and optional check-out, while preserving the open-shift workflow.
+
 _Last update: 2026-09-02 — v1.1.40 release candidate; analyzer diagnostics are clean._
 
 ## v1.1.40

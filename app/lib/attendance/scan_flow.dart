@@ -552,6 +552,8 @@ class ScanFlowController extends ChangeNotifier {
 
   void _resetScan() {
     _samples.clear();
+    _liveness.reset();
+    _embedFails = 0;
   }
 
   void _scheduleCooldown() {

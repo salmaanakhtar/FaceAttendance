@@ -351,22 +351,39 @@ class _AttendanceTabState extends State<AttendanceTab> {
                   if (picked != null) setDialogState(() => date = picked);
                 }),
                 _entryPickerRow(
-                    context, 'Time in', timeText(start), Icons.login_rounded,
+                    context,
+                    'Time in',
+                    timeText(start),
+                    Icons.login_rounded,
                     () async {
-                  final picked = await showTimePicker(
-                      context: context, initialTime: start);
-                  if (picked != null) setDialogState(() => start = picked);
-                }),
+                      final picked = await showTimePicker(
+                          context: context, initialTime: start);
+                      if (picked != null) setDialogState(() => start = picked);
+                    },
+                    quickLabel: 'Now',
+                    quickTap: () {
+                      final current = tz.TZDateTime.now(tz.local);
+                      setDialogState(() => start = TimeOfDay(
+                          hour: current.hour, minute: current.minute));
+                    }),
                 _entryPickerRow(
                     context,
                     'Time out (optional)',
                     end == null ? 'Skip for now' : timeText(end!),
-                    Icons.logout_rounded, () async {
-                  final picked = await showTimePicker(
-                      context: context,
-                      initialTime: end ?? const TimeOfDay(hour: 17, minute: 0));
-                  if (picked != null) setDialogState(() => end = picked);
-                }),
+                    Icons.logout_rounded,
+                    () async {
+                      final picked = await showTimePicker(
+                          context: context,
+                          initialTime:
+                              end ?? const TimeOfDay(hour: 17, minute: 0));
+                      if (picked != null) setDialogState(() => end = picked);
+                    },
+                    quickLabel: 'Now',
+                    quickTap: () {
+                      final current = tz.TZDateTime.now(tz.local);
+                      setDialogState(() => end = TimeOfDay(
+                          hour: current.hour, minute: current.minute));
+                    }),
                 if (end != null)
                   Align(
                     alignment: Alignment.centerRight,
@@ -479,7 +496,8 @@ class _AttendanceTabState extends State<AttendanceTab> {
   }
 
   Widget _entryPickerRow(BuildContext context, String label, String value,
-      IconData icon, VoidCallback onTap) {
+      IconData icon, VoidCallback onTap,
+      {String? quickLabel, VoidCallback? quickTap}) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(10),
@@ -496,6 +514,17 @@ class _AttendanceTabState extends State<AttendanceTab> {
                   color: Colors.white,
                   fontSize: 14,
                   fontWeight: FontWeight.w600)),
+          if (quickTap != null) ...[
+            const SizedBox(width: 4),
+            TextButton(
+                onPressed: quickTap,
+                style: TextButton.styleFrom(
+                    minimumSize: Size.zero,
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                child: Text(quickLabel ?? 'Now',
+                    style: const TextStyle(fontSize: 12))),
+          ],
           const SizedBox(width: 5),
           const Icon(Icons.chevron_right_rounded,
               size: 18, color: Colors.white38),

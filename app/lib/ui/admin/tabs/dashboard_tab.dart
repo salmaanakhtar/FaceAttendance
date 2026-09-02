@@ -235,10 +235,16 @@ class _DashboardTabState extends State<DashboardTab> {
   }
 
   Widget _workerTotals() {
-    final totals =
-        <String, ({String id, String name, int minutes, int open})>{};
+    final totals = <String,
+        ({String id, String name, int minutes, int open, int expected})>{};
     for (final e in _employees) {
-      totals[e.id] = (id: e.id, name: e.name, minutes: 0, open: 0);
+      totals[e.id] = (
+        id: e.id,
+        name: e.name,
+        minutes: 0,
+        open: 0,
+        expected: _expectedMinutes(e)
+      );
     }
     for (final s in _periodSessions) {
       final old = totals[s.employeeId];
@@ -246,7 +252,8 @@ class _DashboardTabState extends State<DashboardTab> {
         id: s.employeeId,
         name: s.employeeName,
         minutes: (old?.minutes ?? 0) + s.workedMinutes,
-        open: (old?.open ?? 0) + (s.status == 'open' ? 1 : 0)
+        open: (old?.open ?? 0) + (s.status == 'open' ? 1 : 0),
+        expected: old?.expected ?? 0,
       );
     }
     if (totals.isEmpty) {
@@ -261,23 +268,63 @@ class _DashboardTabState extends State<DashboardTab> {
             color: const Color(0xFF161A20),
             margin: const EdgeInsets.only(bottom: 6),
             child: ListTile(
-                dense: true,
+                dense: false,
                 onTap: () => _showWorkerSessions(row.id, row.name),
-                title: Text(row.name,
-                    style: const TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.w500)),
-                subtitle: Text(
-                    row.minutes == 0 && row.open == 0
-                        ? 'No hours recorded'
-                        : row.open == 0
-                            ? 'Complete shifts'
-                            : '${row.open} open shift${row.open == 1 ? '' : 's'}',
-                    style: const TextStyle(color: Colors.white38)),
-                trailing: Text(_fmtHours(row.minutes),
-                    style: const TextStyle(
-                        color: Color(0xFF4DA3FF),
-                        fontWeight: FontWeight.w600))))
+                title: Row(children: [
+                  Expanded(
+                      child: Text(row.name,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w500))),
+                  Text(_fmtHours(row.minutes),
+                      style: const TextStyle(
+                          color: Color(0xFF4DA3FF),
+                          fontWeight: FontWeight.w700)),
+                ]),
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: 5),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                            row.minutes == 0 && row.open == 0
+                                ? 'No hours recorded'
+                                : row.open == 0
+                                    ? 'Complete shifts'
+                                    : '${row.open} open shift${row.open == 1 ? '' : 's'}',
+                            style: const TextStyle(color: Colors.white38)),
+                        if (row.expected > 0) ...[
+                          const SizedBox(height: 5),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(3),
+                            child: LinearProgressIndicator(
+                              minHeight: 4,
+                              value:
+                                  (row.minutes / row.expected).clamp(0.0, 1.0),
+                              backgroundColor: Colors.white12,
+                              color: const Color(0xFF2FBF71),
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text('of ${_fmtHours(row.expected)} planned',
+                              style: const TextStyle(
+                                  color: Colors.white30, fontSize: 11)),
+                        ],
+                      ]),
+                ),
+                trailing: const Icon(Icons.edit_outlined,
+                    size: 18, color: Colors.white38)))
     ]);
+  }
+
+  int _expectedMinutes(Employee employee) {
+    final raw = employee.schedule['hoursPerWeek'];
+    final weekly = raw is num ? raw.toDouble() : double.tryParse('$raw') ?? 0;
+    if (weekly <= 0) return 0;
+    if (_period == 'week') return (weekly * 60).round();
+    final now = tz.TZDateTime.now(tz.local);
+    final days = DateTime(now.year, now.month + 1, 0).day;
+    return (weekly * 60 * days / 7).round();
   }
 
   Future<void> _showWorkerSessions(String employeeId, String name) async {

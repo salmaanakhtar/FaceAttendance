@@ -24,7 +24,8 @@ void main() {
     test('matches the right template with high score', () {
       final t = vec(1);
       final templates = {'a': t, 'b': vec(2), 'c': vec(3)};
-      final r = matchEmbedding(t, candidatesOf(templates), acceptThreshold: 0.5);
+      final r =
+          matchEmbedding(t, candidatesOf(templates), acceptThreshold: 0.5);
       expect(r.employeeId, 'a');
       expect(r.score, greaterThan(0.99));
       expect(r.ambiguous, isFalse);
@@ -33,7 +34,8 @@ void main() {
     test('unknown face (far from everyone) is rejected', () {
       final templates = {'a': vec(1), 'b': vec(2)};
       final query = vec(99);
-      final r = matchEmbedding(query, candidatesOf(templates), acceptThreshold: 0.5);
+      final r =
+          matchEmbedding(query, candidatesOf(templates), acceptThreshold: 0.5);
       expect(r.employeeId, isNull);
       expect(r.matched, isFalse);
     });
@@ -41,7 +43,8 @@ void main() {
     test('ambiguous when two templates are near-identical', () {
       final t = vec(1);
       final templates = {'a': t, 'b': vec(1)};
-      final r = matchEmbedding(t, candidatesOf(templates), acceptThreshold: 0.5, ambiguityMargin: 0.1);
+      final r = matchEmbedding(t, candidatesOf(templates),
+          acceptThreshold: 0.5, ambiguityMargin: 0.1);
       expect(r.ambiguous, isTrue);
       expect(r.matched, isFalse);
     });
@@ -49,29 +52,39 @@ void main() {
     test('sample candidates boost a weak fused template', () {
       final strong = vec(1);
       final noise = vec(7);
-      final weakFused = l2Normalize(List<double>.generate(128, (i) => strong[i] * 0.6 + noise[i] * 0.4));
+      final weakFused = l2Normalize(
+          List<double>.generate(128, (i) => strong[i] * 0.6 + noise[i] * 0.4));
       final other = vec(2);
       // Fused template alone would fail the threshold…
-      final solo = matchEmbedding(strong, candidatesOf({'a': weakFused, 'b': other}),
+      final solo = matchEmbedding(
+          strong, candidatesOf({'a': weakFused, 'b': other}),
           acceptThreshold: 0.9);
       expect(solo.matched, isFalse);
       // …but the employee's enrollment sample matches.
-      final withSamples = matchEmbedding(strong, [
-        TemplateCandidate('a', weakFused),
-        TemplateCandidate('a', strong),
-        TemplateCandidate('b', other),
-      ], acceptThreshold: 0.9);
+      final withSamples = matchEmbedding(
+          strong,
+          [
+            TemplateCandidate('a', weakFused),
+            TemplateCandidate('a', strong),
+            TemplateCandidate('b', other),
+          ],
+          acceptThreshold: 0.9);
       expect(withSamples.employeeId, 'a');
       expect(withSamples.matched, isTrue);
     });
 
     test('second-best score ignores other candidates of the same employee', () {
       final t = vec(1);
-      final r = matchEmbedding(t, [
-        TemplateCandidate('a', t),
-        TemplateCandidate('a', t), // same employee — must not become the margin rival
-        TemplateCandidate('b', vec(2)),
-      ], acceptThreshold: 0.5, ambiguityMargin: 0.1);
+      final r = matchEmbedding(
+          t,
+          [
+            TemplateCandidate('a', t),
+            TemplateCandidate(
+                'a', t), // same employee — must not become the margin rival
+            TemplateCandidate('b', vec(2)),
+          ],
+          acceptThreshold: 0.5,
+          ambiguityMargin: 0.1);
       expect(r.employeeId, 'a');
       expect(r.ambiguous, isFalse);
     });
@@ -91,11 +104,15 @@ void main() {
         return l2Normalize(v);
       }
 
-      final r = matchEmbedding(t, [
-        TemplateCandidate('a', near(0.5, 11)),
-        TemplateCandidate('a', near(0.3, 22)),
-        TemplateCandidate('a', near(0.4, 33)),
-      ], acceptThreshold: 0.45, ambiguityMargin: 0.10);
+      final r = matchEmbedding(
+          t,
+          [
+            TemplateCandidate('a', near(0.5, 11)),
+            TemplateCandidate('a', near(0.3, 22)),
+            TemplateCandidate('a', near(0.4, 33)),
+          ],
+          acceptThreshold: 0.45,
+          ambiguityMargin: 0.10);
       expect(r.employeeId, 'a');
       expect(r.ambiguous, isFalse);
       expect(r.matched, isTrue);
@@ -143,9 +160,10 @@ void main() {
       for (var i = 0; i < 128; i++) {
         dot += raw[i] * q[i];
       }
-      final r = l2Normalize(List<double>.generate(128, (i) => raw[i] - dot * q[i]));
-      final impostor = l2Normalize(List<double>.generate(
-          128, (i) => 0.3 * q[i] + 0.953939 * r[i])); // cosine(q, impostor) == 0.3
+      final r =
+          l2Normalize(List<double>.generate(128, (i) => raw[i] - dot * q[i]));
+      final impostor = l2Normalize(List<double>.generate(128,
+          (i) => 0.3 * q[i] + 0.953939 * r[i])); // cosine(q, impostor) == 0.3
       final res = matchEmbedding(impostor, candidatesOf({'b': q}));
       expect(res.employeeId, isNull);
       expect(res.matched, isFalse);
@@ -155,7 +173,7 @@ void main() {
   group('liveness', () {
     test('requires at least one blink and enough frames', () {
       final t = LivenessTracker();
-      t.observe(leftOpen: 0.9, rightOpen: 0.9);
+      t.observe(leftOpen: 0.9, rightOpen: 0.9); // reopen completes it
       t.observe(leftOpen: 0.1, rightOpen: 0.1); // blink
       t.observe(leftOpen: 0.9, rightOpen: 0.9);
       expect(t.blinks, 1);
@@ -171,15 +189,36 @@ void main() {
       t.observe(leftOpen: 0.9, rightOpen: 0.9);
       t.observe(leftOpen: 0.1, rightOpen: 0.1);
       t.observe(leftOpen: 0.1, rightOpen: 0.1); // still closed — no new blink
+      expect(t.blinks, 0);
+      t.observe(leftOpen: 0.9, rightOpen: 0.9);
       expect(t.blinks, 1);
     });
 
+    test('reset starts a clean liveness window', () {
+      final t = LivenessTracker();
+      t.observe(leftOpen: 0.9, rightOpen: 0.9);
+      t.observe(leftOpen: 0.1, rightOpen: 0.1);
+      t.observe(leftOpen: 0.9, rightOpen: 0.9);
+      t.reset();
+      expect(t.frames, 0);
+      expect(t.blinks, 0);
+      expect(t.isSatisfied, isFalse);
+    });
+
     test('quality: too far, poor light, multiple faces', () {
-      expect(ScanQuality.check(faceWidthPx: 30, frameWidthPx: 640, meanLuma: 120), QualityIssue.tooFar);
-      expect(ScanQuality.check(faceWidthPx: 200, frameWidthPx: 640, meanLuma: 5), QualityIssue.poorLighting);
-      expect(ScanQuality.check(faceWidthPx: 200, frameWidthPx: 640, meanLuma: 120, faceCount: 2),
+      expect(
+          ScanQuality.check(faceWidthPx: 30, frameWidthPx: 640, meanLuma: 120),
+          QualityIssue.tooFar);
+      expect(
+          ScanQuality.check(faceWidthPx: 200, frameWidthPx: 640, meanLuma: 5),
+          QualityIssue.poorLighting);
+      expect(
+          ScanQuality.check(
+              faceWidthPx: 200, frameWidthPx: 640, meanLuma: 120, faceCount: 2),
           QualityIssue.multipleFaces);
-      expect(ScanQuality.check(faceWidthPx: 200, frameWidthPx: 640, meanLuma: 120), QualityIssue.none);
+      expect(
+          ScanQuality.check(faceWidthPx: 200, frameWidthPx: 640, meanLuma: 120),
+          QualityIssue.none);
     });
 
     test('sharpness: flat image is blurry, edges are sharp', () {
@@ -194,7 +233,9 @@ void main() {
         }
       }
       expect(ImageSharpness.laplacianVariance(edge, 8, 8), greaterThan(0));
-      expect(ImageSharpness.acceptable(ImageSharpness.laplacianVariance(edge, 8, 8),
+      expect(
+          ImageSharpness.acceptable(
+              ImageSharpness.laplacianVariance(edge, 8, 8),
               minScore: 100),
           isTrue);
     });
@@ -242,7 +283,7 @@ void main() {
       ];
       final bgra = Uint8List(112 * 112 * 4); // all black
       const i = (10 * 112 + 10) * 4;
-      bgra[i] = 0;       // B
+      bgra[i] = 0; // B
       bgra[i + 1] = 128; // G
       bgra[i + 2] = 255; // R
       bgra[i + 3] = 255; // A
@@ -251,7 +292,7 @@ void main() {
       // samples source pixel (10,10) exactly.
       final tensor = FaceEmbedder().alignedFaceTensor(bgra, 112, 112, target);
       const idx = (10 * 112 + 10) * 3;
-      expect(tensor[idx], closeTo(0 / 127.5 - 1, 1e-3));       // B -> ch0
+      expect(tensor[idx], closeTo(0 / 127.5 - 1, 1e-3)); // B -> ch0
       expect(tensor[idx + 1], closeTo(128 / 127.5 - 1, 1e-3)); // G -> ch1
       expect(tensor[idx + 2], closeTo(255 / 127.5 - 1, 1e-3)); // R -> ch2
     });
