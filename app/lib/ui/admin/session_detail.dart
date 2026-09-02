@@ -91,7 +91,10 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     AppState.instance.touchAdminActivity();
     DateTime? picked = initialValue;
     String? valueOverride = presetValue;
-    if (field == 'check_in' || field == 'check_out') {
+    if (field == 'check_in' ||
+        field == 'check_out' ||
+        field == 'add_check_in' ||
+        field == 'add_check_out') {
       final now = tz.TZDateTime.now(tz.local);
       final initialLocal = initialValue == null
           ? now
@@ -164,7 +167,10 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     try {
       await AdminApi.instance.applyCorrection(
         employeeId: _session.employeeId,
-        sessionId: _session.id,
+        // Adding a missing event targets the employee's open/incomplete
+        // session server-side; passing this session ID makes the backend
+        // reject the operation as an invalid add-event request.
+        sessionId: field.startsWith('add_') ? null : _session.id,
         field: field,
         reason: reason,
         value: picked?.toUtc().toIso8601String() ?? valueOverride,

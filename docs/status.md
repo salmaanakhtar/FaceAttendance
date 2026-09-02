@@ -1,6 +1,10 @@
 # Status
 
-_Last update: 2026-09-02 — v1.1.35 confirms queued offline scans correctly._
+_Last update: 2026-09-02 — v1.1.36 fixes missing-event admin actions._
+
+## Missing event corrections — 2026-09-02
+
+- “Add missing check-in” and “Add missing check-out” now open the date/time picker and send the correct employee-level add-event request, so admins can repair absent punches from a session without a backend validation failure.
 
 ## Offline scan feedback — 2026-09-02
 
