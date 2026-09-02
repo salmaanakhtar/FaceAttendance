@@ -229,10 +229,12 @@ class _DashboardTabState extends State<DashboardTab> {
   }
 
   Widget _workerTotals() {
-    final totals = <String, ({String name, int minutes, int open})>{};
+    final totals =
+        <String, ({String id, String name, int minutes, int open})>{};
     for (final s in _periodSessions) {
       final old = totals[s.employeeId];
       totals[s.employeeId] = (
+        id: s.employeeId,
         name: s.employeeName,
         minutes: (old?.minutes ?? 0) + s.workedMinutes,
         open: (old?.open ?? 0) + (s.status == 'open' ? 1 : 0)
@@ -250,6 +252,7 @@ class _DashboardTabState extends State<DashboardTab> {
             margin: const EdgeInsets.only(bottom: 6),
             child: ListTile(
                 dense: true,
+                onTap: () => _showWorkerSessions(row.id, row.name),
                 title: Text(row.name,
                     style: const TextStyle(
                         color: Colors.white, fontWeight: FontWeight.w500)),
@@ -263,6 +266,79 @@ class _DashboardTabState extends State<DashboardTab> {
                         color: Color(0xFF4DA3FF),
                         fontWeight: FontWeight.w600))))
     ]);
+  }
+
+  Future<void> _showWorkerSessions(String employeeId, String name) async {
+    final sessions = _periodSessions
+        .where((s) => s.employeeId == employeeId)
+        .toList()
+      ..sort((a, b) => b.workDate.compareTo(a.workDate));
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF161A20),
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Row(children: [
+              Expanded(
+                child: Text(
+                    '$name · ${_period == 'week' ? 'This week' : 'This month'}',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600)),
+              ),
+              Text('${sessions.length} shift${sessions.length == 1 ? '' : 's'}',
+                  style: const TextStyle(color: Colors.white54)),
+            ]),
+            const SizedBox(height: 8),
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: sessions.length,
+                separatorBuilder: (_, __) =>
+                    const Divider(color: Colors.white12),
+                itemBuilder: (_, index) {
+                  final s = sessions[index];
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                        s.status == 'open'
+                            ? Icons.radio_button_checked
+                            : Icons.event_available_outlined,
+                        color: s.status == 'open'
+                            ? const Color(0xFF2FBF71)
+                            : Colors.white54),
+                    title: Text(s.workDate,
+                        style: const TextStyle(color: Colors.white)),
+                    subtitle: Text(
+                        '${formatLocal(s.checkInAt)} → ${formatLocal(s.checkOutAt)}',
+                        style: const TextStyle(color: Colors.white54)),
+                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Text(s.hoursText,
+                          style: const TextStyle(color: Colors.white70)),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.edit_outlined,
+                          size: 18, color: Colors.white54),
+                    ]),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      Navigator.of(context)
+                          .push(MaterialPageRoute(
+                              builder: (_) => SessionDetailScreen(session: s)))
+                          .then((_) => _load(silent: true));
+                    },
+                  );
+                },
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
   }
 
   Widget _exceptionCard(Map<String, dynamic> issue) {

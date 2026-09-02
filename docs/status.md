@@ -1,6 +1,10 @@
 # Status
 
-_Last update: 2026-09-02 — v1.1.28 preserves kiosk provisioning across updates._
+_Last update: 2026-09-02 — v1.1.29 makes dashboard worker totals directly editable._
+
+## Dashboard editing — 2026-09-02
+
+- Week/month worker totals are now interactive. Tapping a worker opens their shifts for the selected period, with a direct edit affordance for each session.
 
 ## Update safety — 2026-09-02
 
