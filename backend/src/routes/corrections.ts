@@ -93,7 +93,9 @@ export function correctionRoutes(app: FastifyInstance): void {
         if (Number.isNaN(at.getTime())) throw badRequest('invalid timestamp');
         // find the open target: for add_check_in, prevent double-open
         const open = await client.query(
-          `SELECT * FROM attendance_sessions WHERE employee_id = $1 AND status = 'open'`,
+          `SELECT * FROM attendance_sessions
+             WHERE employee_id = $1 AND status IN ('open', 'incomplete')
+             ORDER BY check_in_at DESC LIMIT 1`,
           [employeeId],
         );
         const newSession = {
@@ -127,8 +129,10 @@ export function correctionRoutes(app: FastifyInstance): void {
             'add_check_in', null, { at: at.toISOString(), sessionId: inserted.rows[0].id });
           sessionId = inserted.rows[0].id;
         } else {
-          // add_check_out: close an open or incomplete session
-          if (!open.rowCount) throw badRequest('no open session to check out of');
+          // add_check_out: close an open or rolled-over incomplete session.
+          // Rollover marks yesterday's missed checkout as incomplete; admins
+          // still need the same quick manual checkout path to finish it.
+          if (!open.rowCount) throw badRequest('no open or incomplete session to check out of');
           const target = open.rows[0];
           if (at <= new Date(target.check_in_at)) throw badRequest('checkout must be after check-in');
           await client.query(

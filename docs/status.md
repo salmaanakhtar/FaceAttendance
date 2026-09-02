@@ -2,6 +2,10 @@
 
 _Last update: 2026-09-02 — v1.1.31 shows every active worker in period totals._
 
+## Manual checkout recovery — 2026-09-02
+
+- Admin manual check-out now accepts both open and rolled-over incomplete sessions, allowing a missed end-of-day punch to be corrected from the same workflow.
+
 ## Worker coverage — 2026-09-02
 
 - Dashboard week/month totals now include every active worker, including those with zero recorded hours, so missing attendance cannot be hidden by an empty session list.
