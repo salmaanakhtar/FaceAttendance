@@ -1,5 +1,15 @@
 # Status
 
+## v1.2.3
+
+- Kiosk worker-code screen now has a permanent touch number keypad under the code field and a dedicated Punch Time button beneath it.
+- Clear and backspace controls make correcting a code quick without opening the device keyboard.
+
+## v1.2.2
+
+- Added a kiosk refresh button for worker codes.
+- Worker roster requests time out quickly and fall back to the securely cached roster, avoiding long waits when the network is unavailable.
+
 ## v1.2.1
 
 - Cached the authenticated active-worker roster in Android Keystore-backed storage so code punches remain usable offline after the first roster sync.

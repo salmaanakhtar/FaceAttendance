@@ -50,9 +50,12 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
   }
 
   Future<void> _load() async {
+    if (mounted) setState(() => _loading = true);
     try {
       final org = await SecureStore.instance.getOrgName();
-      final res = await ApiClient.instance.fetchEmployees();
+      final res = await ApiClient.instance
+          .fetchEmployees()
+          .timeout(const Duration(seconds: 3));
       final raw = (res['employees'] as List<dynamic>? ?? const []);
       await SecureStore.instance.setKioskRoster(jsonEncode(raw));
       if (mounted) {
@@ -191,6 +194,11 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
                               color: Colors.white38, fontSize: 13)),
                     ])),
                 IconButton(
+                    tooltip: 'Refresh worker codes',
+                    onPressed: _loading ? null : _load,
+                    icon: const Icon(Icons.refresh_rounded,
+                        color: Colors.white70)),
+                IconButton(
                     tooltip: 'Admin',
                     onPressed: widget.onAdminRequested,
                     icon: const Icon(Icons.lock_outline_rounded,
@@ -212,14 +220,21 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.white54, fontSize: 14)),
               const SizedBox(height: 28),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text('WORKER CODE',
+                    style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1)),
+              ),
+              const SizedBox(height: 8),
               TextField(
                 controller: _code,
                 focusNode: _focus,
-                autofocus: true,
                 enabled: !_busy,
-                textInputAction: TextInputAction.done,
-                textCapitalization: TextCapitalization.characters,
-                onSubmitted: _submit,
+                readOnly: true,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                     color: Colors.white,
@@ -240,6 +255,8 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
                 ),
               ),
               const SizedBox(height: 14),
+              _numberKeypad(),
+              const SizedBox(height: 16),
               SizedBox(
                   height: 54,
                   child: FilledButton.icon(
@@ -295,6 +312,66 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
                   }))
         ]),
       ),
+    );
+  }
+
+  Widget _numberKeypad() {
+    final keys = [
+      '1',
+      '2',
+      '3',
+      '4',
+      '5',
+      '6',
+      '7',
+      '8',
+      '9',
+      'Clear',
+      '0',
+      '⌫'
+    ];
+    return GridView.count(
+      crossAxisCount: 3,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      mainAxisSpacing: 8,
+      crossAxisSpacing: 8,
+      childAspectRatio: 2.25,
+      children: [
+        for (final key in keys)
+          OutlinedButton(
+            onPressed: _busy
+                ? null
+                : () {
+                    if (key == 'Clear') {
+                      _code.clear();
+                    } else if (key == '⌫') {
+                      if (_code.text.isNotEmpty) {
+                        _code.text =
+                            _code.text.substring(0, _code.text.length - 1);
+                      }
+                    } else {
+                      _code.text = '${_code.text}$key';
+                    }
+                    _focus.requestFocus();
+                    setState(() {
+                      _error = null;
+                      _message = null;
+                    });
+                  },
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              side: const BorderSide(color: Colors.white24),
+              backgroundColor: const Color(0xFF161A20),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+              textStyle: TextStyle(
+                  fontSize: key == 'Clear' ? 13 : 22,
+                  fontWeight: FontWeight.w600),
+            ),
+            child: Text(key),
+          ),
+      ],
     );
   }
 
