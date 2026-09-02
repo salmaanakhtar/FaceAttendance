@@ -1,5 +1,10 @@
 # Status
 
+## v1.1.43
+
+- Attendance controls now reflow responsively instead of forcing date, export, payroll, and approval actions into one overflowing row.
+- Dashboard summary cards reflow to a readable two-column layout on narrow screens.
+
 ## v1.1.42
 
 - Camera NV21 conversion honors chroma row padding and per-plane pixel strides, improving ML Kit reliability across Android camera implementations.

@@ -447,33 +447,41 @@ class _StatRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        for (final s in stats)
-          Expanded(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              decoration: BoxDecoration(
-                color: const Color(0xFF161A20),
-                borderRadius: BorderRadius.circular(12),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth < 520 ? 2 : stats.length;
+        final width = (constraints.maxWidth - (columns - 1) * 8) / columns;
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final s in stats)
+              SizedBox(
+                width: width,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF161A20),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(s.value,
+                          style: TextStyle(
+                              color: s.color,
+                              fontSize: 24,
+                              fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 2),
+                      Text(s.label,
+                          style: const TextStyle(
+                              color: Colors.white38, fontSize: 11)),
+                    ],
+                  ),
+                ),
               ),
-              child: Column(
-                children: [
-                  Text(s.value,
-                      style: TextStyle(
-                          color: s.color,
-                          fontSize: 24,
-                          fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 2),
-                  Text(s.label,
-                      style:
-                          const TextStyle(color: Colors.white38, fontSize: 11)),
-                ],
-              ),
-            ),
-          ),
-      ],
+          ],
+        );
+      },
     );
   }
 }

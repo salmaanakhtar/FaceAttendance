@@ -178,26 +178,31 @@ class _AttendanceTabState extends State<AttendanceTab> {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _pickRange,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white70,
-                    side: const BorderSide(color: Colors.white24),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                  ),
-                  icon: const Icon(Icons.date_range_rounded, size: 18),
-                  label: Text(
-                    _from == null ? 'All dates' : '$_fromStr → $_toStr',
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                ),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _pickRange,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white70,
+                side: const BorderSide(color: Colors.white24),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
               ),
-              const SizedBox(width: 8),
+              icon: const Icon(Icons.date_range_rounded, size: 18),
+              label: Text(
+                _from == null ? 'All dates' : '$_fromStr → $_toStr',
+                style: const TextStyle(fontSize: 13),
+              ),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
               OutlinedButton.icon(
                 onPressed: _export,
                 style: OutlinedButton.styleFrom(
@@ -215,7 +220,6 @@ class _AttendanceTabState extends State<AttendanceTab> {
                 icon: const Icon(Icons.payments_outlined, size: 18),
                 label: const Text('Pay report', style: TextStyle(fontSize: 13)),
               ),
-              const SizedBox(width: 8),
               OutlinedButton.icon(
                 onPressed: _bulkApprove,
                 icon: const Icon(Icons.verified_outlined, size: 18),
