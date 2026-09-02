@@ -1,6 +1,10 @@
 # Status
 
-_Last update: 2026-09-02 — v1.1.32 makes admin time edits organization-timezone safe._
+_Last update: 2026-09-02 — v1.1.33 applies organization timezone immediately after handshake._
+
+## Provisioning timezone — 2026-09-02
+
+- A newly provisioned kiosk or refreshed device handshake now applies the organization timezone immediately, without requiring an app restart.
 
 ## Time edit correctness — 2026-09-02
 

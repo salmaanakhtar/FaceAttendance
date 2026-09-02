@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import '../app_time.dart';
 import '../config.dart';
 import 'secure_store.dart';
 
@@ -36,7 +37,13 @@ class ApiClient {
       await SecureStore.instance.setOrgId(org['id'] as String);
       await SecureStore.instance.setOrgName(org['name'] as String);
       final tz = org['timezone'] as String?;
-      if (tz != null) await SecureStore.instance.setOrgTimezone(tz);
+      if (tz != null) {
+        await SecureStore.instance.setOrgTimezone(tz);
+        // Apply a changed organization timezone immediately; otherwise a
+        // newly provisioned kiosk would display device-local times until its
+        // next restart.
+        AppTime.setLocal(tz);
+      }
     }
     final siteId = body['siteId'];
     if (siteId != null) await SecureStore.instance.setSiteId(siteId as String);
