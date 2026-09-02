@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
 
@@ -53,7 +54,7 @@ class PendingScan {
 /// Offline-first queue: every scan event is enqueued locally with a UUID
 /// dedupe key, then flushed. Server-side unique constraint makes replays
 /// idempotent.
-class OfflineQueue {
+class OfflineQueue extends ChangeNotifier {
   OfflineQueue._();
   static final OfflineQueue instance = OfflineQueue._();
 
@@ -67,11 +68,13 @@ class OfflineQueue {
   bool get online => _online;
   void setOnline(bool value) {
     _online = value;
+    notifyListeners();
     if (value) flush();
   }
 
   Future<void> init() async {
     _box = await Hive.openBox<String>(_boxName);
+    notifyListeners();
   }
 
   /// Enqueue (and try to deliver immediately).
@@ -93,6 +96,7 @@ class OfflineQueue {
       faceHash: faceHash,
     );
     await _box!.put(scan.dedupeKey, jsonEncode(scan.toJson()));
+    notifyListeners();
     if (_online) {
       try {
         return await _deliver(scan);
@@ -114,6 +118,7 @@ class OfflineQueue {
       faceHash: scan.faceHash,
     );
     await _box!.delete(scan.dedupeKey);
+    notifyListeners();
     return res;
   }
 
@@ -127,7 +132,8 @@ class OfflineQueue {
         final raw = _box!.get(key);
         if (raw == null) continue;
         try {
-          final scan = PendingScan.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+          final scan =
+              PendingScan.fromJson(jsonDecode(raw) as Map<String, dynamic>);
           try {
             await _deliver(scan);
           } on OfflineException {
@@ -143,6 +149,7 @@ class OfflineQueue {
         } catch (_) {
           await _box!.delete(key);
         }
+        notifyListeners();
       }
     } finally {
       _flushing = false;

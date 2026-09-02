@@ -144,6 +144,8 @@ class ApiClient {
 
   Future<Map<String, dynamic>> fetchTemplates() =>
       _authedGet('/api/v1/device/templates');
+  Future<Map<String, dynamic>> fetchEmployees() =>
+      _authedGet('/api/v1/device/employees');
   Future<Map<String, dynamic>> fetchConfig() =>
       _authedGet('/api/v1/device/config');
 }

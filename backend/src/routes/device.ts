@@ -151,6 +151,20 @@ export function deviceRoutes(app: FastifyInstance): void {
     return reply.send({ orgId: req.device!.orgId, model: 'mobilefacenet-v1', templates });
   });
 
+  // Lightweight kiosk roster for code-based attendance. Unlike templates,
+  // this includes every active worker, including workers without a face
+  // enrollment. It never exposes biometric data.
+  app.get('/api/v1/device/employees', { preHandler: requireDevice }, async (req, reply) => {
+    const rows = await query<{ id: string; name: string; employee_code: string }>(
+      `SELECT id, name, employee_code FROM employees
+       WHERE org_id = $1 AND status = 'active' ORDER BY name ASC`,
+      [req.device!.orgId],
+    );
+    return reply.send({
+      employees: rows.map((r) => ({ id: r.id, name: r.name, employeeCode: r.employee_code })),
+    });
+  });
+
   app.get('/api/v1/device/config', { preHandler: requireDevice }, async (req, reply) => {
     const org = await queryOne<{ name: string; timezone: string; settings: Record<string, unknown> }>(
       'SELECT name, timezone, settings FROM orgs WHERE id = $1',

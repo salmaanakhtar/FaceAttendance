@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 import '../../attendance/scan_flow.dart';
+import '../../attendance/offline_queue.dart';
 import '../../device/secure_store.dart';
 import '../../app_state.dart';
 import '../../recognition/template_store.dart';
@@ -197,11 +198,14 @@ class _OfflineBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: AppState.instance,
-      builder: (context, _) {
-        final queued = controller.lastSyncWasOffline;
-        final offline = !AppState.instance.online;
-        if (!offline && !queued) return const SizedBox.shrink();
-        return Positioned(
+      builder: (context, _) => ListenableBuilder(
+        listenable: OfflineQueue.instance,
+        builder: (context, _) {
+          final pending = OfflineQueue.instance.pendingCount;
+          final queued = controller.lastSyncWasOffline && pending > 0;
+          final offline = !AppState.instance.online;
+          if (!offline && !queued) return const SizedBox.shrink();
+          return Positioned(
           bottom: 16,
           left: 0,
           right: 0,
@@ -225,8 +229,9 @@ class _OfflineBadge extends StatelessWidget {
               ),
             ),
           ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }

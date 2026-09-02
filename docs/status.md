@@ -1,5 +1,11 @@
 # Status
 
+## v1.2.0 — code-based kiosk punching
+
+- Replaced the kiosk face-scanner surface with a worker-code entry flow: enter a code and press Enter/Punch to alternate check-in and check-out through the server attendance engine.
+- Added an authenticated device roster endpoint containing active worker IDs, names, and codes (no biometric data), including workers who were never enrolled for face recognition.
+- Code punches retain server-authoritative timestamps, idempotency, encrypted offline queueing, status feedback, haptics, and Welcome/Goodbye voice confirmation.
+
 ## v1.1.45
 
 - Audit failures now provide a retry action instead of a dead-end message.

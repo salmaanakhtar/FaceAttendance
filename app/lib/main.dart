@@ -1,18 +1,16 @@
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'app_state.dart';
 import 'app_time.dart';
-import 'attendance/scan_flow.dart';
 import 'config.dart';
 import 'device/secure_store.dart';
-import 'recognition/template_store.dart';
 import 'attendance/offline_queue.dart';
 import 'ui/admin/admin_gate.dart';
 import 'ui/provision/provision_screen.dart';
-import 'ui/scanner/scanner_screen.dart';
+import 'ui/scanner/code_punch_screen.dart';
+import 'recognition/template_store.dart';
 import 'updater/update_state.dart';
 
 /// Record the installed build tag without destroying kiosk identity. An app
@@ -25,7 +23,8 @@ Future<void> _recordBuildVersion() async {
   await SecureStore.instance.setInstalledVersion(kAppVersion);
 }
 
-Future<void> main() async {  WidgetsFlutterBinding.ensureInitialized();
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
   await _recordBuildVersion();
   await SecureStore.instance.ensureTemplateKey();
@@ -37,42 +36,17 @@ Future<void> main() async {  WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 
-  final cameras = await availableCameras();
-  if (cameras.isEmpty) {
-    runApp(const _FatalApp(message: 'No camera found on this device.'));
-    return;
-  }
-  runApp(FaceAttendanceApp(cameras: cameras));
-}
-
-class _FatalApp extends StatelessWidget {
-  final String message;
-  const _FatalApp({required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: Scaffold(
-        backgroundColor: const Color(0xFF0B0D10),
-        body: Center(
-          child: Text(message, style: const TextStyle(color: Colors.white54)),
-        ),
-      ),
-    );
-  }
+  runApp(const FaceAttendanceApp());
 }
 
 class FaceAttendanceApp extends StatefulWidget {
-  final List<CameraDescription> cameras;
-  const FaceAttendanceApp({super.key, required this.cameras});
+  const FaceAttendanceApp({super.key});
 
   @override
   State<FaceAttendanceApp> createState() => _FaceAttendanceAppState();
 }
 
 class _FaceAttendanceAppState extends State<FaceAttendanceApp> {
-  late final ScanFlowController _scanner;
   bool _provisioned = false;
   bool _checkingProvision = true;
 
@@ -80,16 +54,7 @@ class _FaceAttendanceAppState extends State<FaceAttendanceApp> {
   void initState() {
     super.initState();
     AppState.instance.start();
-    AppState.instance.addListener(_onAppState);
     _bootstrap();
-  }
-
-  void _onAppState() {
-    if (AppState.instance.adminMode) {
-      _scanner.pause();
-    } else {
-      _scanner.resume();
-    }
   }
 
   Future<void> _bootstrap() async {
@@ -97,7 +62,6 @@ class _FaceAttendanceAppState extends State<FaceAttendanceApp> {
     final token = await SecureStore.instance.getDeviceToken();
     _provisioned = key != null && key.isNotEmpty && token != null;
 
-    _scanner = ScanFlowController(widget.cameras);
     if (_provisioned) {
       // Sync templates before opening the camera so the first scan cannot run
       // against an empty or stale local matcher.
@@ -106,8 +70,6 @@ class _FaceAttendanceAppState extends State<FaceAttendanceApp> {
       } catch (_) {
         // offline — sync later via the periodic loop
       }
-      await _scanner.init();
-      schedulePeriodicTemplateSync();
       OfflineQueue.instance.flush();
       // GitHub-backed auto-update check (non-blocking).
       UpdateState.instance.check();
@@ -117,8 +79,6 @@ class _FaceAttendanceAppState extends State<FaceAttendanceApp> {
 
   @override
   void dispose() {
-    AppState.instance.removeListener(_onAppState);
-    _scanner.dispose();
     super.dispose();
   }
 
@@ -150,8 +110,6 @@ class _FaceAttendanceAppState extends State<FaceAttendanceApp> {
     if (!_provisioned) {
       return ProvisionScreen(
         onProvisioned: () async {
-          try { await TemplateStore.instance.syncFromServer(); } catch (_) {}
-          await _scanner.init();
           setState(() => _provisioned = true);
         },
       );
@@ -166,8 +124,7 @@ class _FaceAttendanceAppState extends State<FaceAttendanceApp> {
           // ignore: prefer_const_constructors
           return AdminGate();
         }
-        return ScannerScreen(
-          controller: _scanner,
+        return CodePunchScreen(
           onAdminRequested: () => AppState.instance.enterAdmin(),
         );
       },
