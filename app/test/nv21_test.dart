@@ -34,7 +34,11 @@ void main() {
     test('interleaves planar Y+U+V into VU order (3-plane)', () {
       final buf = makeNv21();
       final out = nv21FromPlanes(
-        [buf.sublist(0, 8), Uint8List.fromList([100, 160]), Uint8List.fromList([128, 128])],
+        [
+          buf.sublist(0, 8),
+          Uint8List.fromList([100, 160]),
+          Uint8List.fromList([128, 128])
+        ],
         [4, 2, 2],
         width: 4,
         height: 2,
@@ -45,10 +49,41 @@ void main() {
     test('handles Y row padding', () {
       final buf = makeNv21();
       // Two Y rows (8px each) padded to 8 bytes/row, then VU.
-      final padded = Uint8List.fromList([...buf.sublist(0, 8), ...buf.sublist(4, 8)]);
-      final out = nv21FromPlanes([padded, buf.sublist(8)], [8, 4],
-          width: 4, height: 2);
+      final padded =
+          Uint8List.fromList([...buf.sublist(0, 8), ...buf.sublist(4, 8)]);
+      final out =
+          nv21FromPlanes([padded, buf.sublist(8)], [8, 4], width: 4, height: 2);
       expect(out, equals(buf));
+    });
+
+    test('handles padded interleaved chroma rows', () {
+      final y = Uint8List(16);
+      final uv = Uint8List.fromList([
+        10,
+        11,
+        12,
+        13,
+        99,
+        99,
+        20,
+        21,
+        22,
+        23,
+        98,
+        98,
+      ]);
+      final out = nv21FromPlanes([y, uv], [4, 6],
+          width: 4, height: 4, planePixelStrides: [1, 1]);
+      expect(out.sublist(16), equals([10, 11, 12, 13, 20, 21, 22, 23]));
+    });
+
+    test('handles planar chroma pixel stride', () {
+      final y = Uint8List(16);
+      final u = Uint8List.fromList([1, 99, 2, 99, 3, 99, 4, 99]);
+      final v = Uint8List.fromList([11, 88, 12, 88, 13, 88, 14, 88]);
+      final out = nv21FromPlanes([y, u, v], [4, 4, 4],
+          width: 4, height: 4, planePixelStrides: [1, 2, 2]);
+      expect(out.sublist(16), equals([11, 1, 12, 2, 13, 3, 14, 4]));
     });
   });
 

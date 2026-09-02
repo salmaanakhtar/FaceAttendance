@@ -25,7 +25,9 @@ class FaceEmbedder {
       OrtEnv.instance.init(level: OrtLoggingLevel.error);
       final options = OrtSessionOptions()..setIntraOpNumThreads(2);
       final bytes = await rootBundle.load(kModelAsset);
-      _session = OrtSession.fromBuffer(bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes), options);
+      _session = OrtSession.fromBuffer(
+          bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes),
+          options);
       _ready = true;
     } catch (e) {
       _error = 'model init failed: $e';
@@ -156,7 +158,8 @@ List<double> _invert(List<double> m) {
 }
 
 /// Bilinear sample of channel [channel] (0=B,1=G,2=R in BGRA layout).
-double _bilinearAt(Uint8List bgra, int w, int h, double fx, double fy, int channel) {
+double _bilinearAt(
+    Uint8List bgra, int w, int h, double fx, double fy, int channel) {
   if (fx < 0 || fx > w - 1 || fy < 0 || fy > h - 1) return 0;
   final x0 = fx.floor();
   final y0 = fy.floor();
@@ -186,6 +189,7 @@ Uint8List nv21FromPlanes(
   List<int> planeStrides, {
   required int width,
   required int height,
+  List<int>? planePixelStrides,
 }) {
   final w = width;
   final h = height;
@@ -193,6 +197,8 @@ Uint8List nv21FromPlanes(
   final total = ySize + ySize ~/ 2;
   final out = Uint8List(total);
   final src = planeBytes[0];
+  final pixelStrides = planePixelStrides ??
+      List<int>.filled(planeBytes.length, 1, growable: false);
 
   if (planeBytes.length == 1 && src.length >= total) {
     // Single buffer already contains Y + chroma (NV21 order assumed).
@@ -216,19 +222,32 @@ Uint8List nv21FromPlanes(
     final v = planeBytes[2];
     final ubpr = planeStrides[1];
     final vbpr = planeStrides[2];
+    final ups = pixelStrides.length > 1 ? pixelStrides[1] : 1;
+    final vps = pixelStrides.length > 2 ? pixelStrides[2] : 1;
     final cw = w >> 1;
     final ch = h >> 1;
     for (var row = 0; row < ch; row++) {
       for (var col = 0; col < cw; col++) {
         final dst = ySize + (row * cw + col) * 2;
-        out[dst] = v[row * vbpr + col];
-        out[dst + 1] = u[row * ubpr + col];
+        out[dst] = v[row * vbpr + col * vps];
+        out[dst + 1] = u[row * ubpr + col * ups];
       }
     }
   } else if (planeBytes.length == 2) {
     // Y + interleaved VU plane.
     final uv = planeBytes[1];
-    out.setRange(ySize, total, uv, 0);
+    final uvBpr = planeStrides.length > 1 ? planeStrides[1] : w;
+    final uvPixelStride = pixelStrides.length > 1 ? pixelStrides[1] : 1;
+    final cw = w >> 1;
+    final ch = h >> 1;
+    for (var row = 0; row < ch; row++) {
+      final srcRow = row * uvBpr;
+      for (var col = 0; col < cw * 2; col++) {
+        final srcIndex = srcRow + col * uvPixelStride;
+        final dst = ySize + row * w + col;
+        if (srcIndex < uv.length) out[dst] = uv[srcIndex];
+      }
+    }
   } else {
     // Single plane but not fully packed — pad chroma to neutral.
     for (var i = ySize; i < total; i += 2) {
@@ -245,6 +264,7 @@ Uint8List nv21Of(CameraImage image) {
     [for (final p in image.planes) p.bytesPerRow],
     width: image.width,
     height: image.height,
+    planePixelStrides: [for (final p in image.planes) p.bytesPerPixel ?? 1],
   );
 }
 
@@ -309,6 +329,7 @@ Uint8List nv21Of(CameraImage image) {
   int rotationDeg, {
   bool mirrorX = false,
 }) {
-  return nv21ToUprightBgra(nv21Of(image), image.width, image.height, rotationDeg,
+  return nv21ToUprightBgra(
+      nv21Of(image), image.width, image.height, rotationDeg,
       mirrorX: mirrorX);
 }

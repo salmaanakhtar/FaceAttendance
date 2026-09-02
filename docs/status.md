@@ -1,5 +1,10 @@
 # Status
 
+## v1.1.42
+
+- Camera NV21 conversion honors chroma row padding and per-plane pixel strides, improving ML Kit reliability across Android camera implementations.
+- Added regression coverage for padded interleaved and planar chroma layouts.
+
 ## v1.1.41
 
 - Reset liveness state for every scan and count only complete open/closed/open blink cycles, preventing one worker's liveness from carrying into the next scan.
