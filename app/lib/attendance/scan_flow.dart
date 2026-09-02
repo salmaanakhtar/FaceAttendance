@@ -408,7 +408,12 @@ class ScanFlowController extends ChangeNotifier {
       return;
     }
 
-    final action = result['action'] as String? ?? 'unknown';
+    // OfflineQueue intentionally returns only `{queued: true}` until the
+    // server is reachable. Preserve the locally selected direction so the
+    // kiosk can still give an accurate immediate confirmation; the server
+    // remains authoritative when the event is flushed.
+    final action = result['action'] as String? ??
+        (queued ? (direction == 'out' ? 'check_out' : 'check_in') : 'unknown');
     final serverTime = result['scanTime'] as String?;
     final at = serverTime != null ? DateTime.tryParse(serverTime) : null;
     final name = template?.name ?? '';
@@ -425,10 +430,8 @@ class ScanFlowController extends ChangeNotifier {
             employeeName: name,
             at: at);
         phase = queued ? ScanPhase.offline : ScanPhase.checkIn;
-        if (!queued) {
-          await FeedbackFx.success();
-          unawaited(FeedbackFx.speak('Welcome $name'));
-        }
+        await FeedbackFx.success();
+        unawaited(FeedbackFx.speak('Welcome $name'));
         break;
       case 'check_out':
         outcome = ScanOutcome(
@@ -437,10 +440,8 @@ class ScanFlowController extends ChangeNotifier {
             employeeName: name,
             at: at);
         phase = queued ? ScanPhase.offline : ScanPhase.checkOut;
-        if (!queued) {
-          await FeedbackFx.success();
-          unawaited(FeedbackFx.speak('Goodbye $name'));
-        }
+        await FeedbackFx.success();
+        unawaited(FeedbackFx.speak('Goodbye $name'));
         break;
       case 'duplicate':
         outcome = ScanOutcome(

@@ -1,6 +1,10 @@
 # Status
 
-_Last update: 2026-09-02 — v1.1.34 guards scanner startup retries._
+_Last update: 2026-09-02 — v1.1.35 confirms queued offline scans correctly._
+
+## Offline scan feedback — 2026-09-02
+
+- A recognized scan queued during network loss now uses the locally selected direction for immediate check-in/check-out status, haptic confirmation, and employee-specific Welcome/Goodbye voice feedback. Server reconciliation remains authoritative when connectivity returns.
 
 ## Scanner startup reliability — 2026-09-02
 
