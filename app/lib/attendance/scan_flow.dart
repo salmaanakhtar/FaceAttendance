@@ -67,6 +67,7 @@ class ScanFlowController extends ChangeNotifier {
   Timer? _cooldownTimer;
   bool _disposed = false;
   bool _busy = false;
+  bool _initializing = false;
 
   ScanPhase phase = ScanPhase.init;
   ScanOutcome? outcome;
@@ -87,6 +88,8 @@ class ScanFlowController extends ChangeNotifier {
       selectedCamera?.lensDirection == CameraLensDirection.front;
 
   Future<void> init() async {
+    if (_disposed || _initializing) return;
+    _initializing = true;
     try {
       _embedder = FaceEmbedder();
       await _embedder!.init();
@@ -146,6 +149,8 @@ class ScanFlowController extends ChangeNotifier {
       initError = 'camera init failed: $e';
       phase = ScanPhase.init;
       notifyListeners();
+    } finally {
+      _initializing = false;
     }
   }
 

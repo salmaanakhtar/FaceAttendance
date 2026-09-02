@@ -1,6 +1,10 @@
 # Status
 
-_Last update: 2026-09-02 — v1.1.33 applies organization timezone immediately after handshake._
+_Last update: 2026-09-02 — v1.1.34 guards scanner startup retries._
+
+## Scanner startup reliability — 2026-09-02
+
+- Scanner initialization is now single-flight: repeated retry taps cannot overlap camera/model startup or create competing image streams.
 
 ## Provisioning timezone — 2026-09-02
 
