@@ -1,5 +1,10 @@
 # Status
 
+## v1.2.4
+
+- Admin dashboard now shows a worker-hours table with separate Today, This week, and This month totals for every active worker.
+- Each total is tappable to open that worker's editable attendance sessions.
+
 ## v1.2.3
 
 - Kiosk worker-code screen now has a permanent touch number keypad under the code field and a dedicated Punch Time button beneath it.

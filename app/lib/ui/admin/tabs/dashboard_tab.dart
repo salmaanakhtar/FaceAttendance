@@ -20,6 +20,8 @@ class _DashboardTabState extends State<DashboardTab> {
   Map<String, dynamic>? _stats;
   List<Map<String, dynamic>> _exceptions = [];
   List<AttendanceSession> _periodSessions = [];
+  List<AttendanceSession> _daySessions = [];
+  List<AttendanceSession> _monthSessions = [];
   List<Employee> _employees = [];
   String _period = 'week';
   bool _loading = true;
@@ -54,8 +56,14 @@ class _DashboardTabState extends State<DashboardTab> {
       final periodStart = _period == 'week'
           ? now.subtract(Duration(days: now.weekday - 1))
           : tz.TZDateTime(tz.local, now.year, now.month, 1);
-      final periodRes = await AdminApi.instance
-          .attendanceList(from: date(periodStart), to: today, limit: 500);
+      final monthStart = tz.TZDateTime(tz.local, now.year, now.month, 1);
+      final results = await Future.wait([
+        AdminApi.instance.attendanceList(from: today, to: today, limit: 500),
+        AdminApi.instance
+            .attendanceList(from: date(periodStart), to: today, limit: 500),
+        AdminApi.instance
+            .attendanceList(from: date(monthStart), to: today, limit: 500),
+      ]);
       final employeeRes =
           await AdminApi.instance.listEmployees(status: 'active', limit: 500);
       // Older servers do not expose the exception inbox yet. Keep the rest of
@@ -74,7 +82,14 @@ class _DashboardTabState extends State<DashboardTab> {
           _exceptions =
               (exceptionRes['exceptions'] as List<dynamic>? ?? const [])
                   .cast<Map<String, dynamic>>();
-          _periodSessions = (periodRes['sessions'] as List<dynamic>? ??
+          _daySessions = (results[0]['sessions'] as List<dynamic>? ?? const [])
+              .map((e) => AttendanceSession.fromJson(e as Map<String, dynamic>))
+              .toList();
+          _periodSessions = (results[1]['sessions'] as List<dynamic>? ??
+                  const [])
+              .map((e) => AttendanceSession.fromJson(e as Map<String, dynamic>))
+              .toList();
+          _monthSessions = (results[2]['sessions'] as List<dynamic>? ??
                   const [])
               .map((e) => AttendanceSession.fromJson(e as Map<String, dynamic>))
               .toList();
@@ -148,7 +163,7 @@ class _DashboardTabState extends State<DashboardTab> {
         ),
         const SizedBox(height: 18),
         Row(children: [
-          const Text('Worker totals',
+          const Text('Working hours',
               style: TextStyle(
                   color: Colors.white,
                   fontSize: 16,
@@ -236,85 +251,98 @@ class _DashboardTabState extends State<DashboardTab> {
 
   Widget _workerTotals() {
     final totals = <String,
-        ({String id, String name, int minutes, int open, int expected})>{};
+        ({
+      String id,
+      String name,
+      int day,
+      int week,
+      int month,
+      int open,
+      int expected
+    })>{};
     for (final e in _employees) {
       totals[e.id] = (
         id: e.id,
         name: e.name,
-        minutes: 0,
+        day: 0,
+        week: 0,
+        month: 0,
         open: 0,
         expected: _expectedMinutes(e)
       );
     }
-    for (final s in _periodSessions) {
-      final old = totals[s.employeeId];
-      totals[s.employeeId] = (
-        id: s.employeeId,
-        name: s.employeeName,
-        minutes: (old?.minutes ?? 0) + s.workedMinutes,
-        open: (old?.open ?? 0) + (s.status == 'open' ? 1 : 0),
-        expected: old?.expected ?? 0,
-      );
+    void add(List<AttendanceSession> sessions, String field) {
+      for (final s in sessions) {
+        final old = totals[s.employeeId];
+        totals[s.employeeId] = (
+          id: s.employeeId,
+          name: s.employeeName,
+          day: field == 'day'
+              ? (old?.day ?? 0) + s.workedMinutes
+              : (old?.day ?? 0),
+          week: field == 'week'
+              ? (old?.week ?? 0) + s.workedMinutes
+              : (old?.week ?? 0),
+          month: field == 'month'
+              ? (old?.month ?? 0) + s.workedMinutes
+              : (old?.month ?? 0),
+          open: (old?.open ?? 0) + (s.status == 'open' ? 1 : 0),
+          expected: old?.expected ?? 0,
+        );
+      }
     }
+
+    add(_daySessions, 'day');
+    add(_periodSessions, 'week');
+    add(_monthSessions, 'month');
     if (totals.isEmpty) {
       return const _EmptyCard(
           text: 'No worker hours recorded for this period.');
     }
     final rows = totals.values.toList()
       ..sort((a, b) => a.name.compareTo(b.name));
-    return Column(children: [
-      for (final row in rows)
-        Card(
-            color: const Color(0xFF161A20),
-            margin: const EdgeInsets.only(bottom: 6),
-            child: ListTile(
-                dense: false,
-                onTap: () => _showWorkerSessions(row.id, row.name),
-                title: Row(children: [
-                  Expanded(
-                      child: Text(row.name,
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w500))),
-                  Text(_fmtHours(row.minutes),
-                      style: const TextStyle(
-                          color: Color(0xFF4DA3FF),
-                          fontWeight: FontWeight.w700)),
-                ]),
-                subtitle: Padding(
-                  padding: const EdgeInsets.only(top: 5),
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                            row.minutes == 0 && row.open == 0
-                                ? 'No hours recorded'
-                                : row.open == 0
-                                    ? 'Complete shifts'
-                                    : '${row.open} open shift${row.open == 1 ? '' : 's'}',
-                            style: const TextStyle(color: Colors.white38)),
-                        if (row.expected > 0) ...[
-                          const SizedBox(height: 5),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(3),
-                            child: LinearProgressIndicator(
-                              minHeight: 4,
-                              value:
-                                  (row.minutes / row.expected).clamp(0.0, 1.0),
-                              backgroundColor: Colors.white12,
-                              color: const Color(0xFF2FBF71),
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text('of ${_fmtHours(row.expected)} planned',
-                              style: const TextStyle(
-                                  color: Colors.white30, fontSize: 11)),
-                        ],
-                      ]),
-                ),
-                trailing: const Icon(Icons.edit_outlined,
-                    size: 18, color: Colors.white38)))
-    ]);
+    return Card(
+      color: const Color(0xFF161A20),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: DataTable(
+          headingRowColor:
+              WidgetStatePropertyAll(Colors.white.withOpacity(.04)),
+          columns: const [
+            DataColumn(label: Text('Worker')),
+            DataColumn(label: Text('Today')),
+            DataColumn(label: Text('This week')),
+            DataColumn(label: Text('This month')),
+          ],
+          rows: [
+            for (final row in rows)
+              DataRow(cells: [
+                DataCell(
+                    Text(row.name,
+                        style: const TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.w500)),
+                    onTap: () => _showWorkerSessions(row.id, row.name)),
+                DataCell(
+                    Text(_fmtHours(row.day),
+                        style: const TextStyle(color: Colors.white70)),
+                    onTap: () => _showWorkerSessions(row.id, row.name)),
+                DataCell(
+                    Text(_fmtHours(row.week),
+                        style: const TextStyle(
+                            color: Color(0xFF4DA3FF),
+                            fontWeight: FontWeight.w700)),
+                    onTap: () => _showWorkerSessions(row.id, row.name)),
+                DataCell(
+                    Text(_fmtHours(row.month),
+                        style: const TextStyle(
+                            color: Color(0xFF2FBF71),
+                            fontWeight: FontWeight.w700)),
+                    onTap: () => _showWorkerSessions(row.id, row.name)),
+              ])
+          ],
+        ),
+      ),
+    );
   }
 
   int _expectedMinutes(Employee employee) {
