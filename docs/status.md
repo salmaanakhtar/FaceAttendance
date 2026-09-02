@@ -1,6 +1,10 @@
 # Status
 
-_Last update: 2026-09-02 — v1.1.37 refreshes session detail after punch corrections._
+_Last update: 2026-09-02 — v1.1.38 improves correction refresh coverage._
+
+## Large-organization correction refresh — 2026-09-02
+
+- Session edits now refresh against the backend’s 500-session window, reducing stale results for organizations with larger attendance registers.
 
 ## Correction screen consistency — 2026-09-02
 

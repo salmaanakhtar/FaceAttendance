@@ -176,7 +176,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
         value: picked?.toUtc().toIso8601String() ?? valueOverride,
       );
       // Refresh the session from the server.
-      final res = await AdminApi.instance.attendanceList(limit: 200);
+      final res = await AdminApi.instance.attendanceList(limit: 500);
       final returnedId = correction['sessionId'] as String?;
       final fresh = (res['sessions'] as List<dynamic>)
           .map((e) => AttendanceSession.fromJson(e as Map<String, dynamic>))
