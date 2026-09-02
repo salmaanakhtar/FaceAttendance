@@ -49,7 +49,8 @@ The embedding space changed with the channel-order fix, so old templates are
 not comparable to new ones. Every template now carries `template_version`
 (see `docs/data-model.md`); the app ignores templates that are not the
 current version and enrollment only compares against same-version templates.
-**All users must re-enroll after upgrading to a build with template v2.**
+Only employees whose stored template predates template v2 need to re-enroll;
+compatible v2 templates are preserved and refreshed normally across app updates.
 
 ## Benchmark harness
 
