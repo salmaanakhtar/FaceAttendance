@@ -41,18 +41,21 @@ class ApiClient {
     final siteId = body['siteId'];
     if (siteId != null) await SecureStore.instance.setSiteId(siteId as String);
     final deviceId = body['deviceId'];
-    if (deviceId != null) await SecureStore.instance.setDeviceId(deviceId as String);
+    if (deviceId != null)
+      await SecureStore.instance.setDeviceId(deviceId as String);
     _provisioned = true;
   }
 
   /// Auth-aware GET with automatic re-handshake when the server rotates
   /// secrets (e.g. migrating to a new deployment): a 401 triggers one
   /// handshake retry using the stored provisioning key.
-  Future<Map<String, dynamic>> _authedGet(String path, {bool retried = false}) async {
+  Future<Map<String, dynamic>> _authedGet(String path,
+      {bool retried = false}) async {
     final token = await SecureStore.instance.getDeviceToken();
     if (token == null) throw _NoToken();
     try {
-      final res = await _dio.get(path, options: Options(headers: {'Authorization': 'Bearer $token'}));
+      final res = await _dio.get(path,
+          options: Options(headers: {'Authorization': 'Bearer $token'}));
       return res.data as Map<String, dynamic>;
     } on DioException catch (e) {
       if (e.response?.statusCode == 401 && !retried) {
@@ -63,17 +66,27 @@ class ApiClient {
     }
   }
 
-  Future<Map<String, dynamic>> _authedPost(String path, Map<String, dynamic> body,
-      {bool retried = false}) async {
+  Future<Map<String, dynamic>> _authedPost(
+      String path, Map<String, dynamic> body,
+      {bool retried = false, Duration? timeout}) async {
     final token = await SecureStore.instance.getDeviceToken();
     if (token == null) throw _NoToken();
     try {
-      final res = await _dio.post(path, data: body, options: Options(headers: {'Authorization': 'Bearer $token'}));
+      final res = await _dio.post(
+        path,
+        data: body,
+        options: Options(
+          headers: {'Authorization': 'Bearer $token'},
+          connectTimeout: timeout,
+          sendTimeout: timeout,
+          receiveTimeout: timeout,
+        ),
+      );
       return res.data as Map<String, dynamic>;
     } on DioException catch (e) {
       if (e.response?.statusCode == 401 && !retried) {
         await handshake();
-        return _authedPost(path, body, retried: true);
+        return _authedPost(path, body, retried: true, timeout: timeout);
       }
       rethrow;
     }
@@ -92,16 +105,23 @@ class ApiClient {
     bool offline = false,
   }) async {
     try {
-      return await _authedPost('/api/v1/scans', {
-        'dedupeKey': dedupeKey,
-        'employeeId': employeeId,
-        if (deviceTime != null) 'deviceTime': deviceTime.toUtc().toIso8601String(),
-        if (directionHint != null) 'directionHint': directionHint,
-        if (confidence != null) 'confidence': confidence,
-        if (livenessScore != null) 'livenessScore': livenessScore,
-        if (faceHash != null) 'faceHash': faceHash,
-        'syncState': offline ? 'offline' : 'live',
-      });
+      // A kiosk must fail over to its encrypted offline queue quickly when
+      // the WAN is unavailable; waiting through the generic 8–10 second API
+      // timeout makes a successful face match feel broken.
+      return await _authedPost(
+          '/api/v1/scans',
+          {
+            'dedupeKey': dedupeKey,
+            'employeeId': employeeId,
+            if (deviceTime != null)
+              'deviceTime': deviceTime.toUtc().toIso8601String(),
+            if (directionHint != null) 'directionHint': directionHint,
+            if (confidence != null) 'confidence': confidence,
+            if (livenessScore != null) 'livenessScore': livenessScore,
+            if (faceHash != null) 'faceHash': faceHash,
+            'syncState': offline ? 'offline' : 'live',
+          },
+          timeout: const Duration(seconds: 3));
     } on DioException catch (e) {
       final type = e.type;
       if (type == DioExceptionType.connectionTimeout ||
@@ -114,8 +134,10 @@ class ApiClient {
     }
   }
 
-  Future<Map<String, dynamic>> fetchTemplates() => _authedGet('/api/v1/device/templates');
-  Future<Map<String, dynamic>> fetchConfig() => _authedGet('/api/v1/device/config');
+  Future<Map<String, dynamic>> fetchTemplates() =>
+      _authedGet('/api/v1/device/templates');
+  Future<Map<String, dynamic>> fetchConfig() =>
+      _authedGet('/api/v1/device/config');
 }
 
 class _NoToken implements Exception {}

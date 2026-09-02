@@ -1,6 +1,10 @@
 # Status
 
-_Last update: 2026-09-02 — v1.1.29 makes dashboard worker totals directly editable._
+_Last update: 2026-09-02 — v1.1.30 speeds offline scan failover._
+
+## Scan response time — 2026-09-02
+
+- Live scan submissions use a three-second request deadline and then enter the encrypted offline queue, instead of waiting through the generic API timeout when the network is unavailable. Server time remains authoritative when the queued event is delivered.
 
 ## Dashboard editing — 2026-09-02
 
