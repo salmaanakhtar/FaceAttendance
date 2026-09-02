@@ -1,6 +1,10 @@
 # Status
 
-_Last update: 2026-09-02 — v1.1.30 speeds offline scan failover._
+_Last update: 2026-09-02 — v1.1.31 shows every active worker in period totals._
+
+## Worker coverage — 2026-09-02
+
+- Dashboard week/month totals now include every active worker, including those with zero recorded hours, so missing attendance cannot be hidden by an empty session list.
 
 ## Scan response time — 2026-09-02
 

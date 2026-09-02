@@ -20,6 +20,7 @@ class _DashboardTabState extends State<DashboardTab> {
   Map<String, dynamic>? _stats;
   List<Map<String, dynamic>> _exceptions = [];
   List<AttendanceSession> _periodSessions = [];
+  List<Employee> _employees = [];
   String _period = 'week';
   bool _loading = true;
   String? _error;
@@ -55,6 +56,8 @@ class _DashboardTabState extends State<DashboardTab> {
           : tz.TZDateTime(tz.local, now.year, now.month, 1);
       final periodRes = await AdminApi.instance
           .attendanceList(from: date(periodStart), to: today, limit: 500);
+      final employeeRes =
+          await AdminApi.instance.listEmployees(status: 'active', limit: 500);
       // Older servers do not expose the exception inbox yet. Keep the rest of
       // the dashboard usable during a rolling app/backend deployment.
       Map<String, dynamic> exceptionRes = const {'exceptions': <dynamic>[]};
@@ -74,6 +77,9 @@ class _DashboardTabState extends State<DashboardTab> {
           _periodSessions = (periodRes['sessions'] as List<dynamic>? ??
                   const [])
               .map((e) => AttendanceSession.fromJson(e as Map<String, dynamic>))
+              .toList();
+          _employees = (employeeRes['employees'] as List<dynamic>? ?? const [])
+              .map((e) => Employee.fromJson(e as Map<String, dynamic>))
               .toList();
           _loading = false;
           _error = null;
@@ -231,6 +237,9 @@ class _DashboardTabState extends State<DashboardTab> {
   Widget _workerTotals() {
     final totals =
         <String, ({String id, String name, int minutes, int open})>{};
+    for (final e in _employees) {
+      totals[e.id] = (id: e.id, name: e.name, minutes: 0, open: 0);
+    }
     for (final s in _periodSessions) {
       final old = totals[s.employeeId];
       totals[s.employeeId] = (
@@ -257,9 +266,11 @@ class _DashboardTabState extends State<DashboardTab> {
                     style: const TextStyle(
                         color: Colors.white, fontWeight: FontWeight.w500)),
                 subtitle: Text(
-                    row.open == 0
-                        ? 'Complete shifts'
-                        : '${row.open} open shift${row.open == 1 ? '' : 's'}',
+                    row.minutes == 0 && row.open == 0
+                        ? 'No hours recorded'
+                        : row.open == 0
+                            ? 'Complete shifts'
+                            : '${row.open} open shift${row.open == 1 ? '' : 's'}',
                     style: const TextStyle(color: Colors.white38)),
                 trailing: Text(_fmtHours(row.minutes),
                     style: const TextStyle(
