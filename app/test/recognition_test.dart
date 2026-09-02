@@ -205,6 +205,14 @@ void main() {
       expect(t.isSatisfied, isFalse);
     });
 
+    test('missing eye probabilities never fabricate a blink', () {
+      final t = LivenessTracker();
+      t.observe(leftOpen: 0.5, rightOpen: 0.5);
+      t.observe(leftOpen: 0.1, rightOpen: 0.1);
+      t.observe(leftOpen: 0.9, rightOpen: 0.9);
+      expect(t.blinks, 0);
+    });
+
     test('quality: too far, poor light, multiple faces', () {
       expect(
           ScanQuality.check(faceWidthPx: 30, frameWidthPx: 640, meanLuma: 120),

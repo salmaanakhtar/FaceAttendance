@@ -58,12 +58,19 @@ class LivenessTracker {
   void observe({required double leftOpen, required double rightOpen}) {
     _frames++;
     final hasSignal = leftOpen != 0.5 || rightOpen != 0.5;
-    if (hasSignal) _eyeSignalsSeen = true;
+    if (!hasSignal) {
+      // Missing probabilities are common on some ML Kit/device versions.
+      // They contribute to the frame-quality window but never create a
+      // synthetic open-eye state that could start a blink.
+      _eyesOpen = null;
+      return;
+    }
+    _eyeSignalsSeen = true;
     final open = (leftOpen + rightOpen) / 2 >= kMinBlinkProbability;
-    if (hasSignal && open && _blinkInProgress) {
+    if (open && _blinkInProgress) {
       _blinks++;
       _blinkInProgress = false;
-    } else if (hasSignal && !open && _eyesOpen == true) {
+    } else if (!open && _eyesOpen == true) {
       _blinkInProgress = true;
     }
     // Retain the prior transition block's structure for compatibility with

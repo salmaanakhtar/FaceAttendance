@@ -1,5 +1,10 @@
 # Status
 
+## v1.1.44
+
+- Liveness treats missing ML Kit eye probabilities as neutral frames, so a device without eye signals cannot fabricate a blink from a closed-eye transition.
+- Added regression coverage for that camera/device behavior.
+
 ## v1.1.43
 
 - Attendance controls now reflow responsively instead of forcing date, export, payroll, and approval actions into one overflowing row.
