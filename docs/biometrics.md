@@ -1,6 +1,12 @@
 # Biometrics / face recognition approach
 
-## Architecture: on-device recognition, server-synced encrypted templates
+## Legacy biometric architecture
+
+The kiosk no longer uses face recognition for attendance. Worker punches are
+entered by employee code and processed by the same server attendance engine.
+The following remains as legacy enrollment/template documentation for existing
+records and any future optional biometric mode; it is not part of the active
+kiosk check-in flow.
 
 1. **Detection** — Google ML Kit face detection (on-device) on camera frames:
    face box, landmarks, probabilities (eyes open, smile), head Euler angles.
