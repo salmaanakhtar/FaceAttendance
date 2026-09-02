@@ -1,5 +1,10 @@
 # Status
 
+## v1.1.45
+
+- Audit failures now provide a retry action instead of a dead-end message.
+- Audit events display readable action labels, actor context, and compact detail fields for faster review.
+
 ## v1.1.44
 
 - Liveness treats missing ML Kit eye probabilities as neutral frames, so a device without eye signals cannot fabricate a blink from a closed-eye transition.

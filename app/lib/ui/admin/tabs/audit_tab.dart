@@ -60,7 +60,23 @@ class _AuditTabState extends State<AuditTab> {
     }
     if (_error != null) {
       return Center(
-          child: Text(_error!, style: const TextStyle(color: Colors.white54)));
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.history_toggle_off_rounded,
+                color: Colors.white38, size: 38),
+            const SizedBox(height: 10),
+            Text(_error!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white54)),
+            const SizedBox(height: 14),
+            FilledButton.icon(
+                onPressed: _load,
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: const Text('Retry')),
+          ]),
+        ),
+      );
     }
     return ListView.builder(
       padding: const EdgeInsets.all(16),
@@ -122,16 +138,20 @@ class _AuditTabState extends State<AuditTab> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(e.action,
+                    Text(_friendlyAction(e.action),
                         style:
                             const TextStyle(color: Colors.white, fontSize: 13)),
+                    Text(
+                        '${e.actorType}${e.actorId == null ? '' : ' · ${e.actorId}'}',
+                        style: const TextStyle(
+                            color: Colors.white30, fontSize: 11)),
                     if (e.targetType != null)
                       Text(
                           '${e.targetType}${e.targetId == null ? '' : ' · ${e.targetId}'}',
                           style: const TextStyle(
                               color: Colors.white38, fontSize: 11)),
                     if (e.details != null && e.details!.isNotEmpty)
-                      Text(e.details.toString(),
+                      Text(_detailsText(e.details!),
                           style: const TextStyle(
                               color: Colors.white54, fontSize: 11),
                           maxLines: 2,
@@ -146,5 +166,19 @@ class _AuditTabState extends State<AuditTab> {
         );
       },
     );
+  }
+
+  String _friendlyAction(String action) {
+    final normalized = action.replaceAll('_', ' ');
+    if (normalized.isEmpty) return 'Activity';
+    return normalized[0].toUpperCase() + normalized.substring(1);
+  }
+
+  String _detailsText(Map<String, dynamic> details) {
+    final entries = details.entries
+        .where((e) => e.value != null && '$e'.isNotEmpty)
+        .map((e) => '${e.key}: ${e.value}')
+        .toList();
+    return entries.join(' · ');
   }
 }
