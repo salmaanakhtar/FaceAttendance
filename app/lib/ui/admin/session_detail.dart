@@ -49,7 +49,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     setState(() => _busy = true);
     try {
       await AdminApi.instance.approveAttendance(_session.id);
-      if (mounted)
+      if (mounted) {
         setState(() => _session = AttendanceSession(
             id: _session.id,
             employeeId: _session.employeeId,
@@ -73,9 +73,11 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
             corrected: _session.corrected,
             reviewStatus: 'approved',
             reviewedAt: DateTime.now().toUtc().toIso8601String()));
-      if (mounted)
+      }
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('Timesheet approved')));
+      }
     } catch (e) {
       if (mounted) setState(() => _error = 'Approval failed: $e');
     } finally {

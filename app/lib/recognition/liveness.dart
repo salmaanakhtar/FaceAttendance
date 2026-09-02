@@ -15,10 +15,12 @@ class ScanQuality {
     int faceCount = 1,
   }) {
     if (faceCount > 1) return QualityIssue.multipleFaces;
-    if (faceWidthPx / frameWidthPx < kMinFaceWidthRatio)
+    if (faceWidthPx / frameWidthPx < kMinFaceWidthRatio) {
       return QualityIssue.tooFar;
-    if (meanLuma < kMinBrightness || meanLuma > kMaxBrightness)
+    }
+    if (meanLuma < kMinBrightness || meanLuma > kMaxBrightness) {
       return QualityIssue.poorLighting;
+    }
     return QualityIssue.none;
   }
 }

@@ -144,16 +144,18 @@ class _AttendanceTabState extends State<AttendanceTab> {
         to: _to == null ? null : _fmt(_to!),
       );
       await _load();
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content: Text(
                   '${result['approved'] ?? 0} completed shift(s) approved')),
         );
+      }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Approval failed: $e')));
+      }
     }
   }
 
@@ -297,9 +299,10 @@ class _AttendanceTabState extends State<AttendanceTab> {
           .map((e) => Employee.fromJson(e as Map<String, dynamic>))
           .toList();
       if (!mounted || employees.isEmpty) {
-        if (mounted)
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Create an active worker first')));
+        }
         return;
       }
       final now = tz.TZDateTime.now(tz.local);
@@ -441,13 +444,15 @@ class _AttendanceTabState extends State<AttendanceTab> {
             value: outAt.toUtc().toIso8601String());
       }
       await _load();
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('Manual time entry saved and audited')));
+      }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Manual entry failed: $e')));
+      }
     }
   }
 
@@ -466,9 +471,10 @@ class _AttendanceTabState extends State<AttendanceTab> {
       await File(file).writeAsString(csv);
       await Share.shareXFiles([XFile(file)], subject: 'Payslip estimate');
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Payroll report failed: $e')));
+      }
     }
   }
 

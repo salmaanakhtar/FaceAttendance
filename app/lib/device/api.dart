@@ -48,8 +48,9 @@ class ApiClient {
     final siteId = body['siteId'];
     if (siteId != null) await SecureStore.instance.setSiteId(siteId as String);
     final deviceId = body['deviceId'];
-    if (deviceId != null)
+    if (deviceId != null) {
       await SecureStore.instance.setDeviceId(deviceId as String);
+    }
     _provisioned = true;
   }
 

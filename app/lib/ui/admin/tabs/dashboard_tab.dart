@@ -249,9 +249,10 @@ class _DashboardTabState extends State<DashboardTab> {
         open: (old?.open ?? 0) + (s.status == 'open' ? 1 : 0)
       );
     }
-    if (totals.isEmpty)
+    if (totals.isEmpty) {
       return const _EmptyCard(
           text: 'No worker hours recorded for this period.');
+    }
     final rows = totals.values.toList()
       ..sort((a, b) => a.name.compareTo(b.name));
     return Column(children: [

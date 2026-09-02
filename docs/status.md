@@ -1,6 +1,11 @@
 # Status
 
-_Last update: 2026-09-02 — v1.1.39 uses organization timezone for attendance filters._
+_Last update: 2026-09-02 — v1.1.40 release candidate; analyzer diagnostics are clean._
+
+## v1.1.40
+
+- Cleaned up remaining Dart analyzer diagnostics across scanner and admin screens.
+- Behavior is unchanged from v1.1.39; this release provides a fresh APK with the complete current source.
 
 ## Attendance filter timezone — 2026-09-02
 

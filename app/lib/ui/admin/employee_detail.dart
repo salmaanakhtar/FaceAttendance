@@ -134,9 +134,10 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
       await AdminApi.instance.deleteEmployee(_employee.id);
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Delete failed: $e')));
+      }
     }
   }
 
