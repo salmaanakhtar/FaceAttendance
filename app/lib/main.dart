@@ -15,20 +15,19 @@ import 'ui/provision/provision_screen.dart';
 import 'ui/scanner/scanner_screen.dart';
 import 'updater/update_state.dart';
 
-/// One-time storage reset: when the installed build tag changes, wipe all
-/// local Hive boxes (templates, status cache, offline queue) and every
-/// credential so no stale face data or tokens survive across deployments.
-Future<void> _wipeIfNewBuild() async {
+/// Record the installed build tag without destroying kiosk identity. An app
+/// update must keep the device key/token and any offline scans; templates are
+/// version-gated and replaced by the normal server sync on bootstrap. Wiping
+/// credentials here used to send every updated kiosk back to provisioning.
+Future<void> _recordBuildVersion() async {
   final prev = await SecureStore.instance.getInstalledVersion();
   if (prev == kAppVersion) return;
-  await Hive.deleteFromDisk();
-  await SecureStore.instance.clearAll();
   await SecureStore.instance.setInstalledVersion(kAppVersion);
 }
 
 Future<void> main() async {  WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
-  await _wipeIfNewBuild();
+  await _recordBuildVersion();
   await SecureStore.instance.ensureTemplateKey();
   await AppTime.init(); // org-local time for every screen
   await OfflineQueue.instance.init();

@@ -1,6 +1,10 @@
 # Status
 
-_Last update: 2026-09-02 — v1.1.27 streamlined manual time entry form._
+_Last update: 2026-09-02 — v1.1.28 preserves kiosk provisioning across updates._
+
+## Update safety — 2026-09-02
+
+- APK upgrades now retain the device provisioning key, server token, organization identity, and offline scan queue. Face templates remain version-gated and refresh from the server; upgrades no longer unexpectedly return a configured kiosk to the provisioning screen.
 
 Release tags now publish their matching `app/releases/FaceAttendance-<tag>-lan.apk`
 as a GitHub Release automatically, which is the source used by kiosk auto-update.
