@@ -165,7 +165,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
       _error = null;
     });
     try {
-      await AdminApi.instance.applyCorrection(
+      final correction = await AdminApi.instance.applyCorrection(
         employeeId: _session.employeeId,
         // Adding a missing event targets the employee's open/incomplete
         // session server-side; passing this session ID makes the backend
@@ -177,9 +177,10 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
       );
       // Refresh the session from the server.
       final res = await AdminApi.instance.attendanceList(limit: 200);
+      final returnedId = correction['sessionId'] as String?;
       final fresh = (res['sessions'] as List<dynamic>)
           .map((e) => AttendanceSession.fromJson(e as Map<String, dynamic>))
-          .where((s) => s.id == _session.id)
+          .where((s) => s.id == (returnedId ?? _session.id))
           .firstOrNull;
       if (fresh != null && mounted) {
         setState(() => _session = fresh);

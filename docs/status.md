@@ -1,6 +1,10 @@
 # Status
 
-_Last update: 2026-09-02 — v1.1.36 fixes missing-event admin actions._
+_Last update: 2026-09-02 — v1.1.37 refreshes session detail after punch corrections._
+
+## Correction screen consistency — 2026-09-02
+
+- After an add-missing-punch correction, the session detail view now follows the server-returned session ID and displays the newly created or updated session immediately.
 
 ## Missing event corrections — 2026-09-02
 
