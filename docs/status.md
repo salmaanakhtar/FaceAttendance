@@ -4,6 +4,8 @@
 
 - Worker forms now scroll above the keyboard, validate numeric kiosk codes,
   and show concise API validation messages instead of raw Dio exceptions.
+- Codes belonging only to deleted, hidden workers can be reused safely; codes
+  on active or inactive workers identify the conflicting worker by name.
 - Automatically generated worker codes are numeric so they can be entered on
   the kiosk keypad.
 - The Leave page now handles an older backend's missing route without leaving

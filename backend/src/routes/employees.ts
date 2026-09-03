@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { query, queryOne } from '../db.js';
+import { pool, query, queryOne } from '../db.js';
 import { requireAdmin } from '../auth/guards.js';
 import { badRequest, conflict, notFound } from '../lib/errors.js';
 import { encryptAesGcm, decryptAesGcm, deriveOrgKey } from '../lib/crypto.js';
@@ -116,33 +116,60 @@ export function employeeRoutes(app: FastifyInstance): void {
     // Kiosks use a numeric keypad, so automatically assigned codes must also
     // be numeric. Explicit legacy alphanumeric codes remain valid.
     const code = body.employeeCode?.trim() || Date.now().toString();
-    const dup = await queryOne('SELECT id FROM employees WHERE org_id = $1 AND employee_code = $2', [
-      req.admin!.orgId,
-      code,
-    ]);
-    if (dup) throw conflict('employee code already exists');
-    const row = await queryOne<EmployeeRow>(
-      `INSERT INTO employees (id, org_id, employee_code, name, email, phone, schedule)
-       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6) RETURNING *`,
-      [
-        req.admin!.orgId,
-        code,
-        body.name.trim(),
-        body.email?.trim() || null,
-        body.phone ?? null,
-        JSON.stringify(body.schedule ?? {}),
-      ],
-    );
+    const client = await pool.connect();
+    let row: EmployeeRow;
+    try {
+      await client.query('BEGIN');
+      const duplicate = await client.query<Pick<EmployeeRow, 'id' | 'name' | 'status'>>(
+        `SELECT id, name, status FROM employees
+         WHERE org_id = $1 AND employee_code = $2 FOR UPDATE`,
+        [req.admin!.orgId, code],
+      );
+      const existing = duplicate.rows[0];
+      if (existing && existing.status !== 'deleted') {
+        throw conflict(
+          `worker code ${code} already belongs to ${existing.name} (${existing.status})`,
+        );
+      }
+      if (existing) {
+        // Deleted workers remain for attendance/audit history. Retire their
+        // hidden code so a new worker can use the same keypad code.
+        await client.query(
+          `UPDATE employees SET employee_code = $3, updated_at = now()
+           WHERE id = $1 AND org_id = $2`,
+          [existing.id, req.admin!.orgId, `${code}__deleted__${existing.id}`],
+        );
+      }
+      const inserted = await client.query<EmployeeRow>(
+        `INSERT INTO employees (id, org_id, employee_code, name, email, phone, schedule)
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6) RETURNING *`,
+        [
+          req.admin!.orgId,
+          code,
+          body.name.trim(),
+          body.email?.trim() || null,
+          body.phone ?? null,
+          JSON.stringify(body.schedule ?? {}),
+        ],
+      );
+      row = inserted.rows[0]!;
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
     await audit({
       orgId: req.admin!.orgId,
       actorType: 'admin',
       actorId: req.admin!.id,
       action: 'employee_create',
       targetType: 'employee',
-      targetId: row!.id,
+      targetId: row.id,
       details: { employeeCode: code, name: body.name.trim() },
     });
-    return reply.code(201).send(rowToDto(row!));
+    return reply.code(201).send(rowToDto(row));
   });
 
   app.patch('/api/v1/admin/employees/:id', { preHandler: requireAdmin }, async (req, reply) => {
