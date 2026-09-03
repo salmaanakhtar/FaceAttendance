@@ -10,7 +10,9 @@ import '../session_detail.dart';
 
 /// Live operations snapshot: who is in right now + today's numbers.
 class DashboardTab extends StatefulWidget {
-  const DashboardTab({super.key});
+  final int refreshSignal;
+
+  const DashboardTab({super.key, this.refreshSignal = 0});
 
   @override
   State<DashboardTab> createState() => _DashboardTabState();
@@ -39,6 +41,14 @@ class _DashboardTabState extends State<DashboardTab> {
     _load();
     _poll =
         Timer.periodic(const Duration(seconds: 15), (_) => _load(silent: true));
+  }
+
+  @override
+  void didUpdateWidget(covariant DashboardTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.refreshSignal != oldWidget.refreshSignal) {
+      _load(silent: true);
+    }
   }
 
   @override
@@ -78,8 +88,10 @@ class _DashboardTabState extends State<DashboardTab> {
         ]);
         weekAbsenceRes = absenceResults[0];
         monthAbsenceRes = absenceResults[1];
-      } catch (_) {
-        // Leave/absence may not be deployed yet during a rolling upgrade.
+      } catch (error) {
+        // A legacy server may not expose absence yet. Other failures must be
+        // visible instead of silently replacing real absence counts with 0.
+        if (AdminApi.statusCode(error) != 404) rethrow;
       }
       // Older servers do not expose the exception inbox yet. Keep the rest of
       // the dashboard usable during a rolling app/backend deployment.

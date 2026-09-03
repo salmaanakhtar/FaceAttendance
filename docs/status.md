@@ -1,5 +1,15 @@
 # Status
 
+## v1.2.17 — Immediate absence totals refresh
+
+- Returning to Dashboard now reloads its data immediately, so an absence just
+  recorded under Attendance appears in Week status and Month status without
+  waiting for the background polling interval.
+- Transient absence API failures no longer silently replace real totals with
+  zero; the dashboard reports the load error instead.
+- Explicit absence records are labelled **Absent** in the Leave history.
+- Release APK: `app/releases/FaceAttendance-v1.2.17-lan.apk`.
+
 ## v1.2.16 — Attendance deletion and cleaner labels
 
 - Worker session details now include **Delete time entry**. Deletion removes the

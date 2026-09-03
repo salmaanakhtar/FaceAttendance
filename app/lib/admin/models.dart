@@ -236,11 +236,13 @@ class LeaveEntry {
         updatedAt: json['updatedAt'] as String,
       );
 
-  String get dateRange => startDate == endDate ? startDate : '$startDate → $endDate';
+  String get dateRange =>
+      startDate == endDate ? startDate : '$startDate → $endDate';
   String get typeLabel => switch (leaveType) {
         'annual' => 'Annual leave',
         'sick' => 'Sick leave',
         'unpaid' => 'Unpaid leave',
+        'absence' => 'Absent',
         _ => 'Other leave',
       };
 }

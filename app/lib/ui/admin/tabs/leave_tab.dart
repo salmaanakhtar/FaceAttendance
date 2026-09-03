@@ -175,9 +175,11 @@ class _LeaveTabState extends State<LeaveTab> {
                 child: ListTile(
                   onTap: () => _openForm(entry),
                   leading: Icon(
-                    entry.leaveType == 'sick'
-                        ? Icons.medical_services_outlined
-                        : Icons.beach_access_outlined,
+                    entry.leaveType == 'absence'
+                        ? Icons.person_off_outlined
+                        : entry.leaveType == 'sick'
+                            ? Icons.medical_services_outlined
+                            : Icons.beach_access_outlined,
                     color: _statusColor(entry.status),
                   ),
                   title: Text(entry.employeeName,

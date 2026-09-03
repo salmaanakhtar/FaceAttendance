@@ -17,8 +17,10 @@ class AdminShellScreen extends StatefulWidget {
   State<AdminShellScreen> createState() => _AdminShellScreenState();
 }
 
-class _AdminShellScreenState extends State<AdminShellScreen> with WidgetsBindingObserver {
+class _AdminShellScreenState extends State<AdminShellScreen>
+    with WidgetsBindingObserver {
   int _tab = 0;
+  int _dashboardRefreshSignal = 0;
 
   static const _tabs = [
     (icon: Icons.speed_rounded, label: 'Dashboard'),
@@ -68,12 +70,12 @@ class _AdminShellScreenState extends State<AdminShellScreen> with WidgetsBinding
       ),
       body: IndexedStack(
         index: _tab,
-        children: const [
-          DashboardTab(),
-          EmployeesTab(),
-          AttendanceTab(),
-          LeaveTab(),
-          AuditTab(),
+        children: [
+          DashboardTab(refreshSignal: _dashboardRefreshSignal),
+          const EmployeesTab(),
+          const AttendanceTab(),
+          const LeaveTab(),
+          const AuditTab(),
         ],
       ),
       floatingActionButton: _tab == 1 ? const EmployeesFab() : null,
@@ -82,7 +84,10 @@ class _AdminShellScreenState extends State<AdminShellScreen> with WidgetsBinding
         indicatorColor: const Color(0xFF2F6BFF),
         selectedIndex: _tab,
         onDestinationSelected: (i) {
-          setState(() => _tab = i);
+          setState(() {
+            _tab = i;
+            if (i == 0) _dashboardRefreshSignal++;
+          });
           AppState.instance.touchAdminActivity();
         },
         destinations: [
