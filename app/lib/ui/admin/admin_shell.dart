@@ -6,6 +6,7 @@ import 'tabs/attendance_tab.dart';
 import 'tabs/audit_tab.dart';
 import 'tabs/dashboard_tab.dart';
 import 'tabs/employees_tab.dart';
+import 'tabs/leave_tab.dart';
 
 /// Admin console: dashboard, employees, attendance, audit.
 /// Auto-relocks to the scanner after [AppState] inactivity.
@@ -23,6 +24,7 @@ class _AdminShellScreenState extends State<AdminShellScreen> with WidgetsBinding
     (icon: Icons.speed_rounded, label: 'Dashboard'),
     (icon: Icons.people_alt_outlined, label: 'Employees'),
     (icon: Icons.fact_check_outlined, label: 'Attendance'),
+    (icon: Icons.beach_access_outlined, label: 'Leave'),
     (icon: Icons.receipt_long_outlined, label: 'Audit'),
   ];
 
@@ -70,6 +72,7 @@ class _AdminShellScreenState extends State<AdminShellScreen> with WidgetsBinding
           DashboardTab(),
           EmployeesTab(),
           AttendanceTab(),
+          LeaveTab(),
           AuditTab(),
         ],
       ),

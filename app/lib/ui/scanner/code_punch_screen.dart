@@ -5,12 +5,28 @@ import 'package:flutter/material.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 import '../../app_state.dart';
+import '../../app_time.dart';
 import '../../attendance/offline_queue.dart';
 import '../../device/api.dart';
 import '../../device/secure_store.dart';
 import '../../recognition/matcher.dart';
 import '../../recognition/template_store.dart';
 import '../../util/feedback.dart';
+
+String punchConfirmation({
+  required String action,
+  required String employeeName,
+  required DateTime at,
+  required bool queued,
+}) {
+  final local = tz.TZDateTime.from(at, tz.local);
+  final time =
+      '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  final label = action == 'check_out' ? 'Checked out' : 'Checked in';
+  final timeLabel =
+      queued ? 'Queued at $time · saved offline' : 'Recorded at $time';
+  return '$label · $employeeName\n$timeLabel';
+}
 
 class CodePunchScreen extends StatefulWidget {
   final VoidCallback onAdminRequested;
@@ -106,6 +122,7 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
         _error = 'Enter your worker code.';
         _message = null;
       });
+      _showPunchBanner('Enter your worker code.', success: false);
       return;
     }
     final employee = _employees.cast<_KioskEmployee?>().firstWhere(
@@ -117,6 +134,7 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
         _error = 'Code not found. Check the code and try again.';
         _message = null;
       });
+      _showPunchBanner(_error!, success: false);
       await FeedbackFx.error();
       _code.clear();
       _focus.requestFocus();
@@ -140,18 +158,30 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
       final action = result['action'] as String? ??
           (direction == 'out' ? 'check_out' : 'check_in');
       final at = DateTime.tryParse(result['scanTime'] as String? ?? '') ??
-          DateTime.now();
+          AppTime.now();
       StatusCache.instance.recordOutcome(employee.id, action, at);
-      final label = action == 'check_out' ? 'Checked out' : 'Checked in';
       if (action == 'duplicate' ||
           action == 'already_in' ||
           action == 'already_out') {
-        setState(
-            () => _error = result['message'] as String? ?? 'Already recorded.');
+        final message = result['message'] as String? ?? 'Already recorded.';
+        if (!mounted) return;
+        setState(() => _error = message);
+        _showPunchBanner(message, success: false);
         await FeedbackFx.error();
       } else {
-        setState(() => _message =
-            '$label ${employee.name}${queued ? ' (saved offline)' : ''}');
+        final message = punchConfirmation(
+          action: action,
+          employeeName: employee.name,
+          at: at,
+          queued: queued,
+        );
+        if (!mounted) return;
+        setState(() => _message = message);
+        _showPunchBanner(
+          message,
+          success: true,
+          checkedOut: action == 'check_out',
+        );
         await FeedbackFx.success();
         unawaited(FeedbackFx.speak(action == 'check_out'
             ? 'Goodbye ${employee.name}'
@@ -160,16 +190,61 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
       _code.clear();
       _focus.requestFocus();
     } catch (e) {
-      setState(() => _error = 'Could not save punch. Try again.');
+      if (!mounted) return;
+      const message = 'Could not save punch. Try again.';
+      setState(() => _error = message);
+      _showPunchBanner(message, success: false);
       await FeedbackFx.error();
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
+  void _showPunchBanner(
+    String message, {
+    required bool success,
+    bool checkedOut = false,
+  }) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        duration: const Duration(seconds: 5),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+        backgroundColor: success
+            ? (checkedOut ? const Color(0xFF174A78) : const Color(0xFF17623D))
+            : const Color(0xFF722E35),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        content: Row(
+          children: [
+            Icon(
+              success
+                  ? (checkedOut ? Icons.logout_rounded : Icons.login_rounded)
+                  : Icons.info_outline_rounded,
+              color: Colors.white,
+              size: 30,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    height: 1.35),
+              ),
+            ),
+          ],
+        ),
+      ));
+  }
+
   @override
   Widget build(BuildContext context) {
-    final now = tz.TZDateTime.now(tz.local);
+    final now = AppTime.now();
     final time =
         '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
     return Scaffold(

@@ -9,6 +9,7 @@ import { employeeRoutes } from './routes/employees.js';
 import { attendanceRoutes } from './routes/attendance.js';
 import { correctionRoutes } from './routes/corrections.js';
 import { adminMiscRoutes } from './routes/admin-misc.js';
+import { leaveRoutes } from './routes/leave.js';
 import { appError } from './auth/guards.js';
 import { runRollover } from './services/attendance/service.js';
 
@@ -33,6 +34,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   attendanceRoutes(app);
   correctionRoutes(app);
   adminMiscRoutes(app);
+  leaveRoutes(app);
 
   app.setErrorHandler((err, req, reply) => {
     appError(reply, err);

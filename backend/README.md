@@ -36,6 +36,8 @@ npm run typecheck
 | GET | /api/v1/admin/attendance | admin | sessions list w/ filters + pagination |
 | GET | /api/v1/admin/attendance/employee/:id | admin | per-employee history + totals |
 | GET | /api/v1/admin/attendance/stats | admin | aggregates: late/early/ot/missed/anomalies |
+| GET | /api/v1/admin/attendance/absence | admin | absence + approved-leave totals by worker |
+| GET/POST/PATCH | /api/v1/admin/leave[/:id] | admin | track and approve worker leave |
 | POST | /api/v1/admin/corrections | admin | manual override (add/edit, audited) |
 | GET | /api/v1/admin/corrections | admin | correction history |
 | GET | /api/v1/admin/scan-events | admin | raw immutable events (transparency) |

@@ -4,13 +4,19 @@ import 'package:timezone/timezone.dart' as tz;
 import '../../../admin/admin_api.dart';
 import '../../../admin/models.dart';
 import '../../../app_state.dart';
+import '../../../app_time.dart';
 
 /// A single attendance session with manual override actions.
 /// Every correction is audited server-side (old value, new value, admin,
 /// reason) — raw scan events are never touched.
 class SessionDetailScreen extends StatefulWidget {
   final AttendanceSession session;
-  const SessionDetailScreen({super.key, required this.session});
+  final String? initialEditField;
+  const SessionDetailScreen({
+    super.key,
+    required this.session,
+    this.initialEditField,
+  });
 
   @override
   State<SessionDetailScreen> createState() => _SessionDetailScreenState();
@@ -27,7 +33,31 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     super.initState();
     _session = widget.session;
     _loadCorrections();
+    if (widget.initialEditField != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (widget.initialEditField == 'check_in') {
+          _editCheckIn();
+        } else if (widget.initialEditField == 'check_out') {
+          _editCheckOut();
+        }
+      });
+    }
   }
+
+  void _editCheckIn() => _correction(
+        field: _session.checkInAt == null ? 'add_check_in' : 'check_in',
+        initialValue: _session.checkInAt == null
+            ? null
+            : DateTime.tryParse(_session.checkInAt!),
+      );
+
+  void _editCheckOut() => _correction(
+        field: _session.checkOutAt == null ? 'add_check_out' : 'check_out',
+        initialValue: _session.checkOutAt == null
+            ? null
+            : DateTime.tryParse(_session.checkOutAt!),
+      );
 
   Future<void> _loadCorrections() async {
     try {
@@ -97,7 +127,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
         field == 'check_out' ||
         field == 'add_check_in' ||
         field == 'add_check_out') {
-      final now = tz.TZDateTime.now(tz.local);
+      final now = AppTime.now();
       final initialLocal = initialValue == null
           ? now
           : tz.TZDateTime.from(initialValue, tz.local);
@@ -184,8 +214,18 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
           .map((e) => AttendanceSession.fromJson(e as Map<String, dynamic>))
           .where((s) => s.id == (returnedId ?? _session.id))
           .firstOrNull;
-      if (fresh != null && mounted) {
-        setState(() => _session = fresh);
+      if (mounted) {
+        final savedAt = picked?.toUtc().toIso8601String();
+        final refreshed = fresh ?? _session;
+        setState(() {
+          _session = refreshed.withEditedTime(
+            checkInAt:
+                field == 'check_in' || field == 'add_check_in' ? savedAt : null,
+            checkOutAt: field == 'check_out' || field == 'add_check_out'
+                ? savedAt
+                : null,
+          );
+        });
       }
       await _loadCorrections();
       if (mounted) {
@@ -225,15 +265,27 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
             children: [
               Expanded(
                 child: _timeCard('Check-in', formatLocal(s.checkInAt),
-                    s.checkInSource == 'manual' ? 'manual' : null),
+                    s.checkInSource == 'manual' ? 'manual' : null,
+                    actionLabel: s.checkInAt == null ? 'Add time' : 'Edit time',
+                    onTap: _busy ? null : _editCheckIn),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: _timeCard('Check-out', formatLocal(s.checkOutAt),
-                    s.checkOutSource == 'manual' ? 'manual' : null),
+                    s.checkOutSource == 'manual' ? 'manual' : null,
+                    actionLabel:
+                        s.checkOutAt == null ? 'Add time' : 'Edit time',
+                    onTap: _busy ? null : _editCheckOut),
               ),
             ],
           ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(_error!,
+                  style:
+                      const TextStyle(color: Color(0xFFFF5D5D), fontSize: 13)),
+            ),
           const SizedBox(height: 12),
           _timeCard('Worked', s.hoursText, s.corrected ? 'corrected' : null),
           const SizedBox(height: 12),
@@ -255,38 +307,12 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
               label: const Text('Approve timesheet'),
             ),
           const SizedBox(height: 20),
-          const Text('Manual overrides',
+          const Text('Unpaid break',
               style: TextStyle(
                   color: Colors.white,
                   fontSize: 15,
                   fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(_error!,
-                  style:
-                      const TextStyle(color: Color(0xFFFF5D5D), fontSize: 13)),
-            ),
-          _actionButton(Icons.edit_calendar_outlined, 'Edit check-in time',
-              onTap: s.checkInAt == null
-                  ? null
-                  : () => _correction(
-                      field: 'check_in',
-                      initialValue: DateTime.tryParse(s.checkInAt!)),
-              enabled: !_busy),
-          _actionButton(Icons.edit_calendar_outlined, 'Edit check-out time',
-              onTap: s.checkOutAt == null
-                  ? null
-                  : () => _correction(
-                      field: 'check_out',
-                      initialValue: DateTime.tryParse(s.checkOutAt!)),
-              enabled: !_busy),
-          _actionButton(Icons.login_rounded, 'Add missing check-in',
-              onTap: () => _correction(field: 'add_check_in'), enabled: !_busy),
-          _actionButton(Icons.logout_rounded, 'Add missing check-out',
-              onTap: () => _correction(field: 'add_check_out'),
-              enabled: !_busy),
           _actionButton(Icons.free_breakfast_outlined, 'Edit unpaid break',
               onTap: () => _correction(
                   field: 'break_minutes',
@@ -333,28 +359,48 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     );
   }
 
-  Widget _timeCard(String label, String value, String? badge) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF161A20),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label,
-              style: const TextStyle(color: Colors.white38, fontSize: 12)),
-          const SizedBox(height: 4),
-          Text(value,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600)),
-          if (badge != null)
-            Text(badge,
-                style: const TextStyle(color: Color(0xFFFFC857), fontSize: 11)),
-        ],
+  Widget _timeCard(String label, String value, String? badge,
+      {VoidCallback? onTap, String? actionLabel}) {
+    return Material(
+      color: const Color(0xFF161A20),
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(label,
+                        style: const TextStyle(
+                            color: Colors.white38, fontSize: 12)),
+                  ),
+                  if (onTap != null)
+                    const Icon(Icons.edit_outlined,
+                        size: 15, color: Colors.white38),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(value,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600)),
+              if (badge != null)
+                Text(badge,
+                    style: const TextStyle(
+                        color: Color(0xFFFFC857), fontSize: 11)),
+              if (onTap != null && actionLabel != null)
+                Text(actionLabel,
+                    style: const TextStyle(
+                        color: Color(0xFF7EA2FF), fontSize: 11)),
+            ],
+          ),
+        ),
       ),
     );
   }

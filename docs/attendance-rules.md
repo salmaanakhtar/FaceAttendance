@@ -51,6 +51,13 @@ below are unit-tested.
     receipt time, and the device's recorded delay is logged. `sync_state =
     offline` flags the row for transparency.
 
+12. **Absence** is a completed scheduled workday with no attendance session
+    and no approved leave. Today, future dates, and dates before employment
+    are excluded. `schedule.workDays` defaults to Monday–Friday.
+13. **Leave** has a date range, type, status, and note. Only approved leave
+    excuses absence; pending, rejected, and cancelled records remain visible
+    without altering absence totals.
+
 ## Outputs
 
 - `attendance_sessions` (one per shift block)

@@ -5,6 +5,7 @@ import 'package:timezone/timezone.dart' as tz;
 
 import '../../../admin/admin_api.dart';
 import '../../../admin/models.dart';
+import '../../../app_time.dart';
 import '../session_detail.dart';
 
 /// Live operations snapshot: who is in right now + today's numbers.
@@ -20,9 +21,13 @@ class _DashboardTabState extends State<DashboardTab> {
   Map<String, dynamic>? _stats;
   List<Map<String, dynamic>> _exceptions = [];
   List<AttendanceSession> _periodSessions = [];
+  List<AttendanceSession> _weekSessions = [];
   List<AttendanceSession> _daySessions = [];
   List<AttendanceSession> _monthSessions = [];
   List<Employee> _employees = [];
+  Map<String, Map<String, dynamic>> _weekAbsence = {};
+  Map<String, Map<String, dynamic>> _monthAbsence = {};
+  int _monthAbsentDays = 0;
   String _period = 'week';
   bool _loading = true;
   String? _error;
@@ -45,7 +50,7 @@ class _DashboardTabState extends State<DashboardTab> {
   Future<void> _load({bool silent = false}) async {
     if (!silent) setState(() => _loading = true);
     try {
-      final now = tz.TZDateTime.now(tz.local);
+      final now = AppTime.now();
       String date(DateTime value) =>
           '${value.year}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
       final today = date(now);
@@ -53,19 +58,29 @@ class _DashboardTabState extends State<DashboardTab> {
       final nowRes = await AdminApi.instance.attendanceNow();
       final statsRes =
           await AdminApi.instance.attendanceStats(from: today, to: today);
-      final periodStart = _period == 'week'
-          ? now.subtract(Duration(days: now.weekday - 1))
-          : tz.TZDateTime(tz.local, now.year, now.month, 1);
       final monthStart = tz.TZDateTime(tz.local, now.year, now.month, 1);
+      final weekStart = now.subtract(Duration(days: now.weekday - 1));
       final results = await Future.wait([
         AdminApi.instance.attendanceList(from: today, to: today, limit: 500),
         AdminApi.instance
-            .attendanceList(from: date(periodStart), to: today, limit: 500),
+            .attendanceList(from: date(weekStart), to: today, limit: 500),
         AdminApi.instance
             .attendanceList(from: date(monthStart), to: today, limit: 500),
       ]);
       final employeeRes =
           await AdminApi.instance.listEmployees(status: 'active', limit: 500);
+      Map<String, dynamic> weekAbsenceRes = const {'workers': <dynamic>[]};
+      Map<String, dynamic> monthAbsenceRes = const {'workers': <dynamic>[]};
+      try {
+        final absenceResults = await Future.wait([
+          AdminApi.instance.absenceSummary(from: date(weekStart), to: today),
+          AdminApi.instance.absenceSummary(from: date(monthStart), to: today),
+        ]);
+        weekAbsenceRes = absenceResults[0];
+        monthAbsenceRes = absenceResults[1];
+      } catch (_) {
+        // Leave/absence may not be deployed yet during a rolling upgrade.
+      }
       // Older servers do not expose the exception inbox yet. Keep the rest of
       // the dashboard usable during a rolling app/backend deployment.
       Map<String, dynamic> exceptionRes = const {'exceptions': <dynamic>[]};
@@ -85,17 +100,29 @@ class _DashboardTabState extends State<DashboardTab> {
           _daySessions = (results[0]['sessions'] as List<dynamic>? ?? const [])
               .map((e) => AttendanceSession.fromJson(e as Map<String, dynamic>))
               .toList();
-          _periodSessions = (results[1]['sessions'] as List<dynamic>? ??
-                  const [])
+          _weekSessions = (results[1]['sessions'] as List<dynamic>? ?? const [])
               .map((e) => AttendanceSession.fromJson(e as Map<String, dynamic>))
               .toList();
           _monthSessions = (results[2]['sessions'] as List<dynamic>? ??
                   const [])
               .map((e) => AttendanceSession.fromJson(e as Map<String, dynamic>))
               .toList();
+          _periodSessions = _period == 'week' ? _weekSessions : _monthSessions;
           _employees = (employeeRes['employees'] as List<dynamic>? ?? const [])
               .map((e) => Employee.fromJson(e as Map<String, dynamic>))
               .toList();
+          _weekAbsence = {
+            for (final worker
+                in (weekAbsenceRes['workers'] as List<dynamic>? ?? const []))
+              (worker as Map<String, dynamic>)['employeeId'] as String: worker,
+          };
+          _monthAbsence = {
+            for (final worker
+                in (monthAbsenceRes['workers'] as List<dynamic>? ?? const []))
+              (worker as Map<String, dynamic>)['employeeId'] as String: worker,
+          };
+          _monthAbsentDays =
+              (monthAbsenceRes['totalAbsentDays'] as num?)?.toInt() ?? 0;
           _loading = false;
           _error = null;
         });
@@ -159,6 +186,11 @@ class _DashboardTabState extends State<DashboardTab> {
               value: '${agg['incompleteCount'] ?? 0}',
               color: const Color(0xFFFF5D5D)
             ),
+            (
+              label: 'Absent this month',
+              value: '$_monthAbsentDays',
+              color: const Color(0xFFFF7272)
+            ),
           ],
         ),
         const SizedBox(height: 18),
@@ -176,8 +208,11 @@ class _DashboardTabState extends State<DashboardTab> {
             ],
             selected: {_period},
             onSelectionChanged: (v) {
-              setState(() => _period = v.first);
-              _load();
+              setState(() {
+                _period = v.first;
+                _periodSessions =
+                    _period == 'week' ? _weekSessions : _monthSessions;
+              });
             },
           ),
         ]),
@@ -258,7 +293,11 @@ class _DashboardTabState extends State<DashboardTab> {
       int week,
       int month,
       int open,
-      int expected
+      int expected,
+      int weekAbsent,
+      int weekLeave,
+      int monthAbsent,
+      int monthLeave
     })>{};
     for (final e in _employees) {
       totals[e.id] = (
@@ -268,7 +307,11 @@ class _DashboardTabState extends State<DashboardTab> {
         week: 0,
         month: 0,
         open: 0,
-        expected: _expectedMinutes(e)
+        expected: _expectedMinutes(e),
+        weekAbsent: (_weekAbsence[e.id]?['absentDays'] as num?)?.toInt() ?? 0,
+        weekLeave: (_weekAbsence[e.id]?['leaveDays'] as num?)?.toInt() ?? 0,
+        monthAbsent: (_monthAbsence[e.id]?['absentDays'] as num?)?.toInt() ?? 0,
+        monthLeave: (_monthAbsence[e.id]?['leaveDays'] as num?)?.toInt() ?? 0
       );
     }
     void add(List<AttendanceSession> sessions, String field) {
@@ -288,6 +331,10 @@ class _DashboardTabState extends State<DashboardTab> {
               : (old?.month ?? 0),
           open: (old?.open ?? 0) + (s.status == 'open' ? 1 : 0),
           expected: old?.expected ?? 0,
+          weekAbsent: old?.weekAbsent ?? 0,
+          weekLeave: old?.weekLeave ?? 0,
+          monthAbsent: old?.monthAbsent ?? 0,
+          monthLeave: old?.monthLeave ?? 0,
         );
       }
     }
@@ -313,6 +360,8 @@ class _DashboardTabState extends State<DashboardTab> {
             DataColumn(label: Text('Today')),
             DataColumn(label: Text('This week')),
             DataColumn(label: Text('This month')),
+            DataColumn(label: Text('Week status')),
+            DataColumn(label: Text('Month status')),
           ],
           rows: [
             for (final row in rows)
@@ -338,6 +387,24 @@ class _DashboardTabState extends State<DashboardTab> {
                             color: Color(0xFF2FBF71),
                             fontWeight: FontWeight.w700)),
                     onTap: () => _showWorkerSessions(row.id, row.name)),
+                DataCell(Text(
+                  '${row.weekAbsent} absent\n${row.weekLeave} leave',
+                  style: TextStyle(
+                    color: row.weekAbsent > 0
+                        ? const Color(0xFFFF7272)
+                        : Colors.white54,
+                    fontSize: 12,
+                  ),
+                )),
+                DataCell(Text(
+                  '${row.monthAbsent} absent\n${row.monthLeave} leave',
+                  style: TextStyle(
+                    color: row.monthAbsent > 0
+                        ? const Color(0xFFFF7272)
+                        : Colors.white54,
+                    fontSize: 12,
+                  ),
+                )),
               ])
           ],
         ),
@@ -350,15 +417,14 @@ class _DashboardTabState extends State<DashboardTab> {
     final weekly = raw is num ? raw.toDouble() : double.tryParse('$raw') ?? 0;
     if (weekly <= 0) return 0;
     if (_period == 'week') return (weekly * 60).round();
-    final now = tz.TZDateTime.now(tz.local);
+    final now = AppTime.now();
     final days = DateTime(now.year, now.month + 1, 0).day;
     return (weekly * 60 * days / 7).round();
   }
 
   Future<void> _showWorkerSessions(String employeeId, String name) async {
-    final sessions = _periodSessions
-        .where((s) => s.employeeId == employeeId)
-        .toList()
+    final source = _period == 'week' ? _weekSessions : _monthSessions;
+    final sessions = source.where((s) => s.employeeId == employeeId).toList()
       ..sort((a, b) => b.workDate.compareTo(a.workDate));
     if (!mounted) return;
     await showModalBottomSheet<void>(
@@ -401,9 +467,25 @@ class _DashboardTabState extends State<DashboardTab> {
                             : Colors.white54),
                     title: Text(s.workDate,
                         style: const TextStyle(color: Colors.white)),
-                    subtitle: Text(
-                        '${formatLocal(s.checkInAt)} → ${formatLocal(s.checkOutAt)}',
-                        style: const TextStyle(color: Colors.white54)),
+                    subtitle: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _editableSessionTime(
+                          sheetContext: sheetContext,
+                          session: s,
+                          field: 'check_in',
+                          value: formatLocal(s.checkInAt),
+                        ),
+                        const Text(' → ',
+                            style: TextStyle(color: Colors.white38)),
+                        _editableSessionTime(
+                          sheetContext: sheetContext,
+                          session: s,
+                          field: 'check_out',
+                          value: formatLocal(s.checkOutAt),
+                        ),
+                      ],
+                    ),
                     trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                       Text(s.hoursText,
                           style: const TextStyle(color: Colors.white70)),
@@ -424,6 +506,35 @@ class _DashboardTabState extends State<DashboardTab> {
             ),
           ]),
         ),
+      ),
+    );
+  }
+
+  Widget _editableSessionTime({
+    required BuildContext sheetContext,
+    required AttendanceSession session,
+    required String field,
+    required String value,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(6),
+      onTap: () {
+        Navigator.pop(sheetContext);
+        Navigator.of(context)
+            .push(MaterialPageRoute(
+                builder: (_) => SessionDetailScreen(
+                      session: session,
+                      initialEditField: field,
+                    )))
+            .then((_) => _load(silent: true));
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 4),
+        child: Text(value,
+            style: const TextStyle(
+                color: Color(0xFF7EA2FF),
+                fontWeight: FontWeight.w600,
+                decoration: TextDecoration.underline)),
       ),
     );
   }

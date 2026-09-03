@@ -1,6 +1,8 @@
 /// Admin console data models (mirror the backend DTOs).
 library;
 
+import 'package:timezone/timezone.dart' as tz;
+
 class Employee {
   final String id;
   final String employeeCode;
@@ -123,6 +125,35 @@ class AttendanceSession {
   String get hoursText => workedMinutes == 0 && checkOutAt == null
       ? ''
       : '${workedMinutes ~/ 60}h ${workedMinutes % 60}m';
+
+  AttendanceSession withEditedTime({
+    String? checkInAt,
+    String? checkOutAt,
+  }) =>
+      AttendanceSession(
+        id: id,
+        employeeId: employeeId,
+        employeeName: employeeName,
+        employeeCode: employeeCode,
+        workDate: workDate,
+        checkInAt: checkInAt ?? this.checkInAt,
+        checkOutAt: checkOutAt ?? this.checkOutAt,
+        checkInSource: checkInAt == null ? checkInSource : 'manual',
+        checkOutSource: checkOutAt == null ? checkOutSource : 'manual',
+        status: status,
+        breakMinutes: breakMinutes,
+        workedMinutes: workedMinutes,
+        lateMinutes: lateMinutes,
+        earlyMinutes: earlyMinutes,
+        overtimeMinutes: overtimeMinutes,
+        isLate: isLate,
+        isEarly: isEarly,
+        hasOvertime: hasOvertime,
+        note: note,
+        corrected: corrected,
+        reviewStatus: reviewStatus,
+        reviewedAt: reviewedAt,
+      );
 }
 
 class CorrectionEntry {
@@ -164,6 +195,56 @@ class CorrectionEntry {
       );
 }
 
+class LeaveEntry {
+  final String id;
+  final String employeeId;
+  final String employeeName;
+  final String employeeCode;
+  final String startDate;
+  final String endDate;
+  final String leaveType;
+  final String status;
+  final String? note;
+  final String createdAt;
+  final String updatedAt;
+
+  LeaveEntry({
+    required this.id,
+    required this.employeeId,
+    required this.employeeName,
+    required this.employeeCode,
+    required this.startDate,
+    required this.endDate,
+    required this.leaveType,
+    required this.status,
+    this.note,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory LeaveEntry.fromJson(Map<String, dynamic> json) => LeaveEntry(
+        id: json['id'] as String,
+        employeeId: json['employeeId'] as String,
+        employeeName: json['employeeName'] as String,
+        employeeCode: json['employeeCode'] as String,
+        startDate: json['startDate'] as String,
+        endDate: json['endDate'] as String,
+        leaveType: json['leaveType'] as String,
+        status: json['status'] as String,
+        note: json['note'] as String?,
+        createdAt: json['createdAt'] as String,
+        updatedAt: json['updatedAt'] as String,
+      );
+
+  String get dateRange => startDate == endDate ? startDate : '$startDate → $endDate';
+  String get typeLabel => switch (leaveType) {
+        'annual' => 'Annual leave',
+        'sick' => 'Sick leave',
+        'unpaid' => 'Unpaid leave',
+        _ => 'Other leave',
+      };
+}
+
 class AuditEvent {
   final String id;
   final String actorType;
@@ -203,7 +284,7 @@ String formatLocal(String? iso) {
   if (iso == null) return '—';
   final dt = DateTime.tryParse(iso);
   if (dt == null) return iso;
-  final l = dt.toLocal();
+  final l = tz.TZDateTime.from(dt, tz.local);
   String two(int v) => v.toString().padLeft(2, '0');
   return '${two(l.hour)}:${two(l.minute)}';
 }
@@ -212,7 +293,7 @@ String formatLocalDate(String? iso) {
   if (iso == null) return '—';
   final dt = DateTime.tryParse(iso);
   if (dt == null) return iso;
-  final l = dt.toLocal();
+  final l = tz.TZDateTime.from(dt, tz.local);
   const months = [
     'Jan',
     'Feb',

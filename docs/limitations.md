@@ -19,5 +19,8 @@ iteration loop.
   employees match in milliseconds on-device; org template sync is delta-based.
 - **Offline corrections**: manual corrections require connectivity (admin
   actions are server-authoritative); offline queue covers scan events only.
+- **Absence schedule default**: workers without configured `schedule.workDays`
+  are treated as scheduled Monday–Friday. Configure workdays for part-time or
+  weekend workers before relying on absence totals.
 - **Face-obscuring PPE / masks**: documented false-rejection behavior; masks
   degrade recognition — flagged in UI as "face not fully visible" guidance.

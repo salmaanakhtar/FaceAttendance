@@ -113,7 +113,9 @@ export function employeeRoutes(app: FastifyInstance): void {
       schedule?: Record<string, unknown>;
     };
     if (!body.name?.trim()) throw badRequest('name required');
-    const code = body.employeeCode?.trim() || `E${Date.now().toString(36).toUpperCase()}`;
+    // Kiosks use a numeric keypad, so automatically assigned codes must also
+    // be numeric. Explicit legacy alphanumeric codes remain valid.
+    const code = body.employeeCode?.trim() || Date.now().toString();
     const dup = await queryOne('SELECT id FROM employees WHERE org_id = $1 AND employee_code = $2', [
       req.admin!.orgId,
       code,

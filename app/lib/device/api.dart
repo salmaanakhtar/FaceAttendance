@@ -35,14 +35,17 @@ class ApiClient {
     final org = body['org'] as Map<String, dynamic>?;
     if (org != null) {
       await SecureStore.instance.setOrgId(org['id'] as String);
-      await SecureStore.instance.setOrgName(org['name'] as String);
+      final orgName = org['name'] as String;
+      await SecureStore.instance.setOrgName(orgName);
       final tz = org['timezone'] as String?;
       if (tz != null) {
-        await SecureStore.instance.setOrgTimezone(tz);
+        final effectiveTimezone =
+            AppTime.organizationTimezone(tz, orgName: orgName);
+        await SecureStore.instance.setOrgTimezone(effectiveTimezone);
         // Apply a changed organization timezone immediately; otherwise a
         // newly provisioned kiosk would display device-local times until its
         // next restart.
-        AppTime.setLocal(tz);
+        AppTime.setLocal(effectiveTimezone, orgName: orgName);
       }
     }
     final siteId = body['siteId'];
@@ -146,8 +149,31 @@ class ApiClient {
       _authedGet('/api/v1/device/templates');
   Future<Map<String, dynamic>> fetchEmployees() =>
       _authedGet('/api/v1/device/employees');
-  Future<Map<String, dynamic>> fetchConfig() =>
-      _authedGet('/api/v1/device/config');
+  Future<Map<String, dynamic>> fetchConfig() async {
+    final requestTimer = Stopwatch()..start();
+    final config = await _authedGet('/api/v1/device/config');
+    requestTimer.stop();
+
+    final orgName = config['orgName'] as String?;
+    if (orgName != null && orgName.isNotEmpty) {
+      await SecureStore.instance.setOrgName(orgName);
+    }
+    final timezone = config['timezone'] as String?;
+    if (timezone != null && timezone.isNotEmpty) {
+      final effectiveTimezone =
+          AppTime.organizationTimezone(timezone, orgName: orgName);
+      await SecureStore.instance.setOrgTimezone(effectiveTimezone);
+      AppTime.setLocal(effectiveTimezone, orgName: orgName);
+    }
+    final serverTime = DateTime.tryParse(config['serverTime'] as String? ?? '');
+    if (serverTime != null) {
+      AppTime.syncServerTime(
+        serverTime,
+        roundTrip: requestTimer.elapsed,
+      );
+    }
+    return config;
+  }
 }
 
 class _NoToken implements Exception {}

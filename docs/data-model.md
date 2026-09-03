@@ -44,6 +44,13 @@ site-local time is derived at read time using the org/site timezone.
   enrollment changes, employee lifecycle, login failures, device sync,
   deletes/retention.
 
+### employee_leave
+- `id`, `org_id`, `employee_id`, `start_date`, `end_date`, `leave_type`
+  (`annual|sick|unpaid|other`), `status`
+  (`pending|approved|rejected|cancelled`), `note`, `created_by`, timestamps.
+- Approved leave excuses scheduled days from absence totals. Other statuses
+  remain in history but do not suppress absence.
+
 ### admin_sessions
 - `id`, `admin_id`, `token_hash`, `created_at`, `expires_at`, `revoked_at`,
   `device_id` (kiosk-bound sessions).
@@ -60,3 +67,4 @@ site-local time is derived at read time using the org/site timezone.
 - Deleting an employee hard-removes nothing that is audited: `employees.status`
   becomes `deleted`; scan/audit rows are retained per retention policy.
 - Every mutation on attendance data has a matching `audit_events` row.
+- Leave creation and every leave change has a matching audit event.

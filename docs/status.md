@@ -1,5 +1,81 @@
 # Status
 
+## v1.2.12 — Worker creation and leave rollout fixes
+
+- Worker forms now scroll above the keyboard, validate numeric kiosk codes,
+  and show concise API validation messages instead of raw Dio exceptions.
+- Automatically generated worker codes are numeric so they can be entered on
+  the kiosk keypad.
+- The Leave page now handles an older backend's missing route without leaving
+  a permanent raw 404 error on screen, while retaining pull-to-refresh.
+- Production backend startup now applies pending database migrations before
+  starting the API, keeping new routes and their schema in sync.
+
+## v1.2.11 — App-side Yabil timezone safeguard
+
+- The app now replaces the legacy Yabil `Asia/Karachi` setting with
+  `Africa/Johannesburg` during startup and online configuration refresh.
+- The corrected timezone is saved on the device, so the kiosk remains correct
+  while offline and does not depend on the backend migration being deployed.
+
+## Yabil timezone correction — 2026-09-03
+
+- Corrected legacy Yabil organization and site records from
+  `Asia/Karachi` (UTC+5) to `Africa/Johannesburg` (UTC+2), fixing kiosk
+  clocks that displayed three hours ahead.
+- Corrected the demo seed so new environments use the South African timezone.
+
+## v1.2.10 — Server-anchored app time
+
+- Replaced the persisted raw clock offset from v1.2.9 with a monotonic clock
+  anchored directly to the backend timestamp. This prevents a stale offset
+  from being applied again after the Android clock changes.
+- v1.2.9 offsets are deleted automatically on launch.
+- Release APK: `app/releases/FaceAttendance-v1.2.10-lan.apk`.
+
+## v1.2.9 — Initial server-time synchronization
+
+- The app now refreshes the organization timezone at every online startup
+  instead of relying only on timezone data saved during provisioning.
+- Live kiosk clocks and admin "today/now" actions use a persisted offset from
+  the backend's authoritative clock, so an incorrect Android device clock no
+  longer shifts the displayed attendance time.
+- Historical attendance timestamps continue to be stored by the backend in
+  UTC and displayed in the configured organization timezone.
+- Superseded by v1.2.10 because a persisted raw offset could become stale.
+
+## v1.2.8 — Absence and leave tracking
+
+- Dashboard worker totals now show weekly and monthly absent-day and approved-leave-day counts, plus an organization-wide monthly absence total.
+- Added an admin Leave area for recording and editing annual, sick, unpaid, and other leave with pending, approved, rejected, and cancelled states.
+- Approved leave excuses a completed scheduled day from absence; today, future dates, pre-employment dates, and unscheduled weekdays are excluded.
+- Employee forms now configure scheduled workdays (Monday–Friday by default) and preserve existing schedule policy fields during edits.
+- Leave changes are audited server-side. Database migration: `003_employee_leave.sql`.
+- Release APK: `app/releases/FaceAttendance-v1.2.8-lan.apk`.
+
+## v1.2.7 — Visible code-punch confirmation
+
+- Successful code punches now show a prominent floating confirmation for five seconds, above the scrollable keypad content.
+- The confirmation clearly identifies check-in versus check-out, the worker name, and the organization-local recorded time; queued offline punches are labeled explicitly.
+- Invalid, duplicate, and failed punches use the same visible banner treatment so kiosk users are never left without feedback.
+- Release APK: `app/releases/FaceAttendance-v1.2.7-lan.apk`.
+
+## v1.2.6 — Manual time display refresh
+
+- Corrected check-in/check-out values now update immediately on the session screen after an audited manual edit.
+- Attendance timestamps are formatted in the configured organization timezone instead of the Android device timezone, keeping displayed values consistent with the picker and worked-hour calculations.
+- Release APK: `app/releases/FaceAttendance-v1.2.6-lan.apk`.
+
+## Dashboard time editing — 2026-09-02
+
+- Check-in and check-out values in the dashboard shift list now open their date/time picker directly; the session cards are also tappable to edit or add a missing punch.
+- Removed the redundant check-in/check-out edit and add actions from underneath the session summary.
+
+## v1.2.5
+
+- Corrected the dashboard hours table to always calculate Today, This week, and This month from their own date ranges, regardless of the selected detail view.
+- Release APK: `app/releases/FaceAttendance-v1.2.5-lan.apk`.
+
 ## v1.2.4
 
 - Admin dashboard now shows a worker-hours table with separate Today, This week, and This month totals for every active worker.

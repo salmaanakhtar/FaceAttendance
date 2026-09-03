@@ -8,6 +8,7 @@ import 'package:timezone/timezone.dart' as tz;
 import '../../../admin/admin_api.dart';
 import '../../../admin/models.dart';
 import '../../../app_state.dart';
+import '../../../app_time.dart';
 import '../session_detail.dart';
 
 /// Attendance register with date range filter + CSV export.
@@ -66,7 +67,7 @@ class _AttendanceTabState extends State<AttendanceTab> {
 
   Future<void> _pickRange() async {
     AppState.instance.touchAdminActivity();
-    final now = tz.TZDateTime.now(tz.local);
+    final now = AppTime.now();
     final from = await showDatePicker(
       context: context,
       initialDate: _from ?? now,
@@ -101,7 +102,7 @@ class _AttendanceTabState extends State<AttendanceTab> {
   }
 
   void _quickRange(String period) {
-    final now = tz.TZDateTime.now(tz.local);
+    final now = AppTime.now();
     final today = tz.TZDateTime(tz.local, now.year, now.month, now.day);
     final from = period == 'today'
         ? today
@@ -309,7 +310,7 @@ class _AttendanceTabState extends State<AttendanceTab> {
         }
         return;
       }
-      final now = tz.TZDateTime.now(tz.local);
+      final now = AppTime.now();
       Employee selected = employees.first;
       DateTime date = tz.TZDateTime(tz.local, now.year, now.month, now.day);
       TimeOfDay start = const TimeOfDay(hour: 9, minute: 0);
@@ -366,7 +367,7 @@ class _AttendanceTabState extends State<AttendanceTab> {
                     },
                     quickLabel: 'Now',
                     quickTap: () {
-                      final current = tz.TZDateTime.now(tz.local);
+                      final current = AppTime.now();
                       setDialogState(() => start = TimeOfDay(
                           hour: current.hour, minute: current.minute));
                     }),
@@ -384,7 +385,7 @@ class _AttendanceTabState extends State<AttendanceTab> {
                     },
                     quickLabel: 'Now',
                     quickTap: () {
-                      final current = tz.TZDateTime.now(tz.local);
+                      final current = AppTime.now();
                       setDialogState(() => end = TimeOfDay(
                           hour: current.hour, minute: current.minute));
                     }),

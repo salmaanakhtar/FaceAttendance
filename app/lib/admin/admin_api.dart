@@ -22,6 +22,31 @@ class AdminApi {
   Map<String, dynamic>? get admin => _admin;
   bool get isLoggedIn => _accessToken != null;
 
+  /// Returns the message sent by the API instead of Dio's long transport
+  /// exception. This keeps validation failures useful in forms.
+  static String errorMessage(Object error) {
+    if (error is DioException) {
+      final data = error.response?.data;
+      if (data is Map) {
+        final apiError = data['error'];
+        if (apiError is Map && apiError['message'] is String) {
+          return apiError['message'] as String;
+        }
+        if (apiError is String && apiError.isNotEmpty) return apiError;
+        if (data['message'] is String) return data['message'] as String;
+      }
+      if (error.type == DioExceptionType.connectionTimeout ||
+          error.type == DioExceptionType.receiveTimeout ||
+          error.type == DioExceptionType.connectionError) {
+        return 'Could not reach the server. Check the connection and try again.';
+      }
+    }
+    return error.toString();
+  }
+
+  static int? statusCode(Object error) =>
+      error is DioException ? error.response?.statusCode : null;
+
   Future<void> login(String username, String password,
       {String? deviceId}) async {
     final res = await _dio.post('/api/v1/admin/login', data: {
@@ -236,6 +261,54 @@ class AdminApi {
         if (sessionId != null) 'sessionId': sessionId,
         'limit': '$limit',
       });
+
+  // ---- Leave and absence ----
+
+  Future<Map<String, dynamic>> leaveList(
+          {String? from, String? to, String? employeeId, String? status}) =>
+      get('/api/v1/admin/leave', {
+        if (from != null) 'from': from,
+        if (to != null) 'to': to,
+        if (employeeId != null) 'employeeId': employeeId,
+        if (status != null) 'status': status,
+      });
+
+  Future<Map<String, dynamic>> createLeave({
+    required String employeeId,
+    required String startDate,
+    required String endDate,
+    required String leaveType,
+    required String status,
+    String? note,
+  }) =>
+      post('/api/v1/admin/leave', {
+        'employeeId': employeeId,
+        'startDate': startDate,
+        'endDate': endDate,
+        'leaveType': leaveType,
+        'status': status,
+        if (note != null && note.isNotEmpty) 'note': note,
+      });
+
+  Future<Map<String, dynamic>> updateLeave(
+    String id, {
+    String? startDate,
+    String? endDate,
+    String? leaveType,
+    String? status,
+    String? note,
+  }) =>
+      patch('/api/v1/admin/leave/$id', {
+        if (startDate != null) 'startDate': startDate,
+        if (endDate != null) 'endDate': endDate,
+        if (leaveType != null) 'leaveType': leaveType,
+        if (status != null) 'status': status,
+        if (note != null) 'note': note,
+      });
+
+  Future<Map<String, dynamic>> absenceSummary(
+          {required String from, required String to}) =>
+      get('/api/v1/admin/attendance/absence', {'from': from, 'to': to});
 
   Future<Map<String, dynamic>> auditLog({int limit = 200, String? action}) =>
       get('/api/v1/admin/audit', {

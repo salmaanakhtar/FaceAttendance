@@ -30,7 +30,8 @@ class _ProvisionScreenState extends State<ProvisionScreen> {
     if (_busy) return;
     final key = _key.text.trim();
     if (key.length < 8) {
-      setState(() => _error = 'Enter the device key provided by your administrator.');
+      setState(() =>
+          _error = 'Enter the device key provided by your administrator.');
       return;
     }
     setState(() {
@@ -40,6 +41,12 @@ class _ProvisionScreenState extends State<ProvisionScreen> {
     try {
       await SecureStore.instance.setDeviceKey(key);
       await ApiClient.instance.handshake();
+      try {
+        await ApiClient.instance.fetchConfig();
+      } catch (_) {
+        // The handshake already supplied the org timezone. A later startup
+        // will retry server-clock calibration if this extra request fails.
+      }
       if (mounted) widget.onProvisioned();
     } catch (e) {
       await SecureStore.instance.setDeviceKey(''); // don't keep a bad key
@@ -63,16 +70,21 @@ class _ProvisionScreenState extends State<ProvisionScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Icon(Icons.fingerprint_rounded, color: Colors.white38, size: 40),
+                  const Icon(Icons.fingerprint_rounded,
+                      color: Colors.white38, size: 40),
                   const SizedBox(height: 16),
                   const Text('Set up this kiosk',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w700)),
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700)),
                   const SizedBox(height: 8),
                   const Text(
                     'Enter the device key from your administrator to connect this device.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white54, fontSize: 14, height: 1.4),
+                    style: TextStyle(
+                        color: Colors.white54, fontSize: 14, height: 1.4),
                   ),
                   const SizedBox(height: 6),
                   const Text(
@@ -93,14 +105,16 @@ class _ProvisionScreenState extends State<ProvisionScreen> {
                       filled: true,
                       fillColor: const Color(0xFF161A20),
                       border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide.none),
                     ),
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: 12),
                     Text(_error!,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(color: Color(0xFFFF5D5D), fontSize: 13)),
+                        style: const TextStyle(
+                            color: Color(0xFFFF5D5D), fontSize: 13)),
                   ],
                   const SizedBox(height: 20),
                   FilledButton(
@@ -108,14 +122,18 @@ class _ProvisionScreenState extends State<ProvisionScreen> {
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFF2F6BFF),
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
                     ),
                     child: _busy
                         ? const SizedBox(
-                            width: 20, height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white))
                         : const Text('Connect kiosk',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                            style: TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.w600)),
                   ),
                 ],
               ),

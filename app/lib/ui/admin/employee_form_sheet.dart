@@ -17,6 +17,7 @@ class _EmployeeFormSheetState extends State<EmployeeFormSheet> {
   final _code = TextEditingController();
   final _department = TextEditingController();
   final _hours = TextEditingController();
+  final Set<String> _workDays = {'mon', 'tue', 'wed', 'thu', 'fri'};
   bool _busy = false;
   String? _error;
 
@@ -29,6 +30,12 @@ class _EmployeeFormSheetState extends State<EmployeeFormSheet> {
       _code.text = e.employeeCode;
       _department.text = e.schedule['department']?.toString() ?? '';
       _hours.text = e.schedule['hoursPerWeek']?.toString() ?? '';
+      final configured = e.schedule['workDays'];
+      if (configured is List && configured.isNotEmpty) {
+        _workDays
+          ..clear()
+          ..addAll(configured.whereType<String>());
+      }
     }
   }
 
@@ -47,6 +54,13 @@ class _EmployeeFormSheetState extends State<EmployeeFormSheet> {
       setState(() => _error = 'Name is required.');
       return;
     }
+    final code = _code.text.trim();
+    if (widget.employee == null &&
+        code.isNotEmpty &&
+        !RegExp(r'^\d+$').hasMatch(code)) {
+      setState(() => _error = 'Worker code must contain numbers only.');
+      return;
+    }
     if (_department.text.trim().isEmpty) {
       setState(() => _error = 'Department is required.');
       return;
@@ -56,9 +70,15 @@ class _EmployeeFormSheetState extends State<EmployeeFormSheet> {
       setState(() => _error = 'Enter weekly hours from 0 to 168.');
       return;
     }
+    if (_workDays.isEmpty) {
+      setState(() => _error = 'Select at least one scheduled workday.');
+      return;
+    }
     final schedule = <String, dynamic>{
+      ...?widget.employee?.schedule,
       'department': _department.text.trim(),
       'hoursPerWeek': hours,
+      'workDays': _workDays.toList(),
     };
     setState(() {
       _busy = true;
@@ -69,7 +89,7 @@ class _EmployeeFormSheetState extends State<EmployeeFormSheet> {
       if (widget.employee == null) {
         result = await AdminApi.instance.createEmployee(
           name: _name.text.trim(),
-          employeeCode: _code.text.trim(),
+          employeeCode: code,
           schedule: schedule,
         );
       } else {
@@ -81,7 +101,10 @@ class _EmployeeFormSheetState extends State<EmployeeFormSheet> {
       }
       if (mounted) Navigator.of(context).pop(result);
     } catch (e) {
-      setState(() => _error = 'Save failed: $e');
+      if (mounted) {
+        setState(() =>
+            _error = 'Could not save worker: ${AdminApi.errorMessage(e)}');
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -97,51 +120,85 @@ class _EmployeeFormSheetState extends State<EmployeeFormSheet> {
         top: 24,
         bottom: MediaQuery.of(context).viewInsets.bottom + 24,
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(editing ? 'Edit employee' : 'New employee',
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700)),
-          const SizedBox(height: 16),
-          _field(_name, 'Full name'),
-          const SizedBox(height: 10),
-          if (!editing) ...[
-            _field(_code, 'Employee code (optional)'),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(editing ? 'Edit employee' : 'New employee',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700)),
+            const SizedBox(height: 16),
+            _field(_name, 'Full name'),
             const SizedBox(height: 10),
-          ],
-          _field(_department, 'Department'),
-          const SizedBox(height: 10),
-          _field(_hours, 'Number of hours per week',
-              keyboard: const TextInputType.numberWithOptions(decimal: true)),
-          if (_error != null) ...[
+            if (!editing) ...[
+              _field(_code, 'Numeric worker code (optional)',
+                  keyboard: TextInputType.number),
+              const SizedBox(height: 10),
+            ],
+            _field(_department, 'Department'),
             const SizedBox(height: 10),
-            Text(_error!,
-                style: const TextStyle(color: Color(0xFFFF5D5D), fontSize: 13)),
-          ],
-          const SizedBox(height: 16),
-          FilledButton(
-            onPressed: _busy ? null : _save,
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF2F6BFF),
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
+            _field(_hours, 'Number of hours per week',
+                keyboard: const TextInputType.numberWithOptions(decimal: true)),
+            const SizedBox(height: 12),
+            const Text('Scheduled workdays',
+                style: TextStyle(color: Colors.white70, fontSize: 13)),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final day in const [
+                  ('mon', 'M'),
+                  ('tue', 'T'),
+                  ('wed', 'W'),
+                  ('thu', 'T'),
+                  ('fri', 'F'),
+                  ('sat', 'S'),
+                  ('sun', 'S'),
+                ])
+                  FilterChip(
+                    label: Text(day.$2),
+                    selected: _workDays.contains(day.$1),
+                    onSelected: (selected) => setState(() {
+                      if (selected) {
+                        _workDays.add(day.$1);
+                      } else {
+                        _workDays.remove(day.$1);
+                      }
+                    }),
+                  ),
+              ],
             ),
-            child: _busy
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white))
-                : Text(editing ? 'Save changes' : 'Create employee',
-                    style: const TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.w600)),
-          ),
-        ],
+            if (_error != null) ...[
+              const SizedBox(height: 10),
+              Text(_error!,
+                  style:
+                      const TextStyle(color: Color(0xFFFF5D5D), fontSize: 13)),
+            ],
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: _busy ? null : _save,
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF2F6BFF),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+              child: _busy
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
+                  : Text(editing ? 'Save changes' : 'Create employee',
+                      style: const TextStyle(
+                          fontSize: 15, fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
       ),
     );
   }

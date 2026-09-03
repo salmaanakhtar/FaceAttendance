@@ -33,6 +33,9 @@ class SecureStore {
   Future<void> setOrgTimezone(String tz) =>
       _storage.write(key: 'org_timezone', value: tz);
   Future<String?> getOrgTimezone() => _storage.read(key: 'org_timezone');
+  Future<void> clearServerClockOffset() =>
+      _storage.delete(key: 'server_clock_offset_ms');
+
   Future<void> setKioskRoster(String roster) =>
       _storage.write(key: 'kiosk_roster', value: roster);
   Future<String?> getKioskRoster() => _storage.read(key: 'kiosk_roster');
@@ -57,6 +60,7 @@ class SecureStore {
       'org_id',
       'org_name',
       'org_timezone',
+      'server_clock_offset_ms',
       'site_id',
       'device_id',
       'admin_refresh',

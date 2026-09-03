@@ -34,6 +34,7 @@ async function ensureDatabase() {
 
 async function migrate() {
   await ensureDatabase();
+  await bootstrap.end();
   const pool = new Pool({ connectionString: DATABASE_URL });
   await pool.query(`CREATE TABLE IF NOT EXISTS schema_migrations (
     filename text PRIMARY KEY,

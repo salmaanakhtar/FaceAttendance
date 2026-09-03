@@ -25,7 +25,7 @@
 ## Integrity & audit
 
 - Raw `scan_events` are immutable; there is no update path.
-- Every correction/enrollment/employee mutation writes an `audit_events` row:
+- Every correction/enrollment/employee/leave mutation writes an `audit_events` row:
   old value, new value, actor, timestamp, reason, affected employee.
 - Corrections cannot delete; they supersede. A "delete employee" is a soft
   delete that retains audit rows.

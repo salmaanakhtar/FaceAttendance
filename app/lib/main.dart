@@ -6,6 +6,7 @@ import 'app_state.dart';
 import 'app_time.dart';
 import 'config.dart';
 import 'device/secure_store.dart';
+import 'device/api.dart';
 import 'attendance/offline_queue.dart';
 import 'ui/admin/admin_gate.dart';
 import 'ui/provision/provision_screen.dart';
@@ -63,6 +64,13 @@ class _FaceAttendanceAppState extends State<FaceAttendanceApp> {
     _provisioned = key != null && key.isNotEmpty && token != null;
 
     if (_provisioned) {
+      // Refresh the organization timezone and calibrate the visible clock
+      // against server time. Stored values remain available when offline.
+      try {
+        await ApiClient.instance.fetchConfig();
+      } catch (_) {
+        // offline — AppTime keeps the last successful timezone/clock offset
+      }
       // Sync templates before opening the camera so the first scan cannot run
       // against an empty or stale local matcher.
       try {
