@@ -453,18 +453,12 @@ class _AttendanceTabState extends State<AttendanceTab> {
       // The audit record still receives a clear system reason, but the admin
       // is not required to type one for a routine manual entry.
       const reason = 'Manual time entry';
-      await AdminApi.instance.applyCorrection(
-          employeeId: selected.id,
-          field: 'add_check_in',
-          reason: reason,
-          value: inAt.toUtc().toIso8601String());
-      if (outAt != null) {
-        await AdminApi.instance.applyCorrection(
-            employeeId: selected.id,
-            field: 'add_check_out',
-            reason: reason,
-            value: outAt.toUtc().toIso8601String());
-      }
+      await AdminApi.instance.createManualSession(
+        employeeId: selected.id,
+        checkInAt: inAt.toUtc().toIso8601String(),
+        checkOutAt: outAt?.toUtc().toIso8601String(),
+        reason: reason,
+      );
       await _load();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -472,8 +466,8 @@ class _AttendanceTabState extends State<AttendanceTab> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Manual entry failed: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Manual entry failed: ${AdminApi.errorMessage(e)}')));
       }
     }
   }

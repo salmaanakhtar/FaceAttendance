@@ -4,6 +4,7 @@ import { requireAdmin } from '../auth/guards.js';
 import { badRequest, notFound } from '../lib/errors.js';
 import { audit } from '../services/audit.js';
 import { classify, DEFAULT_POLICY, type Session } from '../services/attendance/engine.js';
+import { localDate } from '../lib/time.js';
 
 const correctionSchema = {
   body: {
@@ -31,6 +32,124 @@ const correctionSchema = {
  * Raw scan events are never touched.
  */
 export function correctionRoutes(app: FastifyInstance): void {
+  app.post('/api/v1/admin/corrections/manual-session', {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['employeeId', 'checkInAt', 'reason'],
+        additionalProperties: false,
+        properties: {
+          employeeId: { type: 'string', minLength: 1 },
+          checkInAt: { type: 'string', minLength: 1 },
+          checkOutAt: { type: ['string', 'null'] },
+          reason: { type: 'string', minLength: 3, maxLength: 1000 },
+        },
+      },
+    },
+    preHandler: requireAdmin,
+  }, async (req, reply) => {
+    const body = req.body as {
+      employeeId: string;
+      checkInAt: string;
+      checkOutAt?: string | null;
+      reason: string;
+    };
+    const checkIn = new Date(body.checkInAt);
+    const checkOut = body.checkOutAt ? new Date(body.checkOutAt) : null;
+    if (Number.isNaN(checkIn.getTime()) || (checkOut && Number.isNaN(checkOut.getTime()))) {
+      throw badRequest('invalid manual entry timestamp');
+    }
+    if (checkOut && checkOut <= checkIn) {
+      throw badRequest('time out must be later than time in');
+    }
+
+    const orgId = req.admin!.orgId;
+    const employee = await queryOne<{ id: string; timezone: string }>(
+      `SELECT e.id, o.timezone FROM employees e
+       JOIN orgs o ON o.id = e.org_id
+       WHERE e.id = $1 AND e.org_id = $2 AND e.status = 'active'`,
+      [body.employeeId, orgId],
+    );
+    if (!employee) throw notFound('active employee not found');
+
+    const client = await pool.connect();
+    let sessionId: string;
+    try {
+      await client.query('BEGIN');
+      if (!checkOut) {
+        const open = await client.query(
+          `SELECT id FROM attendance_sessions
+           WHERE org_id = $1 AND employee_id = $2 AND status = 'open'
+           LIMIT 1 FOR UPDATE`,
+          [orgId, body.employeeId],
+        );
+        if (open.rowCount) {
+          throw badRequest('worker already has an open shift; close it before adding another');
+        }
+      }
+
+      const workDate = localDate(checkIn, employee.timezone);
+      const session = {
+        id: '',
+        employeeId: body.employeeId,
+        workDate,
+        checkInAt: checkIn,
+        checkOutAt: checkOut,
+        checkInSource: 'manual' as const,
+        checkOutSource: 'manual' as const,
+        status: (checkOut ? 'closed' : 'open') as Session['status'],
+        breakMinutes: 0,
+        policy: { ...DEFAULT_POLICY, timezone: employee.timezone },
+        stats: {} as Session['stats'],
+        note: 'manual time entry',
+      } satisfies Session;
+      classify(session, new Date());
+      const inserted = await client.query<{ id: string }>(
+        `INSERT INTO attendance_sessions
+          (id, org_id, employee_id, work_date, check_in_at, check_out_at,
+           check_in_source, check_out_source, status, policy, stats, note, corrected)
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, 'manual', 'manual',
+           $6, $7, $8, $9, true) RETURNING id`,
+        [orgId, body.employeeId, workDate, checkIn, checkOut, session.status,
+         JSON.stringify(session.policy), JSON.stringify(session.stats), session.note],
+      );
+      sessionId = inserted.rows[0]!.id;
+      const corrections = [
+        [sessionId, 'add_check_in', JSON.stringify({ at: checkIn.toISOString() })],
+        ...(checkOut
+          ? [[sessionId, 'add_check_out', JSON.stringify({ at: checkOut.toISOString() })]]
+          : []),
+      ];
+      for (const [id, field, newValue] of corrections) {
+        await client.query(
+          `INSERT INTO attendance_corrections
+            (id, org_id, session_id, employee_id, field, old_value, new_value, admin_id, reason)
+           VALUES (gen_random_uuid(), $1, $2, $3, $4, NULL, $5, $6, $7)`,
+          [orgId, id, body.employeeId, field, newValue, req.admin!.id, body.reason],
+        );
+      }
+      await client.query(
+        `INSERT INTO audit_events
+          (org_id, actor_type, actor_id, action, target_type, target_id, details)
+         VALUES ($1, 'admin', $2, 'correction_add_session',
+           'attendance_session', $3, $4)`,
+        [orgId, req.admin!.id, sessionId, JSON.stringify({
+          employeeId: body.employeeId,
+          checkInAt: checkIn.toISOString(),
+          checkOutAt: checkOut?.toISOString() ?? null,
+          reason: body.reason,
+        })],
+      );
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+    return reply.code(201).send({ ok: true, sessionId });
+  });
+
   app.post('/api/v1/admin/corrections', { schema: correctionSchema, preHandler: requireAdmin }, async (req, reply) => {
     const { employeeId, sessionId: sessionIdInput, field, value, reason } = req.body as {
       employeeId: string;

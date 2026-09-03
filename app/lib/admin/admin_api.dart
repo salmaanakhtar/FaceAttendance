@@ -254,6 +254,19 @@ class AdminApi {
         'reason': reason,
       });
 
+  Future<Map<String, dynamic>> createManualSession({
+    required String employeeId,
+    required String checkInAt,
+    String? checkOutAt,
+    required String reason,
+  }) =>
+      post('/api/v1/admin/corrections/manual-session', {
+        'employeeId': employeeId,
+        'checkInAt': checkInAt,
+        if (checkOutAt != null) 'checkOutAt': checkOutAt,
+        'reason': reason,
+      });
+
   Future<Map<String, dynamic>> corrections(
           {String? employeeId, String? sessionId, int limit = 100}) =>
       get('/api/v1/admin/corrections', {

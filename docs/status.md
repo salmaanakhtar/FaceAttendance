@@ -1,5 +1,12 @@
 # Status
 
+## v1.2.13 — Reliable manual time entry
+
+- Manual check-in and optional check-out now save atomically in one backend
+  transaction, preventing half-saved open shifts when the second request fails.
+- Closed historical entries can be recorded even when an older incomplete
+  shift exists, and failures show the concise API reason in the app.
+
 ## v1.2.12 — Worker creation and leave rollout fixes
 
 - Worker forms now scroll above the keyboard, validate numeric kiosk codes,
