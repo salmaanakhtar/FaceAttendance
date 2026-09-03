@@ -36,7 +36,7 @@ async function seed() {
   const org = (
     await pool.query(
       `INSERT INTO orgs (id, slug, name, timezone, settings, encryption_key)
-       VALUES (gen_random_uuid(), 'yabil', 'Yabil', 'Asia/Karachi', $1, $2) RETURNING id`,
+       VALUES (gen_random_uuid(), 'yabil', 'Yabil', 'Africa/Johannesburg', $1, $2) RETURNING id`,
       [
         JSON.stringify({
           minIntervalMinutes: 1,
@@ -52,7 +52,7 @@ async function seed() {
 
   const site = (
     await pool.query(
-      `INSERT INTO sites (id, org_id, name, timezone) VALUES (gen_random_uuid(), $1, 'HQ Kiosk', 'Asia/Karachi') RETURNING id`,
+      `INSERT INTO sites (id, org_id, name, timezone) VALUES (gen_random_uuid(), $1, 'HQ Kiosk', 'Africa/Johannesburg') RETURNING id`,
       [org.id],
     )
   ).rows[0] as { id: string };
