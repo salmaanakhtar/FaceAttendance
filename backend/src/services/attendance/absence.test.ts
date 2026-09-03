@@ -41,4 +41,21 @@ describe('absence calculation', () => {
 
     expect(result.workers[0]?.absentDates).toEqual(['2026-09-02', '2026-09-04']);
   });
+
+  it('counts an explicitly marked absence today even on an unscheduled day', () => {
+    const result = calculateAbsence({
+      from: '2026-09-05',
+      to: '2026-09-05',
+      today: '2026-09-05',
+      employees: [
+        { id: 'e1', name: 'Worker', startDate: '2026-01-01', schedule: {} },
+      ],
+      sessions: [],
+      approvedLeave: [],
+      explicitAbsence: [{ employeeId: 'e1', date: '2026-09-05' }],
+    });
+
+    expect(result.totalAbsentDays).toBe(1);
+    expect(result.workers[0]?.absentDates).toEqual(['2026-09-05']);
+  });
 });

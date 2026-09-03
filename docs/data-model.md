@@ -31,7 +31,11 @@ site-local time is derived at read time using the org/site timezone.
 - `id`, `employee_id`, `work_date` (site-local date), `check_in_at`,
   `check_out_at`, `source` (auto|manual), `status` (open|closed|incomplete),
   `break_minutes`, `policy` snapshot (shift config used), `derived_from`
-  (raw event ids), `corrected` (bool), `corrected_at`.
+  (raw event ids), `corrected` (bool), `corrected_at`, `voided_at`,
+  `voided_by`, `void_reason`.
+- Deleting a displayed time entry voids the derived session. Active views and
+  calculations exclude it; raw scan events, corrections, and audit history
+  remain available.
 
 ### attendance_corrections (manual overrides, append-only)
 - `id`, `session_id` or employee+date target, `field` (check_in|check_out|
@@ -46,10 +50,12 @@ site-local time is derived at read time using the org/site timezone.
 
 ### employee_leave
 - `id`, `org_id`, `employee_id`, `start_date`, `end_date`, `leave_type`
-  (`annual|sick|unpaid|other`), `status`
+  (`annual|sick|unpaid|other|absence`), `status`
   (`pending|approved|rejected|cancelled`), `note`, `created_by`, timestamps.
 - Approved leave excuses scheduled days from absence totals. Other statuses
   remain in history but do not suppress absence.
+- A manual absence is an approved, single-day `absence` record. It contributes
+  to absence totals without creating or changing a raw scan event.
 
 ### admin_sessions
 - `id`, `admin_id`, `token_hash`, `created_at`, `expires_at`, `revoked_at`,

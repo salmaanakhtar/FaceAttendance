@@ -20,7 +20,7 @@ interface LeaveRow {
   updated_at: string;
 }
 
-const leaveTypes = ['annual', 'sick', 'unpaid', 'other'] as const;
+const leaveTypes = ['annual', 'sick', 'unpaid', 'other', 'absence'] as const;
 const leaveStatuses = ['pending', 'approved', 'rejected', 'cancelled'] as const;
 
 function leaveDto(row: LeaveRow) {
@@ -77,11 +77,30 @@ export function leaveRoutes(app: FastifyInstance): void {
     };
     const status = body.status ?? 'approved';
     validateLeave({ ...body, status });
+    if (body.leaveType === 'absence' && body.startDate !== body.endDate) {
+      throw badRequest('an absence must be recorded for one day at a time');
+    }
     const employee = await queryOne<{ id: string }>(
       `SELECT id FROM employees WHERE id = $1 AND org_id = $2 AND status <> 'deleted'`,
       [body.employeeId, req.admin!.orgId],
     );
     if (!employee) throw notFound('employee not found');
+    if (body.leaveType === 'absence') {
+      const attendance = await queryOne<{ id: string }>(
+        `SELECT id FROM attendance_sessions
+         WHERE org_id = $1 AND employee_id = $2 AND work_date = $3
+           AND voided_at IS NULL LIMIT 1`,
+        [req.admin!.orgId, body.employeeId, body.startDate],
+      );
+      if (attendance) throw badRequest('worker already has attendance recorded for this date');
+      const duplicate = await queryOne<{ id: string }>(
+        `SELECT id FROM employee_leave
+         WHERE org_id = $1 AND employee_id = $2 AND leave_type = 'absence'
+           AND status NOT IN ('rejected', 'cancelled') AND start_date = $3 LIMIT 1`,
+        [req.admin!.orgId, body.employeeId, body.startDate],
+      );
+      if (duplicate) throw badRequest('worker is already marked absent for this date');
+    }
     const row = await queryOne<LeaveRow>(
       `WITH inserted AS (
          INSERT INTO employee_leave
@@ -160,19 +179,27 @@ export function leaveRoutes(app: FastifyInstance): void {
     const from = q.from ?? `${today.slice(0, 8)}01`;
     const to = q.to ?? today;
     if (!isIsoDate(from) || !isIsoDate(to) || to < from) throw badRequest('invalid absence date range');
-    const [employees, sessions, approvedLeave] = await Promise.all([
+    const [employees, sessions, approvedLeave, explicitAbsence] = await Promise.all([
       query<{ id: string; name: string; created_at: string; schedule: Record<string, unknown> }>(
         `SELECT id, name, created_at, schedule FROM employees WHERE org_id = $1 AND status = 'active'`,
         [req.admin!.orgId],
       ),
       query<{ employee_id: string; work_date: string }>(
         `SELECT DISTINCT employee_id, work_date FROM attendance_sessions
-         WHERE org_id = $1 AND work_date BETWEEN $2 AND $3`,
+         WHERE org_id = $1 AND work_date BETWEEN $2 AND $3
+           AND voided_at IS NULL`,
         [req.admin!.orgId, from, to],
       ),
       query<{ employee_id: string; start_date: string; end_date: string }>(
         `SELECT employee_id, start_date, end_date FROM employee_leave
-         WHERE org_id = $1 AND status = 'approved' AND end_date >= $2 AND start_date <= $3`,
+         WHERE org_id = $1 AND status = 'approved' AND leave_type <> 'absence'
+           AND end_date >= $2 AND start_date <= $3`,
+        [req.admin!.orgId, from, to],
+      ),
+      query<{ employee_id: string; start_date: string }>(
+        `SELECT employee_id, start_date FROM employee_leave
+         WHERE org_id = $1 AND status = 'approved' AND leave_type = 'absence'
+           AND start_date BETWEEN $2 AND $3`,
         [req.admin!.orgId, from, to],
       ),
     ]);
@@ -191,6 +218,10 @@ export function leaveRoutes(app: FastifyInstance): void {
         employeeId: leave.employee_id,
         startDate: String(leave.start_date),
         endDate: String(leave.end_date),
+      })),
+      explicitAbsence: explicitAbsence.map((absence) => ({
+        employeeId: absence.employee_id,
+        date: String(absence.start_date),
       })),
     });
     return reply.send({ from, to, ...calculated });

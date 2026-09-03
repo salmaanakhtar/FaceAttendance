@@ -91,8 +91,11 @@ void main() {
       workDate: '2026-09-02',
       checkInAt: '2026-09-02T08:00:00.000Z',
       checkOutAt: '2026-09-02T17:00:00.000Z',
+      checkInSource: 'manual',
+      checkOutSource: 'manual',
       status: 'closed',
       workedMinutes: 540,
+      corrected: true,
     );
 
     await tester.pumpWidget(MaterialApp(
@@ -102,6 +105,9 @@ void main() {
     expect(find.text('Edit check-in time'), findsNothing);
     expect(find.text('Edit check-out time'), findsNothing);
     expect(find.text('Edit time'), findsNWidgets(2));
+    expect(find.text('Delete time entry'), findsOneWidget);
+    expect(find.text('manual'), findsNothing);
+    expect(find.text('corrected'), findsNothing);
 
     await tester.tap(find.text('Check-in'));
     await tester.pumpAndSettle();

@@ -1,5 +1,31 @@
 # Status
 
+## v1.2.16 — Attendance deletion and cleaner labels
+
+- Worker session details now include **Delete time entry**. Deletion removes the
+  derived entry from dashboards, totals, payroll, exports, and absence checks,
+  while retaining raw scans and a server-side audit event.
+- Admin-created and corrected times no longer display redundant `manual` or
+  `corrected` badges. The audit data remains available internally.
+- Includes the backend migration required for explicit manual absences, fixing
+  the `invalid leave type` response after the backend is deployed.
+- Release APK: `app/releases/FaceAttendance-v1.2.16-lan.apk`.
+
+## v1.2.15 — Visible manual absence action
+
+- Moved **Mark absent for this date** into the manual-entry form as a
+  full-width red button beneath the worker and work-date fields, keeping it
+  visible on narrow phone and kiosk screens.
+- Release APK: `app/releases/FaceAttendance-v1.2.15-lan.apk`.
+
+## v1.2.14 — Manual absence entry
+
+- The manual attendance dialog now includes a **Mark absent** action for the
+  selected worker and work date.
+- Manual absences are stored as approved, audited absence records rather than
+  fabricated scan events or zero-length attendance sessions.
+- Release APK: `app/releases/FaceAttendance-v1.2.14-lan.apk`.
+
 ## v1.2.13 — Reliable manual time entry
 
 - Manual check-in and optional check-out now save atomically in one backend

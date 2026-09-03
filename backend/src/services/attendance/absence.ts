@@ -19,6 +19,11 @@ export interface ApprovedLeave {
   endDate: string;
 }
 
+export interface ExplicitAbsence {
+  employeeId: string;
+  date: string;
+}
+
 export interface WorkerAbsence {
   employeeId: string;
   employeeName: string;
@@ -62,16 +67,27 @@ export function calculateAbsence(input: {
   employees: AbsenceEmployee[];
   sessions: AbsenceSession[];
   approvedLeave: ApprovedLeave[];
+  explicitAbsence?: ExplicitAbsence[];
 }): { through: string; totalAbsentDays: number; totalLeaveDays: number; workers: WorkerAbsence[] } {
   const through = input.to < addDays(input.today, -1) ? input.to : addDays(input.today, -1);
+  const rangeEnd = input.to < input.today ? input.to : input.today;
   const attended = new Set(input.sessions.map((s) => `${s.employeeId}:${s.workDate}`));
+  const explicitlyAbsent = new Set(
+    (input.explicitAbsence ?? []).map((a) => `${a.employeeId}:${a.date}`),
+  );
   const workers = input.employees.map((employee) => {
     const scheduled = workDays(employee.schedule);
     const start = employee.startDate > input.from ? employee.startDate : input.from;
     const absentDates: string[] = [];
     let leaveDays = 0;
-    if (through >= start) {
-      for (let date = start; date <= through; date = addDays(date, 1)) {
+    if (rangeEnd >= start) {
+      for (let date = start; date <= rangeEnd; date = addDays(date, 1)) {
+        if (explicitlyAbsent.has(`${employee.id}:${date}`)) {
+          absentDates.push(date);
+          continue;
+        }
+        // Automatic absence detection only applies to completed days.
+        if (date > through) continue;
         const weekday = WEEK_DAYS[new Date(`${date}T00:00:00.000Z`).getUTCDay()]!;
         if (!scheduled.has(weekday)) continue;
         if (attended.has(`${employee.id}:${date}`)) continue;

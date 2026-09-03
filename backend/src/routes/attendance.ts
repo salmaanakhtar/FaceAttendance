@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { query, queryOne } from '../db.js';
+import { pool, query, queryOne } from '../db.js';
 import { requireAdmin } from '../auth/guards.js';
 import { notFound } from '../lib/errors.js';
 import { attendanceExceptions } from '../services/attendance/exceptions.js';
@@ -62,7 +62,8 @@ export function attendanceRoutes(app: FastifyInstance): void {
   // Currently checked in — live snapshot for dashboard/kiosk status
   app.get('/api/v1/admin/attendance/now', { preHandler: requireAdmin }, async (req, reply) => {
     const rows = await query<SessionRow>(
-      `SELECT ${sessionColumns} WHERE s.org_id = $1 AND s.status = 'open' ORDER BY s.check_in_at ASC`,
+      `SELECT ${sessionColumns} WHERE s.org_id = $1 AND s.status = 'open'
+       AND s.voided_at IS NULL ORDER BY s.check_in_at ASC`,
       [req.admin!.orgId],
     );
     return reply.send({ currentlyIn: rows.map(sessionDto), count: rows.length });
@@ -75,6 +76,7 @@ export function attendanceRoutes(app: FastifyInstance): void {
       const where = [
       's.org_id = $1',
       "e.status <> 'deleted'",
+      's.voided_at IS NULL',
       `(s.status = 'incomplete'
         OR coalesce((s.stats->>'lateMinutes')::int, 0) > 0
         OR coalesce((s.stats->>'earlyMinutes')::int, 0) > 0
@@ -123,7 +125,7 @@ export function attendanceRoutes(app: FastifyInstance): void {
       offset?: string;
     };
     const orgId = req.admin!.orgId;
-    const where = ['s.org_id = $1', "s.employee_id IN (SELECT id FROM employees WHERE org_id = s.org_id AND status <> 'deleted')"];
+    const where = ['s.org_id = $1', 's.voided_at IS NULL', "s.employee_id IN (SELECT id FROM employees WHERE org_id = s.org_id AND status <> 'deleted')"];
     const params: unknown[] = [orgId];
     if (q.from) {
       params.push(q.from);
@@ -163,6 +165,7 @@ export function attendanceRoutes(app: FastifyInstance): void {
     const params: unknown[] = [req.admin!.orgId];
     const where = [
       'org_id = $1',
+      'voided_at IS NULL',
       "status <> 'open'",
       "review_status = 'needs_review'",
     ];
@@ -183,7 +186,8 @@ export function attendanceRoutes(app: FastifyInstance): void {
   app.post('/api/v1/admin/attendance/:id/approve', { preHandler: requireAdmin }, async (req, reply) => {
     const id = (req.params as { id: string }).id;
     const row = await queryOne<{ id: string; employee_id: string; status: string }>(
-      `SELECT id, employee_id, status FROM attendance_sessions WHERE id = $1 AND org_id = $2`,
+      `SELECT id, employee_id, status FROM attendance_sessions
+       WHERE id = $1 AND org_id = $2 AND voided_at IS NULL`,
       [id, req.admin!.orgId],
     );
     if (!row) throw notFound('attendance session not found');
@@ -197,6 +201,44 @@ export function attendanceRoutes(app: FastifyInstance): void {
     return reply.send({ ok: true, reviewStatus: 'approved' });
   });
 
+  // Remove a derived time entry from operational views without touching its
+  // immutable raw scan events or correction history.
+  app.post('/api/v1/admin/attendance/:id/delete', { preHandler: requireAdmin }, async (req, reply) => {
+    const id = (req.params as { id: string }).id;
+    const reason = ((req.body ?? {}) as { reason?: string }).reason?.trim() || 'Attendance entry removed';
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const selected = await client.query<{ employee_id: string }>(
+        `SELECT employee_id FROM attendance_sessions
+         WHERE id = $1 AND org_id = $2 AND voided_at IS NULL FOR UPDATE`,
+        [id, req.admin!.orgId],
+      );
+      if (!selected.rowCount) throw notFound('attendance entry not found');
+      const employeeId = selected.rows[0]!.employee_id;
+      await client.query(
+        `UPDATE attendance_sessions
+         SET voided_at = now(), voided_by = $3, void_reason = $4, updated_at = now()
+         WHERE id = $1 AND org_id = $2`,
+        [id, req.admin!.orgId, req.admin!.id, reason],
+      );
+      await client.query(
+        `INSERT INTO audit_events
+          (org_id, actor_type, actor_id, action, target_type, target_id, details)
+         VALUES ($1, 'admin', $2, 'attendance_entry_delete',
+           'attendance_session', $3, $4)`,
+        [req.admin!.orgId, req.admin!.id, id, JSON.stringify({ employeeId, reason })],
+      );
+      await client.query('COMMIT');
+      return reply.send({ ok: true, id });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  });
+
   // Per-employee history with running totals
   app.get('/api/v1/admin/attendance/employee/:id', { preHandler: requireAdmin }, async (req, reply) => {
     const id = (req.params as { id: string }).id;
@@ -206,7 +248,7 @@ export function attendanceRoutes(app: FastifyInstance): void {
       [id, req.admin!.orgId],
     );
     if (!emp) throw notFound('employee not found');
-    const where = ['s.employee_id = $1', 's.org_id = $2', "e.status <> 'deleted'"];
+    const where = ['s.employee_id = $1', 's.org_id = $2', 's.voided_at IS NULL', "e.status <> 'deleted'"];
     const params: unknown[] = [id, req.admin!.orgId];
     if (q.from) {
       params.push(q.from);
@@ -239,7 +281,7 @@ export function attendanceRoutes(app: FastifyInstance): void {
   app.get('/api/v1/admin/attendance/stats', { preHandler: requireAdmin }, async (req, reply) => {
     const q = req.query as { from?: string; to?: string };
     const orgId = req.admin!.orgId;
-    const where = ['s.org_id = $1', "s.employee_id IN (SELECT id FROM employees WHERE org_id = s.org_id AND status <> 'deleted')"];
+    const where = ['s.org_id = $1', 's.voided_at IS NULL', "s.employee_id IN (SELECT id FROM employees WHERE org_id = s.org_id AND status <> 'deleted')"];
     const params: unknown[] = [orgId];
     if (q.from) {
       params.push(q.from);

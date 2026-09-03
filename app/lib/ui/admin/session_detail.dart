@@ -115,6 +115,53 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     }
   }
 
+  Future<void> _deleteEntry() async {
+    if (_busy) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF161A20),
+        title: const Text('Delete this time entry?',
+            style: TextStyle(color: Colors.white, fontSize: 18)),
+        content: const Text(
+          'It will be removed from attendance, totals, and reports. The audit history and original scanner events will be kept.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFC83E4D)),
+            icon: const Icon(Icons.delete_outline_rounded, size: 18),
+            label: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await AdminApi.instance.deleteAttendance(_session.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Time entry deleted')));
+      Navigator.pop(context, true);
+    } catch (error) {
+      if (mounted) {
+        setState(
+            () => _error = 'Delete failed: ${AdminApi.errorMessage(error)}');
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _correction({
     required String field,
     DateTime? initialValue,
@@ -264,15 +311,13 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
           Row(
             children: [
               Expanded(
-                child: _timeCard('Check-in', formatLocal(s.checkInAt),
-                    s.checkInSource == 'manual' ? 'manual' : null,
+                child: _timeCard('Check-in', formatLocal(s.checkInAt), null,
                     actionLabel: s.checkInAt == null ? 'Add time' : 'Edit time',
                     onTap: _busy ? null : _editCheckIn),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _timeCard('Check-out', formatLocal(s.checkOutAt),
-                    s.checkOutSource == 'manual' ? 'manual' : null,
+                child: _timeCard('Check-out', formatLocal(s.checkOutAt), null,
                     actionLabel:
                         s.checkOutAt == null ? 'Add time' : 'Edit time',
                     onTap: _busy ? null : _editCheckOut),
@@ -287,7 +332,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                       const TextStyle(color: Color(0xFFFF5D5D), fontSize: 13)),
             ),
           const SizedBox(height: 12),
-          _timeCard('Worked', s.hoursText, s.corrected ? 'corrected' : null),
+          _timeCard('Worked', s.hoursText, null),
           const SizedBox(height: 12),
           if (s.reviewStatus == 'approved')
             const ListTile(
@@ -306,6 +351,16 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
               icon: const Icon(Icons.verified_rounded),
               label: const Text('Approve timesheet'),
             ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: _busy ? null : _deleteEntry,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFFFF7272),
+              side: const BorderSide(color: Color(0xFFFF7272)),
+            ),
+            icon: const Icon(Icons.delete_outline_rounded),
+            label: const Text('Delete time entry'),
+          ),
           const SizedBox(height: 20),
           const Text('Unpaid break',
               style: TextStyle(

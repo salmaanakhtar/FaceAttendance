@@ -239,6 +239,10 @@ class AdminApi {
         if (to != null) 'to': to,
       });
 
+  Future<Map<String, dynamic>> deleteAttendance(String id,
+          {String reason = 'Attendance entry removed'}) =>
+      post('/api/v1/admin/attendance/$id/delete', {'reason': reason});
+
   Future<Map<String, dynamic>> applyCorrection({
     required String employeeId,
     String? sessionId,

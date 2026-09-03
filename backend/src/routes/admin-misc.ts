@@ -68,7 +68,7 @@ export function adminMiscRoutes(app: FastifyInstance): void {
   // CSV export of sessions (raw data, not prettified)
   app.get('/api/v1/admin/export', { preHandler: requireAdmin }, async (req, reply) => {
     const q = req.query as { from?: string; to?: string; employeeId?: string };
-    const where = ['s.org_id = $1'];
+    const where = ['s.org_id = $1', 's.voided_at IS NULL'];
     const params: unknown[] = [req.admin!.orgId];
     if (q.from) {
       params.push(q.from);
@@ -130,7 +130,7 @@ export function adminMiscRoutes(app: FastifyInstance): void {
               coalesce(max((e.schedule->>'hourlyRate')::numeric),0)::numeric AS hourly_rate
        FROM attendance_sessions s JOIN employees e ON e.id = s.employee_id
        WHERE s.org_id = $1 AND s.work_date >= $2 AND s.work_date <= $3
-         AND e.status <> 'deleted'
+         AND s.voided_at IS NULL AND e.status <> 'deleted'
        GROUP BY e.id, e.employee_code, e.name ORDER BY e.name`,
       [req.admin!.orgId, q.from, q.to],
     );

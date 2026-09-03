@@ -80,6 +80,7 @@ export function correctionRoutes(app: FastifyInstance): void {
         const open = await client.query(
           `SELECT id FROM attendance_sessions
            WHERE org_id = $1 AND employee_id = $2 AND status = 'open'
+             AND voided_at IS NULL
            LIMIT 1 FOR UPDATE`,
           [orgId, body.employeeId],
         );
@@ -181,7 +182,8 @@ export function correctionRoutes(app: FastifyInstance): void {
       };
       const recalculate = async (id: string) => {
         const refreshed = await client.query(
-          'SELECT check_in_at, check_out_at, break_minutes, policy, status, work_date FROM attendance_sessions WHERE id = $1',
+          `SELECT check_in_at, check_out_at, break_minutes, policy, status, work_date
+           FROM attendance_sessions WHERE id = $1 AND voided_at IS NULL`,
           [id],
         );
         const current = refreshed.rows[0];
@@ -214,6 +216,7 @@ export function correctionRoutes(app: FastifyInstance): void {
         const open = await client.query(
           `SELECT * FROM attendance_sessions
              WHERE employee_id = $1 AND status IN ('open', 'incomplete')
+               AND voided_at IS NULL
              ORDER BY check_in_at DESC LIMIT 1`,
           [employeeId],
         );
@@ -275,7 +278,8 @@ export function correctionRoutes(app: FastifyInstance): void {
 
       if (!sessionId) throw badRequest('sessionId required for field edits');
       const session = await client.query(
-        'SELECT * FROM attendance_sessions WHERE id = $1 AND org_id = $2',
+        `SELECT * FROM attendance_sessions
+         WHERE id = $1 AND org_id = $2 AND voided_at IS NULL`,
         [sessionId, orgId],
       );
       if (!session.rowCount) throw notFound('session not found');

@@ -237,7 +237,7 @@ class _AttendanceTabState extends State<AttendanceTab> {
             child: OutlinedButton.icon(
               onPressed: _manualEntry,
               icon: const Icon(Icons.edit_calendar_outlined, size: 18),
-              label: const Text('Manual time entry'),
+              label: const Text('Add attendance'),
             ),
           ),
         ),
@@ -355,6 +355,25 @@ class _AttendanceTabState extends State<AttendanceTab> {
                       lastDate: now);
                   if (picked != null) setDialogState(() => date = picked);
                 }),
+                const SizedBox(height: 6),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.pop(context, {
+                      'employee': selected,
+                      'date': date,
+                      'absent': true,
+                    }),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFFF7272),
+                      side: const BorderSide(color: Color(0xFFFF7272)),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                    ),
+                    icon: const Icon(Icons.person_off_outlined, size: 20),
+                    label: const Text('Mark absent for this date'),
+                  ),
+                ),
+                const SizedBox(height: 10),
                 _entryPickerRow(
                     context,
                     'Time in',
@@ -441,6 +460,23 @@ class _AttendanceTabState extends State<AttendanceTab> {
       if (values == null || !mounted) return;
       selected = values['employee']! as Employee;
       date = values['date']! as DateTime;
+      if (values['absent'] == true) {
+        final workDate = _fmt(date);
+        await AdminApi.instance.createLeave(
+          employeeId: selected.id,
+          startDate: workDate,
+          endDate: workDate,
+          leaveType: 'absence',
+          status: 'approved',
+          note: 'Recorded by admin',
+        );
+        await _load();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text('${selected.name} marked absent for $workDate')));
+        }
+        return;
+      }
       start = values['start']! as TimeOfDay;
       end = values['end'] as TimeOfDay?;
       final savedEnd = end;
@@ -452,7 +488,7 @@ class _AttendanceTabState extends State<AttendanceTab> {
               savedEnd.hour, savedEnd.minute);
       // The audit record still receives a clear system reason, but the admin
       // is not required to type one for a routine manual entry.
-      const reason = 'Manual time entry';
+      const reason = 'Attendance recorded by admin';
       await AdminApi.instance.createManualSession(
         employeeId: selected.id,
         checkInAt: inAt.toUtc().toIso8601String(),
@@ -461,13 +497,14 @@ class _AttendanceTabState extends State<AttendanceTab> {
       );
       await _load();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Manual time entry saved and audited')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Attendance saved')));
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Manual entry failed: ${AdminApi.errorMessage(e)}')));
+            content: Text(
+                'Could not save attendance: ${AdminApi.errorMessage(e)}')));
       }
     }
   }

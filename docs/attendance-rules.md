@@ -57,6 +57,12 @@ below are unit-tested.
 13. **Leave** has a date range, type, status, and note. Only approved leave
     excuses absence; pending, rejected, and cancelled records remain visible
     without altering absence totals.
+14. **Manual absence** is an explicit, approved single-day record. It may mark
+    the current day or an unscheduled day absent, but cannot be added when the
+    worker already has attendance for that work date.
+15. **Deleted time entries** are voided derived sessions. They are excluded
+    from attendance views, totals, exports, payroll, and absence suppression;
+    immutable raw scans and the deletion audit event are retained.
 
 ## Outputs
 

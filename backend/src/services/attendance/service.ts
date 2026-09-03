@@ -134,13 +134,13 @@ export async function ingestScan(input: ScanIngest): Promise<ScanResult> {
 
     const openRow = await client.query<SessionRow>(
       `SELECT * FROM attendance_sessions
-       WHERE employee_id = $1 AND status = 'open'
+       WHERE employee_id = $1 AND status = 'open' AND voided_at IS NULL
        ORDER BY check_in_at DESC LIMIT 1`,
       [emp.id],
     );
     const lastRow = await client.query<SessionRow>(
       `SELECT * FROM attendance_sessions
-       WHERE employee_id = $1
+       WHERE employee_id = $1 AND voided_at IS NULL
        ORDER BY check_in_at DESC LIMIT 1`,
       [emp.id],
     );
@@ -243,7 +243,8 @@ export async function runRollover(): Promise<number> {
   for (const org of orgs) {
     const tz = org.timezone;
     const openSessions = await query<SessionRow>(
-      `SELECT * FROM attendance_sessions WHERE org_id = $1 AND status = 'open'`,
+      `SELECT * FROM attendance_sessions
+       WHERE org_id = $1 AND status = 'open' AND voided_at IS NULL`,
       [org.id],
     );
     const sessions = openSessions.map(toEngineSession);
