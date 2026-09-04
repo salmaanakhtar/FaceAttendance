@@ -50,12 +50,17 @@ site-local time is derived at read time using the org/site timezone.
 
 ### employee_leave
 - `id`, `org_id`, `employee_id`, `start_date`, `end_date`, `leave_type`
-  (`annual|sick|unpaid|other|absence`), `status`
+  (`annual|sick|unpaid|other`), `status`
   (`pending|approved|rejected|cancelled`), `note`, `created_by`, timestamps.
 - Approved leave excuses scheduled days from absence totals. Other statuses
   remain in history but do not suppress absence.
-- A manual absence is an approved, single-day `absence` record. It contributes
-  to absence totals without creating or changing a raw scan event.
+
+### employee_absences
+- `id`, `org_id`, `employee_id`, `work_date`, `note`, `created_by`, timestamps.
+- A manual absence is a single-day record distinct from leave. It contributes
+  only to absence totals and never creates or changes a raw scan event.
+- The organization, employee, and work date are unique, preventing duplicate
+  absence counts.
 
 ### admin_sessions
 - `id`, `admin_id`, `token_hash`, `created_at`, `expires_at`, `revoked_at`,

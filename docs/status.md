@@ -1,5 +1,15 @@
 # Status
 
+## v1.2.18 — Separate absence from leave
+
+- Manual absences now use their own `employee_absences` records and API rather
+  than a special leave type, so absent days never increment leave days.
+- Migration `007_employee_absences.sql` preserves previously entered absences
+  in the new table and hides their legacy leave rows from leave history.
+- Older v1.2.16/v1.2.17 clients remain compatible: absence-shaped requests are
+  routed into the dedicated absence table.
+- Release APK: `app/releases/FaceAttendance-v1.2.18-lan.apk`.
+
 ## v1.2.17 — Immediate absence totals refresh
 
 - Returning to Dashboard now reloads its data immediately, so an absence just

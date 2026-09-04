@@ -327,6 +327,17 @@ class AdminApi {
           {required String from, required String to}) =>
       get('/api/v1/admin/attendance/absence', {'from': from, 'to': to});
 
+  Future<Map<String, dynamic>> createAbsence({
+    required String employeeId,
+    required String workDate,
+    String? note,
+  }) =>
+      post('/api/v1/admin/attendance/absence', {
+        'employeeId': employeeId,
+        'workDate': workDate,
+        if (note != null && note.isNotEmpty) 'note': note,
+      });
+
   Future<Map<String, dynamic>> auditLog({int limit = 200, String? action}) =>
       get('/api/v1/admin/audit', {
         'limit': '$limit',

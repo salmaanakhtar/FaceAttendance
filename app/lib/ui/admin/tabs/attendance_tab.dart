@@ -462,12 +462,9 @@ class _AttendanceTabState extends State<AttendanceTab> {
       date = values['date']! as DateTime;
       if (values['absent'] == true) {
         final workDate = _fmt(date);
-        await AdminApi.instance.createLeave(
+        await AdminApi.instance.createAbsence(
           employeeId: selected.id,
-          startDate: workDate,
-          endDate: workDate,
-          leaveType: 'absence',
-          status: 'approved',
+          workDate: workDate,
           note: 'Recorded by admin',
         );
         await _load();

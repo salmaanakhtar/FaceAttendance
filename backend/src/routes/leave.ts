@@ -48,10 +48,56 @@ function validateLeave(input: { startDate: string; endDate: string; leaveType: s
   if (!leaveStatuses.includes(input.status as typeof leaveStatuses[number])) throw badRequest('invalid leave status');
 }
 
+async function recordAbsence(input: {
+  orgId: string;
+  adminId: string;
+  employeeId: string;
+  workDate: string;
+  note?: string | null;
+}) {
+  if (!isIsoDate(input.workDate)) throw badRequest('workDate must be a valid YYYY-MM-DD date');
+  const employee = await queryOne<{ id: string }>(
+    `SELECT id FROM employees WHERE id = $1 AND org_id = $2 AND status <> 'deleted'`,
+    [input.employeeId, input.orgId],
+  );
+  if (!employee) throw notFound('employee not found');
+  const attendance = await queryOne<{ id: string }>(
+    `SELECT id FROM attendance_sessions
+     WHERE org_id = $1 AND employee_id = $2 AND work_date = $3
+       AND voided_at IS NULL LIMIT 1`,
+    [input.orgId, input.employeeId, input.workDate],
+  );
+  if (attendance) throw badRequest('worker already has attendance recorded for this date');
+  const inserted = await queryOne<{ id: string; created_at: string }>(
+    `INSERT INTO employee_absences (org_id, employee_id, work_date, note, created_by)
+     VALUES ($1,$2,$3,$4,$5)
+     ON CONFLICT (org_id, employee_id, work_date) DO NOTHING
+     RETURNING id, created_at`,
+    [input.orgId, input.employeeId, input.workDate, input.note?.trim() || null, input.adminId],
+  );
+  if (!inserted) throw badRequest('worker is already marked absent for this date');
+  await audit({
+    orgId: input.orgId,
+    actorType: 'admin',
+    actorId: input.adminId,
+    action: 'absence_create',
+    targetType: 'employee_absence',
+    targetId: inserted.id,
+    details: { employeeId: input.employeeId, workDate: input.workDate },
+  });
+  return {
+    id: inserted.id,
+    employeeId: input.employeeId,
+    workDate: input.workDate,
+    note: input.note?.trim() || null,
+    createdAt: inserted.created_at,
+  };
+}
+
 export function leaveRoutes(app: FastifyInstance): void {
   app.get('/api/v1/admin/leave', { preHandler: requireAdmin }, async (req, reply) => {
     const q = req.query as { from?: string; to?: string; employeeId?: string; status?: string };
-    const where = ['l.org_id = $1'];
+    const where = ['l.org_id = $1', "l.leave_type <> 'absence'"];
     const params: unknown[] = [req.admin!.orgId];
     if (q.from) { params.push(q.from); where.push(`l.end_date >= $${params.length}`); }
     if (q.to) { params.push(q.to); where.push(`l.start_date <= $${params.length}`); }
@@ -80,27 +126,23 @@ export function leaveRoutes(app: FastifyInstance): void {
     if (body.leaveType === 'absence' && body.startDate !== body.endDate) {
       throw badRequest('an absence must be recorded for one day at a time');
     }
+    // Backward compatibility for v1.2.16/v1.2.17 clients: route their old
+    // absence-shaped leave request into the dedicated absence table.
+    if (body.leaveType === 'absence') {
+      const absence = await recordAbsence({
+        orgId: req.admin!.orgId,
+        adminId: req.admin!.id,
+        employeeId: body.employeeId,
+        workDate: body.startDate,
+        note: body.note,
+      });
+      return reply.code(201).send(absence);
+    }
     const employee = await queryOne<{ id: string }>(
       `SELECT id FROM employees WHERE id = $1 AND org_id = $2 AND status <> 'deleted'`,
       [body.employeeId, req.admin!.orgId],
     );
     if (!employee) throw notFound('employee not found');
-    if (body.leaveType === 'absence') {
-      const attendance = await queryOne<{ id: string }>(
-        `SELECT id FROM attendance_sessions
-         WHERE org_id = $1 AND employee_id = $2 AND work_date = $3
-           AND voided_at IS NULL LIMIT 1`,
-        [req.admin!.orgId, body.employeeId, body.startDate],
-      );
-      if (attendance) throw badRequest('worker already has attendance recorded for this date');
-      const duplicate = await queryOne<{ id: string }>(
-        `SELECT id FROM employee_leave
-         WHERE org_id = $1 AND employee_id = $2 AND leave_type = 'absence'
-           AND status NOT IN ('rejected', 'cancelled') AND start_date = $3 LIMIT 1`,
-        [req.admin!.orgId, body.employeeId, body.startDate],
-      );
-      if (duplicate) throw badRequest('worker is already marked absent for this date');
-    }
     const row = await queryOne<LeaveRow>(
       `WITH inserted AS (
          INSERT INTO employee_leave
@@ -122,6 +164,18 @@ export function leaveRoutes(app: FastifyInstance): void {
       details: { employeeId: body.employeeId, startDate: body.startDate, endDate: body.endDate, leaveType: body.leaveType, status },
     });
     return reply.code(201).send(leaveDto(row!));
+  });
+
+  app.post('/api/v1/admin/attendance/absence', { preHandler: requireAdmin }, async (req, reply) => {
+    const body = req.body as { employeeId: string; workDate: string; note?: string | null };
+    const absence = await recordAbsence({
+      orgId: req.admin!.orgId,
+      adminId: req.admin!.id,
+      employeeId: body.employeeId,
+      workDate: body.workDate,
+      note: body.note,
+    });
+    return reply.code(201).send(absence);
   });
 
   app.patch('/api/v1/admin/leave/:id', { preHandler: requireAdmin }, async (req, reply) => {
@@ -196,10 +250,9 @@ export function leaveRoutes(app: FastifyInstance): void {
            AND end_date >= $2 AND start_date <= $3`,
         [req.admin!.orgId, from, to],
       ),
-      query<{ employee_id: string; start_date: string }>(
-        `SELECT employee_id, start_date FROM employee_leave
-         WHERE org_id = $1 AND status = 'approved' AND leave_type = 'absence'
-           AND start_date BETWEEN $2 AND $3`,
+      query<{ employee_id: string; work_date: string }>(
+        `SELECT employee_id, work_date FROM employee_absences
+         WHERE org_id = $1 AND work_date BETWEEN $2 AND $3`,
         [req.admin!.orgId, from, to],
       ),
     ]);
@@ -221,7 +274,7 @@ export function leaveRoutes(app: FastifyInstance): void {
       })),
       explicitAbsence: explicitAbsence.map((absence) => ({
         employeeId: absence.employee_id,
-        date: String(absence.start_date),
+        date: String(absence.work_date),
       })),
     });
     return reply.send({ from, to, ...calculated });
