@@ -82,6 +82,14 @@ void main() {
     tz.setLocalLocation(tz.getLocation('UTC'));
   });
 
+  test('duplicate punch message is clear and does not expose engine wording',
+      () {
+    expect(
+      punchFailureMessage('duplicate', 'within min interval of previous event'),
+      'Punch already recorded. Please wait one minute before trying again.',
+    );
+  });
+
   testWidgets('session times are direct edit targets', (tester) async {
     final session = AttendanceSession(
       id: 'session-1',

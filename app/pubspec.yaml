@@ -1,7 +1,7 @@
 name: face_attendance
 description: "FaceAttendance — facial check-in/check-out kiosk for employees."
 publish_to: 'none'
-version: 1.2.18+66
+version: 1.2.19+67
 
 environment:
   sdk: '>=3.4.1 <4.0.0'

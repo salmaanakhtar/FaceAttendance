@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -62,6 +63,7 @@ class OfflineQueue extends ChangeNotifier {
   Box<String>? _box;
   bool _flushing = false;
   bool _online = true;
+  Timer? _retryTimer;
   final _uuid = const Uuid();
 
   int get pendingCount => _box?.values.length ?? 0;
@@ -74,7 +76,24 @@ class OfflineQueue extends ChangeNotifier {
 
   Future<void> init() async {
     _box = await Hive.openBox<String>(_boxName);
+    _retryTimer?.cancel();
+    _retryTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (_online && pendingCount > 0) flush();
+    });
     notifyListeners();
+  }
+
+  PendingScan? _pendingForEmployee(String employeeId) {
+    for (final raw in _box?.values ?? const Iterable<String>.empty()) {
+      try {
+        final scan =
+            PendingScan.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+        if (scan.employeeId == employeeId) return scan;
+      } catch (_) {
+        // Corrupt records are removed by the normal flush path.
+      }
+    }
+    return null;
   }
 
   /// Enqueue (and try to deliver immediately).
@@ -86,6 +105,25 @@ class OfflineQueue extends ChangeNotifier {
     double? livenessScore,
     String? faceHash,
   }) async {
+    // If this worker's prior request timed out, retry that exact idempotency
+    // key instead of creating a second event that the server rejects via the
+    // minimum-interval guard.
+    final existing = _pendingForEmployee(employeeId);
+    if (existing != null) {
+      if (_online) {
+        try {
+          return await _deliver(existing, offline: true);
+        } on OfflineException {
+          // Keep the original record queued.
+        }
+      }
+      return {
+        'queued': true,
+        'pendingCount': pendingCount,
+        'action': existing.directionHint == 'out' ? 'check_out' : 'check_in',
+        'scanTime': existing.deviceTime.toUtc().toIso8601String(),
+      };
+    }
     final scan = PendingScan(
       dedupeKey: _uuid.v4(),
       employeeId: employeeId,
@@ -107,7 +145,8 @@ class OfflineQueue extends ChangeNotifier {
     return {'queued': true, 'pendingCount': pendingCount};
   }
 
-  Future<Map<String, dynamic>> _deliver(PendingScan scan) async {
+  Future<Map<String, dynamic>> _deliver(PendingScan scan,
+      {bool offline = false}) async {
     final res = await ApiClient.instance.ingestScan(
       dedupeKey: scan.dedupeKey,
       employeeId: scan.employeeId,
@@ -116,6 +155,7 @@ class OfflineQueue extends ChangeNotifier {
       confidence: scan.confidence,
       livenessScore: scan.livenessScore,
       faceHash: scan.faceHash,
+      offline: offline,
     );
     await _box!.delete(scan.dedupeKey);
     notifyListeners();
@@ -135,7 +175,7 @@ class OfflineQueue extends ChangeNotifier {
           final scan =
               PendingScan.fromJson(jsonDecode(raw) as Map<String, dynamic>);
           try {
-            await _deliver(scan);
+            await _deliver(scan, offline: true);
           } on OfflineException {
             break; // still offline — stop trying
           } on ServerException {

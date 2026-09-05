@@ -419,11 +419,10 @@ class ScanFlowController extends ChangeNotifier {
     final name = template?.name ?? '';
     lastSyncWasOffline = queued;
 
-    StatusCache.instance
-        .recordOutcome(match.employeeId!, action, at ?? DateTime.now());
-
     switch (action) {
       case 'check_in':
+        StatusCache.instance
+            .recordOutcome(match.employeeId!, action, at ?? DateTime.now());
         outcome = ScanOutcome(
             phase: ScanPhase.checkIn,
             employeeId: match.employeeId,
@@ -434,6 +433,8 @@ class ScanFlowController extends ChangeNotifier {
         unawaited(FeedbackFx.speak('Welcome $name'));
         break;
       case 'check_out':
+        StatusCache.instance
+            .recordOutcome(match.employeeId!, action, at ?? DateTime.now());
         outcome = ScanOutcome(
             phase: ScanPhase.checkOut,
             employeeId: match.employeeId,

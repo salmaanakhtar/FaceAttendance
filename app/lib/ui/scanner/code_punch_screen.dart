@@ -28,6 +28,13 @@ String punchConfirmation({
   return '$label · $employeeName\n$timeLabel';
 }
 
+String punchFailureMessage(String action, String? serverMessage) {
+  if (action == 'duplicate') {
+    return 'Punch already recorded. Please wait one minute before trying again.';
+  }
+  return serverMessage ?? 'Already recorded.';
+}
+
 class CodePunchScreen extends StatefulWidget {
   final VoidCallback onAdminRequested;
   const CodePunchScreen({super.key, required this.onAdminRequested});
@@ -159,16 +166,17 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
           (direction == 'out' ? 'check_out' : 'check_in');
       final at = DateTime.tryParse(result['scanTime'] as String? ?? '') ??
           AppTime.now();
-      StatusCache.instance.recordOutcome(employee.id, action, at);
       if (action == 'duplicate' ||
           action == 'already_in' ||
           action == 'already_out') {
-        final message = result['message'] as String? ?? 'Already recorded.';
+        final message =
+            punchFailureMessage(action, result['message'] as String?);
         if (!mounted) return;
         setState(() => _error = message);
         _showPunchBanner(message, success: false);
         await FeedbackFx.error();
       } else {
+        StatusCache.instance.recordOutcome(employee.id, action, at);
         final message = punchConfirmation(
           action: action,
           employeeName: employee.name,
@@ -406,19 +414,21 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
               right: 0,
               child: ListenableBuilder(
                   listenable: AppState.instance,
-                  builder: (context, _) {
-                    final pending = OfflineQueue.instance.pendingCount;
-                    if (AppState.instance.online && pending == 0) {
-                      return const SizedBox.shrink();
-                    }
-                    return Center(
-                        child: Text(
-                            pending > 0
-                                ? '$pending punch${pending == 1 ? '' : 'es'} waiting to sync'
-                                : 'Offline — punches will sync later',
-                            style: const TextStyle(
-                                color: Color(0xFFFFC857), fontSize: 12)));
-                  }))
+                  builder: (context, _) => ListenableBuilder(
+                      listenable: OfflineQueue.instance,
+                      builder: (context, _) {
+                        final pending = OfflineQueue.instance.pendingCount;
+                        if (AppState.instance.online && pending == 0) {
+                          return const SizedBox.shrink();
+                        }
+                        return Center(
+                            child: Text(
+                                pending > 0
+                                    ? '$pending punch${pending == 1 ? '' : 'es'} waiting to sync'
+                                    : 'Offline — punches will sync later',
+                                style: const TextStyle(
+                                    color: Color(0xFFFFC857), fontSize: 12)));
+                      })))
         ]),
       ),
     );

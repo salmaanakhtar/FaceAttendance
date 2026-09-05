@@ -1,5 +1,18 @@
 # Status
 
+## v1.2.19 — Reliable queued punch recovery
+
+- Retrying a worker punch while their previous request is still queued now
+  resends the original idempotency key instead of creating a second event that
+  triggers the one-minute duplicate guard.
+- Pending punches retry automatically every 15 seconds while online and are
+  correctly marked as offline-sync deliveries on the server.
+- The code-punch footer now listens directly to queue changes, so the waiting
+  count disappears as soon as delivery succeeds.
+- Duplicate responses use clear worker-facing wording instead of exposing the
+  attendance engine's `within min interval` message.
+- Release APK: `app/releases/FaceAttendance-v1.2.19-lan.apk`.
+
 ## v1.2.18 — Separate absence from leave
 
 - Manual absences now use their own `employee_absences` records and API rather
