@@ -52,6 +52,26 @@ class PendingScan {
       );
 }
 
+/// Ensures concurrent callers share the same delivery for one idempotency key.
+class ScanDeliveryGate {
+  final Map<String, Future<Map<String, dynamic>>> _active = {};
+
+  Future<Map<String, dynamic>> run(
+    String key,
+    Future<Map<String, dynamic>> Function() request,
+  ) {
+    final active = _active[key];
+    if (active != null) return active;
+
+    late final Future<Map<String, dynamic>> delivery;
+    delivery = request().whenComplete(() {
+      if (identical(_active[key], delivery)) _active.remove(key);
+    });
+    _active[key] = delivery;
+    return delivery;
+  }
+}
+
 /// Offline-first queue: every scan event is enqueued locally with a UUID
 /// dedupe key, then flushed. Server-side unique constraint makes replays
 /// idempotent.
@@ -64,6 +84,7 @@ class OfflineQueue extends ChangeNotifier {
   bool _flushing = false;
   bool _online = true;
   Timer? _retryTimer;
+  final ScanDeliveryGate _deliveryGate = ScanDeliveryGate();
   final _uuid = const Uuid();
 
   int get pendingCount => _box?.values.length ?? 0;
@@ -77,7 +98,7 @@ class OfflineQueue extends ChangeNotifier {
   Future<void> init() async {
     _box = await Hive.openBox<String>(_boxName);
     _retryTimer?.cancel();
-    _retryTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+    _retryTimer = Timer.periodic(kQueueFlushInterval, (_) {
       if (_online && pendingCount > 0) flush();
     });
     notifyListeners();
@@ -146,7 +167,18 @@ class OfflineQueue extends ChangeNotifier {
   }
 
   Future<Map<String, dynamic>> _deliver(PendingScan scan,
-      {bool offline = false}) async {
+      {bool offline = false}) {
+    // A timer flush and a worker retry can happen at the same instant. Share
+    // one request for a dedupe key so a failed parallel request cannot put a
+    // record back after the successful request removed it.
+    return _deliveryGate.run(
+      scan.dedupeKey,
+      () => _deliverOnce(scan, offline: offline),
+    );
+  }
+
+  Future<Map<String, dynamic>> _deliverOnce(PendingScan scan,
+      {required bool offline}) async {
     final res = await ApiClient.instance.ingestScan(
       dedupeKey: scan.dedupeKey,
       employeeId: scan.employeeId,

@@ -53,7 +53,7 @@ const double kMinBlinkProbability = 0.5; // below this = "eyes closed"
 
 /// Offline queue retry.
 const int kMaxQueueRetries = 10;
-const Duration kQueueFlushInterval = Duration(seconds: 20);
+const Duration kQueueFlushInterval = Duration(seconds: 15);
 
 /// Admin auto-relock after inactivity.
 const Duration kAdminInactivityLock = Duration(minutes: 3);

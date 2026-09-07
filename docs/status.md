@@ -1,5 +1,16 @@
 # Status
 
+## v1.2.20 — Serialized punch delivery
+
+- Foreground punches and the background queue now share one in-flight request
+  per idempotency key, preventing a retry race from resurrecting a punch that
+  was already acknowledged and removed.
+- Connectivity changes now update the queue itself, rather than only changing
+  the dashboard's online indicator.
+- Scan requests keep a fast four-second connection timeout but allow up to 12
+  seconds for a slow connection or waking server to acknowledge a saved punch.
+- Release APK: `app/releases/FaceAttendance-v1.2.20-lan.apk`.
+
 ## v1.2.19 — Reliable queued punch recovery
 
 - Retrying a worker punch while their previous request is still queued now

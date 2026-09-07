@@ -79,7 +79,10 @@ class ApiClient {
 
   Future<Map<String, dynamic>> _authedPost(
       String path, Map<String, dynamic> body,
-      {bool retried = false, Duration? timeout}) async {
+      {bool retried = false,
+      Duration? connectTimeout,
+      Duration? sendTimeout,
+      Duration? receiveTimeout}) async {
     final token = await SecureStore.instance.getDeviceToken();
     if (token == null) throw _NoToken();
     try {
@@ -88,16 +91,23 @@ class ApiClient {
         data: body,
         options: Options(
           headers: {'Authorization': 'Bearer $token'},
-          connectTimeout: timeout,
-          sendTimeout: timeout,
-          receiveTimeout: timeout,
+          connectTimeout: connectTimeout,
+          sendTimeout: sendTimeout,
+          receiveTimeout: receiveTimeout,
         ),
       );
       return res.data as Map<String, dynamic>;
     } on DioException catch (e) {
       if (e.response?.statusCode == 401 && !retried) {
         await handshake();
-        return _authedPost(path, body, retried: true, timeout: timeout);
+        return _authedPost(
+          path,
+          body,
+          retried: true,
+          connectTimeout: connectTimeout,
+          sendTimeout: sendTimeout,
+          receiveTimeout: receiveTimeout,
+        );
       }
       rethrow;
     }
@@ -132,7 +142,11 @@ class ApiClient {
             if (faceHash != null) 'faceHash': faceHash,
             'syncState': offline ? 'offline' : 'live',
           },
-          timeout: const Duration(seconds: 3));
+          // Connecting should still fail over quickly, but allow a slow WAN
+          // or a waking server enough time to acknowledge a saved punch.
+          connectTimeout: const Duration(seconds: 4),
+          sendTimeout: const Duration(seconds: 8),
+          receiveTimeout: const Duration(seconds: 12));
     } on DioException catch (e) {
       final type = e.type;
       if (type == DioExceptionType.connectionTimeout ||

@@ -20,14 +20,17 @@ class AppState extends ChangeNotifier {
   /// Called after bootstrap; starts listening to connectivity and the
   /// admin auto-relock countdown.
   void start() {
-    _sub = Connectivity().onConnectivityChanged.listen((results) {
-      final nowOnline = results.any((r) => r != ConnectivityResult.none);
-      if (nowOnline != online) {
-        online = nowOnline;
-        if (nowOnline) OfflineQueue.instance.flush();
-        notifyListeners();
-      }
-    });
+    final connectivity = Connectivity();
+    _sub = connectivity.onConnectivityChanged.listen(_applyConnectivity);
+    unawaited(connectivity.checkConnectivity().then(_applyConnectivity));
+  }
+
+  void _applyConnectivity(List<ConnectivityResult> results) {
+    final nowOnline = results.any((r) => r != ConnectivityResult.none);
+    final changed = nowOnline != online;
+    online = nowOnline;
+    OfflineQueue.instance.setOnline(nowOnline);
+    if (changed) notifyListeners();
   }
 
   void enterAdmin() {
@@ -44,8 +47,10 @@ class AppState extends ChangeNotifier {
     _lastAdminActivity = DateTime.now();
     _relockTimer?.cancel();
     _relockTimer = Timer(kAdminInactivityLock, () {
-      if (adminMode && _lastAdminActivity != null &&
-          DateTime.now().difference(_lastAdminActivity!) >= kAdminInactivityLock) {
+      if (adminMode &&
+          _lastAdminActivity != null &&
+          DateTime.now().difference(_lastAdminActivity!) >=
+              kAdminInactivityLock) {
         lockToKiosk();
       }
     });
