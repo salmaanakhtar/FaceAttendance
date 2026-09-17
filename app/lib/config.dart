@@ -15,7 +15,7 @@ const String kApiBaseUrl = String.fromEnvironment(
 /// device identity and queued attendance.
 const String kAppVersion = String.fromEnvironment(
   'APP_VERSION',
-  defaultValue: 'v1.2.23',
+  defaultValue: 'v1.2.24',
 );
 
 /// ONNX recognition model (bundled asset). InsightFace MobileFaceNet,

@@ -113,9 +113,10 @@ export function employeeRoutes(app: FastifyInstance): void {
       schedule?: Record<string, unknown>;
     };
     if (!body.name?.trim()) throw badRequest('name required');
-    // Kiosks use a numeric keypad, so automatically assigned codes must also
-    // be numeric. Explicit legacy alphanumeric codes remain valid.
+    // Kiosks use a numeric-only keypad. Existing legacy codes remain stored,
+    // but every newly created worker must receive a code the kiosk can enter.
     const code = body.employeeCode?.trim() || Date.now().toString();
+    if (!/^\d+$/.test(code)) throw badRequest('worker code must contain numbers only');
     const client = await pool.connect();
     let row: EmployeeRow;
     try {

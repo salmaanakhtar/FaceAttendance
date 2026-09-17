@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../admin/admin_api.dart';
 import '../../../admin/models.dart';
@@ -166,7 +167,7 @@ class _EmployeeFormSheetState extends State<EmployeeFormSheet> {
             const SizedBox(height: 10),
             if (!editing) ...[
               _field(_code, 'Numeric worker code (optional)',
-                  keyboard: TextInputType.number),
+                  keyboard: TextInputType.number, numbersOnly: true),
               const SizedBox(height: 10),
             ],
             _field(_department, 'Department'),
@@ -258,10 +259,13 @@ class _EmployeeFormSheetState extends State<EmployeeFormSheet> {
   }
 
   Widget _field(TextEditingController c, String label,
-      {TextInputType? keyboard}) {
+      {TextInputType? keyboard, bool numbersOnly = false}) {
     return TextField(
       controller: c,
       keyboardType: keyboard,
+      inputFormatters: numbersOnly
+          ? <TextInputFormatter>[FilteringTextInputFormatter.digitsOnly]
+          : null,
       style: const TextStyle(color: Colors.white, fontSize: 15),
       decoration: InputDecoration(
         labelText: label,

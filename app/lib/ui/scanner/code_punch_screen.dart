@@ -60,7 +60,6 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
   String? _message;
   bool _loading = true;
   bool _busy = false;
-  bool _keyboardMode = false;
 
   @override
   void initState() {
@@ -166,7 +165,9 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
       );
       final queued = result['queued'] == true;
       final action = result['action'] as String? ??
-          (queued ? (direction == 'out' ? 'check_out' : 'check_in') : 'invalid');
+          (queued
+              ? (direction == 'out' ? 'check_out' : 'check_in')
+              : 'invalid');
       final at = DateTime.tryParse(result['scanTime'] as String? ?? '') ??
           AppTime.now();
       if (action == 'duplicate' ||
@@ -325,10 +326,8 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
                 controller: _code,
                 focusNode: _focus,
                 enabled: !_busy,
-                readOnly: !_keyboardMode,
-                keyboardType: _keyboardMode
-                    ? TextInputType.visiblePassword
-                    : TextInputType.none,
+                readOnly: true,
+                keyboardType: TextInputType.none,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                     color: Colors.white,
@@ -346,40 +345,10 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
                       borderSide: BorderSide.none),
                   contentPadding:
                       const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-                  suffixIcon: IconButton(
-                    tooltip: _keyboardMode
-                        ? 'Use number keypad'
-                        : 'Enter letters with keyboard',
-                    onPressed: _busy
-                        ? null
-                        : () {
-                            setState(() => _keyboardMode = !_keyboardMode);
-                            if (_keyboardMode) _focus.requestFocus();
-                          },
-                    icon: Icon(
-                        _keyboardMode
-                            ? Icons.dialpad_rounded
-                            : Icons.keyboard_alt_outlined,
-                        color: Colors.white54),
-                  ),
                 ),
               ),
               const SizedBox(height: 14),
               _numberKeypad(),
-              TextButton.icon(
-                onPressed: _busy
-                    ? null
-                    : () {
-                        setState(() => _keyboardMode = !_keyboardMode);
-                        if (_keyboardMode) _focus.requestFocus();
-                      },
-                icon: Icon(_keyboardMode
-                    ? Icons.dialpad_rounded
-                    : Icons.keyboard_alt_outlined),
-                label: Text(_keyboardMode
-                    ? 'Use number keypad'
-                    : 'Use keyboard for letter codes'),
-              ),
               const SizedBox(height: 16),
               SizedBox(
                   height: 54,

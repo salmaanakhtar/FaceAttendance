@@ -1,5 +1,14 @@
 # Status
 
+## v1.2.24 — Numeric-only worker codes
+
+- Removed the kiosk option to open a letter keyboard. Workers now enter codes
+  only through the permanent on-screen number keypad.
+- New worker codes are restricted to digits in both the admin form and backend.
+- Release APK built and verified as version `1.2.24` (code 72):
+  `app/releases/FaceAttendance-v1.2.24-lan.apk` (61,517,463 bytes), SHA-256
+  `2FABE8F95B86F637DA3DF497D6D14969FA183E4735C96FE563FA97F3AEC7B0DE`.
+
 ## v1.2.23 — Correct explicit clock-in handling
 
 - Explicit Clock in is no longer rejected as an “already recorded” duplicate
