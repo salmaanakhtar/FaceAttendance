@@ -13,6 +13,11 @@ below are unit-tested.
 
 ## Core rules
 
+The code keypad requires an explicit Clock in or Clock out selection. Clock out
+without an open session returns an error, never a new check-in. Queued opposite
+directions remain distinct and are delivered in worker order; offline feedback
+is marked pending rather than a server-confirmed attendance result.
+
 1. **Server time is authoritative.** `scan_time` is the server's clock at
    receipt. `device_time` is metadata only. Device clock drift is measured and
    logged per device; it never changes attendance truth.
@@ -51,12 +56,13 @@ below are unit-tested.
     receipt time, and the device's recorded delay is logged. `sync_state =
     offline` flags the row for transparency.
 
-12. **Absence** is a completed scheduled workday with no attendance session
-    and no approved leave. Today, future dates, and dates before employment
-    are excluded. `schedule.workDays` defaults to Monday–Friday.
+12. **Absence** counts only explicit `employee_absences` records entered by an
+    administrator. Missing punches never imply absence. Duplicate records count
+    once; future dates and dates before employment are excluded. An explicit
+    absence today or on an unscheduled day counts.
 13. **Leave** has a date range, type, status, and note. Only approved leave
-    excuses absence; pending, rejected, and cancelled records remain visible
-    without altering absence totals.
+    contributes to leave totals; pending, rejected, and cancelled records remain
+    visible without altering absence totals. Leave and absence are separate.
 14. **Manual absence** is an explicit, single-day `employee_absences` record,
     separate from employee leave. It increments only absent days, may mark the
     current day or an unscheduled day, and cannot be added when the worker

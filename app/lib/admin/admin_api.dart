@@ -126,6 +126,14 @@ class AdminApi {
   }
 
   // ---- Employees ----
+  Future<List<int>> exportPayroll(Map<String, dynamic> body) async {
+    final response = await _dio.post<List<int>>('/api/v1/admin/payroll/report',
+        data: {...body, 'format': 'xlsx'},
+        options: _auth().copyWith(
+            responseType: ResponseType.bytes,
+            receiveTimeout: const Duration(seconds: 60)));
+    return response.data!;
+  }
 
   Future<Map<String, dynamic>> listEmployees({
     String? search,

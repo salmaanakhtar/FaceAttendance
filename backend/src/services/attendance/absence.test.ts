@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { calculateAbsence } from './absence.js';
 
 describe('absence calculation', () => {
-  it('counts only completed scheduled days without attendance or approved leave', () => {
+  it('never infers absence from missing punches and keeps leave separate', () => {
     const result = calculateAbsence({
       from: '2026-08-31',
       to: '2026-09-04',
@@ -18,8 +18,8 @@ describe('absence calculation', () => {
 
     expect(result.through).toBe('2026-09-03');
     expect(result.totalLeaveDays).toBe(1);
-    expect(result.totalAbsentDays).toBe(2);
-    expect(result.workers[0]?.absentDates).toEqual(['2026-09-02', '2026-09-03']);
+    expect(result.totalAbsentDays).toBe(0);
+    expect(result.workers[0]?.absentDates).toEqual([]);
   });
 
   it('uses configured work days and never counts dates before employment', () => {
@@ -37,9 +37,16 @@ describe('absence calculation', () => {
       ],
       sessions: [],
       approvedLeave: [],
+      explicitAbsence: [
+        { employeeId: 'e1', date: '2026-09-01' },
+        { employeeId: 'e1', date: '2026-09-04' },
+        { employeeId: 'e1', date: '2026-09-04' },
+        { employeeId: 'e1', date: '2026-09-09' },
+        { employeeId: 'other', date: '2026-09-02' },
+      ],
     });
 
-    expect(result.workers[0]?.absentDates).toEqual(['2026-09-02', '2026-09-04']);
+    expect(result.workers[0]?.absentDates).toEqual(['2026-09-04']);
   });
 
   it('counts an explicitly marked absence today even on an unscheduled day', () => {

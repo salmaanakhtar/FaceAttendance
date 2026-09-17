@@ -4,6 +4,26 @@ import '../../config.dart';
 import '../../device/api.dart';
 import '../../device/secure_store.dart';
 
+String provisioningErrorMessage(Object error) {
+  if (error is DioException) {
+    final status = error.response?.statusCode;
+    if (status == 404) {
+      return 'This device key was not recognized. Check the key with your administrator.';
+    }
+    if (status == 400) {
+      return 'This kiosk could not be activated. Ask your administrator to check that the device is enabled and the key is correct.';
+    }
+    if (status == 429) {
+      return 'Too many connection attempts. Wait one minute, then try again.';
+    }
+    if (status != null && status >= 500) {
+      return 'The attendance server is temporarily unavailable. Please try again shortly.';
+    }
+    return 'Could not connect to the attendance server. Check your internet connection and try again. If this continues, ask your administrator to check the server.';
+  }
+  return 'Could not save device setup on this phone. Please restart the app and try again.';
+}
+
 /// First-boot provisioning: a device key from the org admin unlocks the
 /// kiosk. The key is stored in secure storage and exchanged for a device
 /// token on every handshake.
@@ -41,17 +61,11 @@ class _ProvisionScreenState extends State<ProvisionScreen> {
     try {
       await SecureStore.instance.setDeviceKey(key);
       await ApiClient.instance.handshake();
-      try {
-        await ApiClient.instance.fetchConfig();
-      } catch (_) {
-        // The handshake already supplied the org timezone. A later startup
-        // will retry server-clock calibration if this extra request fails.
-      }
       if (mounted) widget.onProvisioned();
     } catch (e) {
-      await SecureStore.instance.setDeviceKey(''); // don't keep a bad key
-      setState(() => _error =
-          'Could not reach the server at $kApiBaseUrl. Check that the phone and the server are on the same network, and that the device key is correct.');
+      // A connection failure does not mean the key is invalid. Keep it for
+      // retry, and avoid a second storage exception masking the first failure.
+      if (mounted) setState(() => _error = provisioningErrorMessage(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }

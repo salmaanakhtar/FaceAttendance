@@ -9,7 +9,6 @@ import '../../app_time.dart';
 import '../../attendance/offline_queue.dart';
 import '../../device/api.dart';
 import '../../device/secure_store.dart';
-import '../../recognition/matcher.dart';
 import '../../recognition/template_store.dart';
 import '../../util/feedback.dart';
 
@@ -22,13 +21,21 @@ String punchConfirmation({
   final local = tz.TZDateTime.from(at, tz.local);
   final time =
       '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
-  final label = action == 'check_out' ? 'Checked out' : 'Checked in';
+  final label = queued
+      ? (action == 'check_out' ? 'Clock-out pending' : 'Clock-in pending')
+      : (action == 'check_out' ? 'Checked out' : 'Checked in');
   final timeLabel =
       queued ? 'Queued at $time · saved offline' : 'Recorded at $time';
   return '$label · $employeeName\n$timeLabel';
 }
 
 String punchFailureMessage(String action, String? serverMessage) {
+  if (action == 'already_in') {
+    return 'Already clocked in. Choose Clock out to leave.';
+  }
+  if (action == 'already_out') {
+    return 'No open clock-in found. Ask your supervisor to check your attendance.';
+  }
   if (action == 'duplicate') {
     return 'Punch already recorded. Please wait one minute before trying again.';
   }
@@ -121,7 +128,7 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
     }
   }
 
-  Future<void> _submit([String? rawCode]) async {
+  Future<void> _submit(String direction, [String? rawCode]) async {
     if (_busy) return;
     final value = (rawCode ?? _code.text).trim();
     if (value.isEmpty) {
@@ -152,10 +159,6 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
       _error = null;
       _message = null;
     });
-    final direction = hintDirection(
-      lastDirection: StatusCache.instance.lastDirection(employee.id),
-      isCurrentlyIn: StatusCache.instance.isIn(employee.id),
-    );
     try {
       final result = await OfflineQueue.instance.enqueue(
         employeeId: employee.id,
@@ -163,7 +166,7 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
       );
       final queued = result['queued'] == true;
       final action = result['action'] as String? ??
-          (direction == 'out' ? 'check_out' : 'check_in');
+          (queued ? (direction == 'out' ? 'check_out' : 'check_in') : 'invalid');
       final at = DateTime.tryParse(result['scanTime'] as String? ?? '') ??
           AppTime.now();
       if (action == 'duplicate' ||
@@ -175,7 +178,7 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
         setState(() => _error = message);
         _showPunchBanner(message, success: false);
         await FeedbackFx.error();
-      } else {
+      } else if (action == 'check_in' || action == 'check_out') {
         StatusCache.instance.recordOutcome(employee.id, action, at);
         final message = punchConfirmation(
           action: action,
@@ -191,9 +194,13 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
           checkedOut: action == 'check_out',
         );
         await FeedbackFx.success();
-        unawaited(FeedbackFx.speak(action == 'check_out'
-            ? 'Goodbye ${employee.name}'
-            : 'Welcome ${employee.name}'));
+        unawaited(FeedbackFx.speak(queued
+            ? 'Punch saved. Waiting to sync.'
+            : action == 'check_out'
+                ? 'Goodbye ${employee.name}'
+                : 'Welcome ${employee.name}'));
+      } else {
+        throw StateError('Unexpected punch response');
       }
       _code.clear();
       _focus.requestFocus();
@@ -300,7 +307,7 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
                       fontWeight: FontWeight.w700)),
               const SizedBox(height: 8),
               const Text(
-                  'Press Enter or tap Punch. The first punch checks you in; the next checks you out.',
+                  'Enter your code, then choose Clock in when arriving or Clock out when leaving.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.white54, fontSize: 14)),
               const SizedBox(height: 28),
@@ -377,7 +384,7 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
               SizedBox(
                   height: 54,
                   child: FilledButton.icon(
-                    onPressed: _busy ? null : _submit,
+                    onPressed: _busy || _loading ? null : () => _submit('in'),
                     icon: _busy
                         ? const SizedBox(
                             width: 18,
@@ -385,10 +392,19 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
                             child: CircularProgressIndicator(
                                 strokeWidth: 2, color: Colors.white))
                         : const Icon(Icons.login_rounded),
-                    label: Text(_busy ? 'Saving…' : 'Punch time',
+                    label: Text(_busy ? 'Saving…' : 'Clock in',
                         style: const TextStyle(
                             fontSize: 16, fontWeight: FontWeight.w600)),
                   )),
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 54,
+                child: FilledButton.icon(
+                  onPressed: _busy || _loading ? null : () => _submit('out'),
+                  icon: const Icon(Icons.logout_rounded),
+                  label: const Text('Clock out'),
+                ),
+              ),
               if (_loading) ...[
                 const SizedBox(height: 20),
                 const Center(

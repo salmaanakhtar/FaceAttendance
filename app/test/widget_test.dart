@@ -1,3 +1,8 @@
+import 'dart:async';
+import 'package:face_attendance/main.dart';
+import 'package:face_attendance/device/api.dart';
+import 'package:dio/dio.dart' show RequestOptions, Response;
+import 'package:face_attendance/ui/provision/provision_screen.dart';
 import 'package:face_attendance/admin/models.dart';
 import 'package:face_attendance/app_time.dart';
 import 'package:face_attendance/ui/admin/session_detail.dart';
@@ -8,6 +13,53 @@ import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
 void main() {
+  test('provisioning distinguishes invalid keys from server outages', () {
+    final request = RequestOptions(path: '/api/v1/device/handshake');
+    expect(
+      provisioningErrorMessage(DioException(
+        requestOptions: request,
+        type: DioExceptionType.connectionTimeout,
+      )),
+      contains('Check your internet connection'),
+    );
+    expect(
+      provisioningErrorMessage(DioException(
+        requestOptions: request,
+        response: Response(requestOptions: request, statusCode: 404),
+      )),
+      contains('key was not recognized'),
+    );
+    expect(
+      provisioningErrorMessage(DioException(
+        requestOptions: request,
+        response: Response(requestOptions: request, statusCode: 503),
+      )),
+      contains('server is temporarily unavailable'),
+    );
+  });
+
+  testWidgets('startup storage failure offers retry instead of blank launch',
+      (tester) async {
+    var attempts = 0;
+    final retry = Completer<void>();
+    await tester.pumpWidget(StartupScreen(initialize: () {
+      attempts++;
+      if (attempts == 1) {
+        return Future<void>.error(StateError('storage unavailable'));
+      }
+      return retry.future;
+    }));
+    await tester.pumpAndSettle();
+    expect(
+        find.text('Could not open local attendance storage.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.text('Retry'));
+    await tester.pump();
+    expect(attempts, 2);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   setUpAll(() {
     tz_data.initializeTimeZones();
     tz.setLocalLocation(tz.getLocation('UTC'));
@@ -76,7 +128,7 @@ void main() {
         at: DateTime.parse('2026-09-02T15:30:00.000Z'),
         queued: true,
       ),
-      'Checked out · Test Worker\nQueued at 17:30 · saved offline',
+      'Clock-out pending · Test Worker\nQueued at 17:30 · saved offline',
     );
 
     tz.setLocalLocation(tz.getLocation('UTC'));

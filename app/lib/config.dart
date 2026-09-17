@@ -11,12 +11,11 @@ const String kApiBaseUrl = String.fromEnvironment(
 );
 
 /// App release tag (git tag of the GitHub release this build came from).
-/// Injected at build time by scripts/publish_release.ps1. Changing this
-/// value triggers the one-time local-data wipe in main.dart (forces
-/// re-enrollment — required for template v2).
+/// Injected at build time by scripts/publish_release.ps1. Updates preserve
+/// device identity and queued attendance.
 const String kAppVersion = String.fromEnvironment(
   'APP_VERSION',
-  defaultValue: 'v1.2.13',
+  defaultValue: 'v1.2.22',
 );
 
 /// ONNX recognition model (bundled asset). InsightFace MobileFaceNet,

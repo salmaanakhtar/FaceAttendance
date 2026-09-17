@@ -1,5 +1,56 @@
 # Status
 
+## Clock-in duplicate-direction fix — 2026-09-17
+
+- Fixed explicit Clock in being rejected as an “already recorded” duplicate
+  when the worker had just selected Clock out without an open shift. The
+  one-minute guard now suppresses only repeated punches in the same direction;
+  opposite explicit actions remain distinct as documented.
+
+## v1.2.22 — Worker actions and monthly Excel payroll
+
+- Dashboard worker details offer New clock in and Clock out actions, plus
+  editable existing times. Worker search and current status improve navigation.
+- Fixed week totals showing month hours when the Month view was selected.
+- Absence counts only administrator-entered absence records, never missing scans.
+- Attendance > Monthly Excel & payslips selects a month and opens a payroll
+  preview with editable worker rates/details and per-export earnings/deductions.
+- Excel workbook: all-worker numeric hour totals, individual payslips underneath,
+  and an All times worksheet. Open/incomplete shifts are flagged and excluded
+  from final pay calculations. Missing rates produce draft payslips with blank pay.
+- No tax/UIF/holiday amount is assumed. Adjustments last while the report screen
+  remains open and are included in the exported file and export audit record.
+- Backend requires deployment for the absence rule and new payroll endpoint.
+- Server connectivity incident was resolved by the user; no server changes made.
+- September 12 validation: all 27 backend tests and 46 Flutter tests pass;
+  TypeScript checking and Flutter analysis are clean. Removed a redundant
+  queue-flush notification that could fire after disposal during delivery races.
+- Release APK built and package metadata verified: version `1.2.22` (code 70),
+  `app/releases/FaceAttendance-v1.2.22-lan.apk` (58.7 MB). Device testing pending.
+  Gradle completed successfully with Kotlin metadata compatibility diagnostics.
+- Repaired incomplete temporary Java/Android toolchains. Builds used Java 17
+  under `%TEMP%/faceatt-jdk17-complete` and restored Android 33/34 platforms
+  and build tools in `%TEMP%/faceatt-build-toolchain/android-sdk`.
+
+## v1.2.21 — Explicit clock direction and startup recovery
+
+- Worker codes now have separate Clock in and Clock out buttons. The worker's
+  selected direction is sent to the server instead of using stale local state.
+- Opposite-direction offline punches retain separate idempotency keys and are
+  delivered in order per worker. Repeated retries preserve unsent records.
+- Offline confirmations say pending until server delivery succeeds.
+- Startup renders immediately with retry on local initialization failure;
+  opening the keypad no longer waits for network config or face templates.
+- Device-specific startup failure has not yet been reproduced on hardware.
+- Provisioning now distinguishes an unrecognized key from network/server
+  failures, retains the key for retry, and opens the keypad immediately after
+  a successful handshake. Configuration refresh continues in the background.
+- September 11 investigation: production DNS resolves to 169.58.162.229,
+  but HTTPS health checks from this workstation repeatedly time out before
+  authentication. Key validity is not yet verified against the live server.
+- Release validation/build remains blocked by a missing Flutter SDK DevTools
+  version file; the available Dart repair ZIP is incomplete/unreadable.
+
 ## v1.2.20 — Serialized punch delivery
 
 - Foreground punches and the background queue now share one in-flight request

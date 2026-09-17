@@ -52,8 +52,8 @@ site-local time is derived at read time using the org/site timezone.
 - `id`, `org_id`, `employee_id`, `start_date`, `end_date`, `leave_type`
   (`annual|sick|unpaid|other`), `status`
   (`pending|approved|rejected|cancelled`), `note`, `created_by`, timestamps.
-- Approved leave excuses scheduled days from absence totals. Other statuses
-  remain in history but do not suppress absence.
+- Approved leave counts completed scheduled leave days. Absence is never
+  inferred from missing attendance; only explicit absence records count.
 
 ### employee_absences
 - `id`, `org_id`, `employee_id`, `work_date`, `note`, `created_by`, timestamps.

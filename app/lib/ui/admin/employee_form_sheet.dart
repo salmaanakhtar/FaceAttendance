@@ -17,6 +17,17 @@ class _EmployeeFormSheetState extends State<EmployeeFormSheet> {
   final _code = TextEditingController();
   final _department = TextEditingController();
   final _hours = TextEditingController();
+  final _payFields = <String, TextEditingController>{
+    for (final key in [
+      'hourlyRate',
+      'overtimeMultiplier',
+      'identityNumber',
+      'occupation',
+      'startDate',
+      'paymentMethod'
+    ])
+      key: TextEditingController(),
+  };
   final Set<String> _workDays = {'mon', 'tue', 'wed', 'thu', 'fri'};
   bool _busy = false;
   String? _error;
@@ -25,6 +36,9 @@ class _EmployeeFormSheetState extends State<EmployeeFormSheet> {
   void initState() {
     super.initState();
     final e = widget.employee;
+    for (final entry in _payFields.entries) {
+      entry.value.text = e?.schedule[entry.key]?.toString() ?? '';
+    }
     if (e != null) {
       _name.text = e.name;
       _code.text = e.employeeCode;
@@ -45,6 +59,9 @@ class _EmployeeFormSheetState extends State<EmployeeFormSheet> {
     _code.dispose();
     _department.dispose();
     _hours.dispose();
+    for (final controller in _payFields.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -80,6 +97,20 @@ class _EmployeeFormSheetState extends State<EmployeeFormSheet> {
       'hoursPerWeek': hours,
       'workDays': _workDays.toList(),
     };
+    for (final entry in _payFields.entries) {
+      final value = entry.value.text.trim();
+      if (entry.key == 'hourlyRate' || entry.key == 'overtimeMultiplier') {
+        final number = double.tryParse(value);
+        if (value.isNotEmpty &&
+            (number == null || !number.isFinite || number < 0)) {
+          setState(() => _error = 'Enter a valid non-negative pay rate.');
+          return;
+        }
+        schedule[entry.key] = value.isEmpty ? null : number;
+      } else {
+        schedule[entry.key] = value;
+      }
+    }
     setState(() {
       _busy = true;
       _error = null;
@@ -142,6 +173,29 @@ class _EmployeeFormSheetState extends State<EmployeeFormSheet> {
             const SizedBox(height: 10),
             _field(_hours, 'Number of hours per week',
                 keyboard: const TextInputType.numberWithOptions(decimal: true)),
+            const SizedBox(height: 12),
+            ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              title: const Text('Payslip details'),
+              children: [
+                for (final entry in const {
+                  'hourlyRate': 'Normal hourly rate (R)',
+                  'overtimeMultiplier': 'Overtime multiplier (e.g. 1.5)',
+                  'identityNumber': 'Identity number',
+                  'occupation': 'Occupation',
+                  'startDate': 'Date engaged (YYYY-MM-DD)',
+                  'paymentMethod': 'Payment method',
+                }.entries)
+                  Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _field(_payFields[entry.key]!, entry.value,
+                          keyboard: entry.key == 'hourlyRate' ||
+                                  entry.key == 'overtimeMultiplier'
+                              ? const TextInputType.numberWithOptions(
+                                  decimal: true)
+                              : TextInputType.text)),
+              ],
+            ),
             const SizedBox(height: 12),
             const Text('Scheduled workdays',
                 style: TextStyle(color: Colors.white70, fontSize: 13)),

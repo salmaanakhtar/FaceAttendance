@@ -22,7 +22,6 @@ class _DashboardTabState extends State<DashboardTab> {
   List<AttendanceSession> _now = [];
   Map<String, dynamic>? _stats;
   List<Map<String, dynamic>> _exceptions = [];
-  List<AttendanceSession> _periodSessions = [];
   List<AttendanceSession> _weekSessions = [];
   List<AttendanceSession> _daySessions = [];
   List<AttendanceSession> _monthSessions = [];
@@ -31,6 +30,7 @@ class _DashboardTabState extends State<DashboardTab> {
   Map<String, Map<String, dynamic>> _monthAbsence = {};
   int _monthAbsentDays = 0;
   String _period = 'week';
+  String _search = '';
   bool _loading = true;
   String? _error;
   Timer? _poll;
@@ -119,7 +119,6 @@ class _DashboardTabState extends State<DashboardTab> {
                   const [])
               .map((e) => AttendanceSession.fromJson(e as Map<String, dynamic>))
               .toList();
-          _periodSessions = _period == 'week' ? _weekSessions : _monthSessions;
           _employees = (employeeRes['employees'] as List<dynamic>? ?? const [])
               .map((e) => Employee.fromJson(e as Map<String, dynamic>))
               .toList();
@@ -222,13 +221,23 @@ class _DashboardTabState extends State<DashboardTab> {
             onSelectionChanged: (v) {
               setState(() {
                 _period = v.first;
-                _periodSessions =
-                    _period == 'week' ? _weekSessions : _monthSessions;
               });
             },
           ),
         ]),
         const SizedBox(height: 8),
+        TextField(
+          onChanged: (value) =>
+              setState(() => _search = value.trim().toLowerCase()),
+          decoration: const InputDecoration(
+            prefixIcon: Icon(Icons.search),
+            hintText: 'Find a worker',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text('Tap a worker to clock in, clock out or edit their times.',
+            style: TextStyle(color: Colors.white54, fontSize: 12)),
         _workerTotals(),
         const SizedBox(height: 20),
         Row(
@@ -256,22 +265,13 @@ class _DashboardTabState extends State<DashboardTab> {
                 color: const Color(0xFF161A20),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Row(
-                children: [
-                  const Icon(Icons.person_rounded,
-                      color: Color(0xFF2FBF71), size: 20),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(s.employeeName,
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500)),
-                  ),
-                  Text(formatLocal(s.checkInAt),
-                      style:
-                          const TextStyle(color: Colors.white54, fontSize: 14)),
-                ],
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                onTap: () => _showWorkerSessions(s.employeeId, s.employeeName),
+                leading: const Icon(Icons.person_rounded, color: Color(0xFF2FBF71)),
+                title: Text(s.employeeName),
+                subtitle: Text('Clocked in at ${formatLocal(s.checkInAt)}'),
+                trailing: const Icon(Icons.chevron_right),
               ),
             ),
         const SizedBox(height: 20),
@@ -352,13 +352,15 @@ class _DashboardTabState extends State<DashboardTab> {
     }
 
     add(_daySessions, 'day');
-    add(_periodSessions, 'week');
+    add(_weekSessions, 'week');
     add(_monthSessions, 'month');
     if (totals.isEmpty) {
       return const _EmptyCard(
           text: 'No worker hours recorded for this period.');
     }
-    final rows = totals.values.toList()
+    final rows = totals.values
+        .where((row) => row.name.toLowerCase().contains(_search))
+        .toList()
       ..sort((a, b) => a.name.compareTo(b.name));
     return Card(
       color: const Color(0xFF161A20),
@@ -369,6 +371,7 @@ class _DashboardTabState extends State<DashboardTab> {
               WidgetStatePropertyAll(Colors.white.withOpacity(.04)),
           columns: const [
             DataColumn(label: Text('Worker')),
+            DataColumn(label: Text('Status')),
             DataColumn(label: Text('Today')),
             DataColumn(label: Text('This week')),
             DataColumn(label: Text('This month')),
@@ -382,6 +385,16 @@ class _DashboardTabState extends State<DashboardTab> {
                     Text(row.name,
                         style: const TextStyle(
                             color: Colors.white, fontWeight: FontWeight.w500)),
+                    onTap: () => _showWorkerSessions(row.id, row.name)),
+                DataCell(
+                    Text(
+                        _now.any((s) => s.employeeId == row.id)
+                            ? 'Clocked in'
+                            : 'Clocked out',
+                        style: TextStyle(
+                            color: _now.any((s) => s.employeeId == row.id)
+                                ? const Color(0xFF2FBF71)
+                                : Colors.white54)),
                     onTap: () => _showWorkerSessions(row.id, row.name)),
                 DataCell(
                     Text(_fmtHours(row.day),
@@ -438,6 +451,7 @@ class _DashboardTabState extends State<DashboardTab> {
     final source = _period == 'week' ? _weekSessions : _monthSessions;
     final sessions = source.where((s) => s.employeeId == employeeId).toList()
       ..sort((a, b) => b.workDate.compareTo(a.workDate));
+    final open = _now.where((s) => s.employeeId == employeeId).firstOrNull;
     if (!mounted) return;
     await showModalBottomSheet<void>(
       context: context,
@@ -460,6 +474,38 @@ class _DashboardTabState extends State<DashboardTab> {
                   style: const TextStyle(color: Colors.white54)),
             ]),
             const SizedBox(height: 8),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              FilledButton.icon(
+                onPressed: open != null
+                    ? null
+                    : () {
+                        Navigator.pop(sheetContext);
+                        _newClockIn(employeeId, name);
+                      },
+                icon: const Icon(Icons.login),
+                label: const Text('New clock in'),
+              ),
+              OutlinedButton.icon(
+                onPressed: open == null
+                    ? null
+                    : () {
+                        Navigator.pop(sheetContext);
+                        Navigator.of(context)
+                            .push(MaterialPageRoute(
+                              builder: (_) => SessionDetailScreen(
+                                  session: open, initialEditField: 'check_out'),
+                            ))
+                            .then((_) => _load(silent: true));
+                      },
+                icon: const Icon(Icons.logout),
+                label: const Text('Clock out'),
+              ),
+            ]),
+            const SizedBox(height: 12),
+            if (sessions.isEmpty)
+              const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('No shifts in this period.')),
             Flexible(
               child: ListView.separated(
                 shrinkWrap: true,
@@ -520,6 +566,61 @@ class _DashboardTabState extends State<DashboardTab> {
         ),
       ),
     );
+  }
+
+  Future<void> _newClockIn(String employeeId, String name) async {
+    final now = AppTime.now();
+    final date = await showDatePicker(
+        context: context,
+        initialDate: now,
+        firstDate: DateTime(now.year - 2),
+        lastDate: now,
+        helpText: 'Clock-in date for $name');
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay(hour: now.hour, minute: now.minute),
+        helpText: 'Clock-in time');
+    if (time == null || !mounted) return;
+    final at = tz.TZDateTime(
+        tz.local, date.year, date.month, date.day, time.hour, time.minute);
+    if (at.isAfter(AppTime.now())) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Clock-in time cannot be in the future.')));
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+              title: Text('Clock in $name?'),
+              content: Text(
+                  '${date.day}/${date.month}/${date.year} at ${time.format(context)}'),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Cancel')),
+                FilledButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('Save clock in')),
+              ],
+            ));
+    if (confirmed != true || !mounted) return;
+    try {
+      await AdminApi.instance.createManualSession(
+          employeeId: employeeId,
+          checkInAt: at.toUtc().toIso8601String(),
+          reason: 'Clock-in recorded from dashboard');
+      await _load(silent: true);
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$name clocked in')));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(AdminApi.errorMessage(error))));
+      }
+    }
   }
 
   Widget _editableSessionTime({

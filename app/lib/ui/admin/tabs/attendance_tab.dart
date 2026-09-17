@@ -10,6 +10,7 @@ import '../../../admin/models.dart';
 import '../../../app_state.dart';
 import '../../../app_time.dart';
 import '../session_detail.dart';
+import '../payroll_screen.dart';
 
 /// Attendance register with date range filter + CSV export.
 class AttendanceTab extends StatefulWidget {
@@ -219,7 +220,8 @@ class _AttendanceTabState extends State<AttendanceTab> {
               OutlinedButton.icon(
                 onPressed: _exportPayslips,
                 icon: const Icon(Icons.payments_outlined, size: 18),
-                label: const Text('Pay report', style: TextStyle(fontSize: 13)),
+                label: const Text('Monthly Excel & payslips',
+                    style: TextStyle(fontSize: 13)),
               ),
               OutlinedButton.icon(
                 onPressed: _bulkApprove,
@@ -507,25 +509,18 @@ class _AttendanceTabState extends State<AttendanceTab> {
   }
 
   Future<void> _exportPayslips() async {
-    if (_from == null || _to == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Choose a date range for the payroll report')));
-      return;
-    }
-    try {
-      final csv = await AdminApi.instance
-          .exportPayslipEstimate(from: _fmt(_from!), to: _fmt(_to!));
-      final dir = await getTemporaryDirectory();
-      final file =
-          '${dir.path}/payslip-estimate-${DateTime.now().millisecondsSinceEpoch}.csv';
-      await File(file).writeAsString(csv);
-      await Share.shareXFiles([XFile(file)], subject: 'Payslip estimate');
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Payroll report failed: $e')));
-      }
-    }
+    final now = AppTime.now();
+    final chosen = await showDatePicker(
+        context: context,
+        initialDate: _from ?? DateTime(now.year, now.month - 1, 1),
+        firstDate: DateTime(now.year - 2),
+        lastDate: now,
+        helpText: 'Choose any day in the payroll month');
+    if (chosen == null || !mounted) return;
+    await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => PayrollScreen(
+            from: DateTime(chosen.year, chosen.month, 1),
+            to: DateTime(chosen.year, chosen.month + 1, 0))));
   }
 
   Widget _entryPickerRow(BuildContext context, String label, String value,

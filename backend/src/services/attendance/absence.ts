@@ -57,8 +57,8 @@ function workDays(schedule: Record<string, unknown> | undefined): Set<string> {
 }
 
 /**
- * Deterministic absence calculation over completed calendar days.
- * Today is deliberately excluded because a worker may still punch later.
+ * Absence is explicitly recorded by an administrator, never inferred from
+ * missing punches. Approved leave retains its completed scheduled-day count.
  */
 export function calculateAbsence(input: {
   from: string;
@@ -86,7 +86,7 @@ export function calculateAbsence(input: {
           absentDates.push(date);
           continue;
         }
-        // Automatic absence detection only applies to completed days.
+        // Leave totals apply to completed scheduled days only.
         if (date > through) continue;
         const weekday = WEEK_DAYS[new Date(`${date}T00:00:00.000Z`).getUTCDay()]!;
         if (!scheduled.has(weekday)) continue;
@@ -98,7 +98,6 @@ export function calculateAbsence(input: {
             leave.endDate >= date,
         );
         if (onLeave) leaveDays++;
-        else absentDates.push(date);
       }
     }
     return {

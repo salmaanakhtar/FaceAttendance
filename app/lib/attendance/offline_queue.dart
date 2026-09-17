@@ -77,6 +77,9 @@ class ScanDeliveryGate {
 /// idempotent.
 class OfflineQueue extends ChangeNotifier {
   OfflineQueue._();
+  @visibleForTesting
+  OfflineQueue.forTesting(Box<String> box, this._sender) : _box = box;
+  Future<Map<String, dynamic>> Function(PendingScan scan)? _sender;
   static final OfflineQueue instance = OfflineQueue._();
 
   static const _boxName = 'pending_scans';
@@ -105,16 +108,17 @@ class OfflineQueue extends ChangeNotifier {
   }
 
   PendingScan? _pendingForEmployee(String employeeId) {
+    PendingScan? latest;
     for (final raw in _box?.values ?? const Iterable<String>.empty()) {
       try {
         final scan =
             PendingScan.fromJson(jsonDecode(raw) as Map<String, dynamic>);
-        if (scan.employeeId == employeeId) return scan;
+        if (scan.employeeId == employeeId) latest = scan;
       } catch (_) {
-        // Corrupt records are removed by the normal flush path.
+        // Preserve unreadable records for recovery.
       }
     }
-    return null;
+    return latest;
   }
 
   /// Enqueue (and try to deliver immediately).
@@ -130,7 +134,7 @@ class OfflineQueue extends ChangeNotifier {
     // key instead of creating a second event that the server rejects via the
     // minimum-interval guard.
     final existing = _pendingForEmployee(employeeId);
-    if (existing != null) {
+    if (existing != null && existing.directionHint == directionHint) {
       if (_online) {
         try {
           return await _deliver(existing, offline: true);
@@ -173,22 +177,38 @@ class OfflineQueue extends ChangeNotifier {
     // record back after the successful request removed it.
     return _deliveryGate.run(
       scan.dedupeKey,
-      () => _deliverOnce(scan, offline: offline),
+      () async {
+        // Deliver this worker's earlier punches first, including when a new
+        // foreground clock-out races the background flush of their clock-in.
+        for (final key in List.of(_box!.keys)) {
+          if (key == scan.dedupeKey) break;
+          final raw = _box!.get(key);
+          if (raw == null) continue;
+          final previous =
+              PendingScan.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+          if (previous.employeeId == scan.employeeId) {
+            await _deliver(previous, offline: true);
+          }
+        }
+        return _deliverOnce(scan, offline: offline);
+      },
     );
   }
 
   Future<Map<String, dynamic>> _deliverOnce(PendingScan scan,
       {required bool offline}) async {
-    final res = await ApiClient.instance.ingestScan(
-      dedupeKey: scan.dedupeKey,
-      employeeId: scan.employeeId,
-      deviceTime: scan.deviceTime,
-      directionHint: scan.directionHint,
-      confidence: scan.confidence,
-      livenessScore: scan.livenessScore,
-      faceHash: scan.faceHash,
-      offline: offline,
-    );
+    final res = _sender != null
+        ? await _sender!(scan)
+        : await ApiClient.instance.ingestScan(
+            dedupeKey: scan.dedupeKey,
+            employeeId: scan.employeeId,
+            deviceTime: scan.deviceTime,
+            directionHint: scan.directionHint,
+            confidence: scan.confidence,
+            livenessScore: scan.livenessScore,
+            faceHash: scan.faceHash,
+            offline: offline,
+          );
     await _box!.delete(scan.dedupeKey);
     notifyListeners();
     return res;
@@ -211,17 +231,13 @@ class OfflineQueue extends ChangeNotifier {
           } on OfflineException {
             break; // still offline — stop trying
           } on ServerException {
-            if (scan.retries >= kMaxQueueRetries) {
-              await _box!.delete(key); // drop poisoned entry after 10 tries
-            } else {
-              scan.retries++;
-              await _box!.put(key, jsonEncode(scan.toJson()));
-            }
+            scan.retries++;
+            await _box!.put(key, jsonEncode(scan.toJson()));
+            break; // retain attendance and ordering until delivery succeeds
           }
         } catch (_) {
-          await _box!.delete(key);
+          break; // storage/auth failures must never delete an unsent punch
         }
-        notifyListeners();
       }
     } finally {
       _flushing = false;
