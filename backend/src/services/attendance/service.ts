@@ -144,8 +144,8 @@ export async function ingestScan(input: ScanIngest): Promise<ScanResult> {
        ORDER BY check_in_at DESC LIMIT 1`,
       [emp.id],
     );
-    const lastEvent = await client.query<{ scan_time: string }>(
-      `SELECT scan_time FROM scan_events
+    const lastEvent = await client.query<{ scan_time: string; direction: 'in' | 'out' | null }>(
+      `SELECT scan_time, direction FROM scan_events
        WHERE employee_id = $1 ORDER BY scan_time DESC LIMIT 1`,
       [emp.id],
     );
@@ -156,6 +156,7 @@ export async function ingestScan(input: ScanIngest): Promise<ScanResult> {
       openSession: openRow.rows[0] ? toEngineSession(openRow.rows[0]) : null,
       lastSession: lastRow.rows[0] ? toEngineSession(lastRow.rows[0]) : null,
       lastEventAt: lastEvent.rows[0] ? new Date(lastEvent.rows[0].scan_time) : null,
+      lastEventDirection: lastEvent.rows[0]?.direction ?? null,
       policy,
     });
 

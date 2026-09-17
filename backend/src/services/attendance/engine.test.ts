@@ -51,6 +51,7 @@ function base(e: ScanEvent): Parameters<typeof processScan>[0] {
     openSession: null,
     lastSession: null,
     lastEventAt: null,
+    lastEventDirection: null,
     policy,
   };
 }
@@ -115,8 +116,18 @@ describe('duplicates and guards', () => {
     const r = processScan({
       ...base(ev('e1', '2026-08-11T04:30:30Z', 'in')),
       lastEventAt: new Date('2026-08-11T04:30:00Z'),
+      lastEventDirection: 'in',
     });
     expect(r.action).toBe('duplicate');
+  });
+
+  it('allows clock-in immediately after an unsuccessful clock-out', () => {
+    const r = processScan({
+      ...base(ev('e2', '2026-08-11T04:30:30Z', 'in')),
+      lastEventAt: new Date('2026-08-11T04:30:00Z'),
+      lastEventDirection: 'out',
+    });
+    expect(r.action).toBe('check_in');
   });
 
   it('reports already_in for a second check-in while open', () => {
@@ -136,6 +147,7 @@ describe('duplicates and guards', () => {
       openSession: checkedIn.session,
       lastSession: checkedIn.session,
       lastEventAt: new Date('2026-08-11T09:00:00Z'),
+      lastEventDirection: 'in',
     });
     expect(checkedOut.action).toBe('check_out');
   });

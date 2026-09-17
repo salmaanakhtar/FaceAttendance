@@ -160,6 +160,7 @@ export function classify(session: Session, now: Date): void {
  * @param openSession currently open session, if any
  * @param lastSession most recent session overall (open or closed), if any
  * @param lastEventAt time of the employee's previous scan event (for min-interval)
+ * @param lastEventDirection direction of the employee's previous scan event
  * @param policy the employee's shift policy snapshot
  */
 export function processScan(params: {
@@ -168,9 +169,18 @@ export function processScan(params: {
   openSession: Session | null;
   lastSession: Session | null;
   lastEventAt: Date | null;
+  lastEventDirection: 'in' | 'out' | null;
   policy: ShiftPolicy;
 }): EngineResult {
-  const { employeeId, event, openSession, lastSession, lastEventAt, policy } = params;
+  const {
+    employeeId,
+    event,
+    openSession,
+    lastSession,
+    lastEventAt,
+    lastEventDirection,
+    policy,
+  } = params;
   const t = event.scanTime;
 
   const duplicateGuard = (): boolean => {
@@ -178,6 +188,17 @@ export function processScan(params: {
     // never let the anti-double-scan interval block that transition.
     if (openSession && event.directionHint === 'out') return false;
     if (!lastEventAt) return false;
+    // Explicit opposite actions are different events. For example, an
+    // accidental Clock out with no open session must not prevent the worker
+    // from immediately choosing Clock in. Null directions retain the legacy
+    // face-scan behaviour, where the server inferred the next action.
+    if (
+      event.directionHint !== null &&
+      lastEventDirection !== null &&
+      event.directionHint !== lastEventDirection
+    ) {
+      return false;
+    }
     const gapMin = (t.getTime() - lastEventAt.getTime()) / 60000;
     return gapMin >= 0 && gapMin < policy.minIntervalMinutes;
   };
