@@ -1,5 +1,19 @@
 # Status
 
+## v1.2.23 — Correct explicit clock-in handling
+
+- Explicit Clock in is no longer rejected as an “already recorded” duplicate
+  immediately after an unsuccessful or accidental Clock out. The backend now
+  applies the one-minute duplicate guard only to repeated punches in the same
+  direction.
+- Includes the v1.2.22 worker actions, reliable offline punch ordering, and
+  monthly Excel payroll features in the refreshed Android release.
+- Pending retry lookup now matches both worker and punch direction directly,
+  preventing duplicate queued events when more than one direction is waiting.
+- Release APK built and verified as version `1.2.23` (code 71):
+  `app/releases/FaceAttendance-v1.2.23-lan.apk` (61,515,684 bytes), SHA-256
+  `680A672F2EC31A52885BA7365D4794B4E3DADCCD9BCD2AFACADF9B09A86D12A0`.
+
 ## Clock-in duplicate-direction fix — 2026-09-17
 
 - Fixed explicit Clock in being rejected as an “already recorded” duplicate

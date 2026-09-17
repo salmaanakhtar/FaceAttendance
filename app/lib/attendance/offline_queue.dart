@@ -107,13 +107,18 @@ class OfflineQueue extends ChangeNotifier {
     notifyListeners();
   }
 
-  PendingScan? _pendingForEmployee(String employeeId) {
+  PendingScan? _pendingForEmployee(
+      String employeeId, String? directionHint) {
     PendingScan? latest;
     for (final raw in _box?.values ?? const Iterable<String>.empty()) {
       try {
         final scan =
             PendingScan.fromJson(jsonDecode(raw) as Map<String, dynamic>);
-        if (scan.employeeId == employeeId) latest = scan;
+        if (scan.employeeId == employeeId &&
+            scan.directionHint == directionHint &&
+            (latest == null || scan.deviceTime.isAfter(latest.deviceTime))) {
+          latest = scan;
+        }
       } catch (_) {
         // Preserve unreadable records for recovery.
       }
@@ -133,8 +138,8 @@ class OfflineQueue extends ChangeNotifier {
     // If this worker's prior request timed out, retry that exact idempotency
     // key instead of creating a second event that the server rejects via the
     // minimum-interval guard.
-    final existing = _pendingForEmployee(employeeId);
-    if (existing != null && existing.directionHint == directionHint) {
+    final existing = _pendingForEmployee(employeeId, directionHint);
+    if (existing != null) {
       if (_online) {
         try {
           return await _deliver(existing, offline: true);
@@ -180,15 +185,26 @@ class OfflineQueue extends ChangeNotifier {
       () async {
         // Deliver this worker's earlier punches first, including when a new
         // foreground clock-out races the background flush of their clock-in.
-        for (final key in List.of(_box!.keys)) {
-          if (key == scan.dedupeKey) break;
-          final raw = _box!.get(key);
-          if (raw == null) continue;
-          final previous =
-              PendingScan.fromJson(jsonDecode(raw) as Map<String, dynamic>);
-          if (previous.employeeId == scan.employeeId) {
-            await _deliver(previous, offline: true);
+        // Hive key iteration order is not guaranteed, so order explicitly by
+        // the locally captured event time rather than the box's key order.
+        final earlier = <PendingScan>[];
+        for (final raw
+            in _box?.values ?? const Iterable<String>.empty()) {
+          try {
+            final previous =
+                PendingScan.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+            if (previous.dedupeKey != scan.dedupeKey &&
+                previous.employeeId == scan.employeeId &&
+                previous.deviceTime.isBefore(scan.deviceTime)) {
+              earlier.add(previous);
+            }
+          } catch (_) {
+            // Preserve unreadable records for recovery.
           }
+        }
+        earlier.sort((a, b) => a.deviceTime.compareTo(b.deviceTime));
+        for (final previous in earlier) {
+          await _deliver(previous, offline: true);
         }
         return _deliverOnce(scan, offline: offline);
       },
