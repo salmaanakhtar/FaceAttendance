@@ -16,5 +16,11 @@ The web server uses only Node's standard library, so it has no packages to
 install. Admin tokens are held in browser session storage and are removed when
 the browser session ends or the administrator signs out.
 
+The Overview page shows each active worker's hours for today, this week and
+this month. Worker management includes web clock-in/out, employee and pay-rate
+editing, manual attendance, corrections, approval, deletion, absence and leave
+management. All changes use the same audited backend records as the Android
+admin page.
+
 For production, serve `public/` over HTTPS and restrict the backend CORS origin
 to the website's exact HTTPS address.

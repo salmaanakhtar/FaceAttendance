@@ -15,9 +15,18 @@
 - The login screen defaults to the live backend used by the Android app
   (`https://faceattendance-api.salmaan.dev`); the server address remains
   editable for local development.
+- The web overview now shows per-worker hours for today, Monday-to-today and
+  the current month, alongside current clock status and recent shifts.
+- Web admins can clock workers in/out, edit worker and payslip fields, add or
+  correct attendance, approve or delete time entries, mark absence, manage
+  leave, and deactivate or delete workers through the same audited APIs used
+  by the Android admin page.
 - Validation: JavaScript syntax checks pass; a local HTTP smoke test returned
   200 with the expected page title and security headers. Production hosting
-  and live-server end-to-end testing remain to be completed.
+  and full browser interaction testing remain to be completed.
+- Live API validation now also passes with the configured administrator:
+  authentication, active workers, and separate day/week/month attendance
+  requests all returned successfully; the test session was logged out.
 
 ## Payslip reference layout - 2026-09-25
 
