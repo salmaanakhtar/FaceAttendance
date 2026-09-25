@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0d1424">
+  <title>FaceAttendance Admin</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <main id="login-view" class="login-shell">
+    <section class="login-card">
+      <div class="brand-mark">FA</div>
+      <p class="eyebrow">FaceAttendance</p>
+      <h1>Admin dashboard</h1>
+      <p class="muted">Manage workers, attendance and payroll from your computer.</p>
+      <form id="login-form" class="stack">
+        <label>Server address<input id="server-url" name="server" type="url" required placeholder="https://attendance.example.com"></label>
+        <label>Username<input name="username" autocomplete="username" required></label>
+        <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+        <p id="login-error" class="form-error" hidden></p>
+        <button class="primary" type="submit">Sign in</button>
+      </form>
+    </section>
+  </main>
+  <div id="app-view" class="app-shell" hidden>
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark small">FA</span><span>FaceAttendance</span></div>
+      <nav id="nav" aria-label="Admin sections">
+        <button data-page="dashboard" class="active">Overview</button>
+        <button data-page="employees">Workers</button>
+        <button data-page="attendance">Attendance</button>
+        <button data-page="leave">Leave</button>
+        <button data-page="payroll">Payroll</button>
+        <button data-page="audit">Audit</button>
+      </nav>
+      <div class="sidebar-footer"><span id="admin-name"></span><button id="logout" class="quiet">Sign out</button></div>
+    </aside>
+    <section class="workspace">
+      <header class="topbar"><div><p class="eyebrow">Admin dashboard</p><h2 id="page-title">Overview</h2></div><button id="refresh" class="secondary">Refresh</button></header>
+      <div id="loading" class="loading" hidden>Loading…</div>
+      <div id="page" class="page"></div>
+    </section>
+  </div>
+  <dialog id="modal"><div class="modal-card"><div class="modal-head"><h3 id="modal-title"></h3><button id="modal-close" class="icon-button" aria-label="Close">×</button></div><div id="modal-body"></div></div></dialog>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

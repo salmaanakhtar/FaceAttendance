@@ -9,6 +9,9 @@ with a deterministic attendance engine.
 - **Admin** — locked behind the top-right lock icon: employees, enrollment,
   attendance, corrections with full audit.
 - **Backend** — immutable scan events, derived sessions, audit trail, exports.
+- **Web admin** — a separate desktop browser dashboard in `web-admin/` for
+  workers, attendance, leave, payroll and audit. It uses the same backend and
+  does not change or bundle the Android kiosk app.
 
 ## Docs
 
@@ -27,4 +30,5 @@ scripts\db_start.ps1
 cd backend; npm install; npm run db:migrate; npm run db:seed
 scripts\api_start.ps1
 cd app; flutter pub get; flutter run -d <avd>
+cd web-admin; npm start       # dashboard on http://127.0.0.1:4750
 ```

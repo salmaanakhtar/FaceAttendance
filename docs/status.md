@@ -1,5 +1,21 @@
 # Status
 
+## Separate desktop web admin — 2026-09-25
+
+- Added an independent `web-admin/` browser dashboard; no Flutter app files or
+  Android kiosk behavior were changed.
+- The dashboard connects to the existing backend and includes admin login,
+  live overview, worker management, attendance entry/correction, leave,
+  monthly payroll preview/download and audit history.
+- Worker forms retain the R30.23 default hourly rate and editable per-worker
+  rates. Payroll uses the backend's automatic 1% UIF calculation.
+- Admin credentials and tokens are retained only for the browser session. The
+  standalone Node static server adds a restrictive content security policy and
+  has no third-party runtime dependencies.
+- Validation: JavaScript syntax checks pass; a local HTTP smoke test returned
+  200 with the expected page title and security headers. Production hosting
+  and live-server end-to-end testing remain to be completed.
+
 ## Payslip reference layout - 2026-09-25
 
 - Excel now has a printable Payslips sheet with two matching copies per worker,
