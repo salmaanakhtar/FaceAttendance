@@ -24,3 +24,19 @@ admin page.
 
 For production, serve `public/` over HTTPS and restrict the backend CORS origin
 to the website's exact HTTPS address.
+
+## Production container
+
+`Dockerfile` packages the dashboard as an independent Nginx service with a
+health endpoint at `/health` and browser security headers. In Hermes, create a
+new application from the FaceAttendance repository using:
+
+- root/build directory: `web-admin`
+- Dockerfile: `web-admin/Dockerfile` (or `Dockerfile` when the root directory
+  is already set to `web-admin`)
+- container port: `80`
+- health path: `/health`
+- suggested domain: `faceattendance.salmaan.dev`
+
+TLS should be terminated by the existing Traefik/Hermes platform. No database,
+environment variables, persistent volume, or Android app deployment is needed.

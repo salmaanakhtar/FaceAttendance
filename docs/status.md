@@ -27,6 +27,13 @@
 - Live API validation now also passes with the configured administrator:
   authentication, active workers, and separate day/week/month attendance
   requests all returned successfully; the test session was logged out.
+- Added a production Nginx container definition for deploying the dashboard as
+  its own Hermes service, with a `/health` check and restrictive browser
+  security headers. Publishing still requires Hermes/DNS access, which is not
+  available on this workstation.
+- `faceattendance.salmaan.dev` already resolves to the existing VPS; HTTPS
+  currently returns the platform's 404 because no Hermes route/service has
+  been created for that hostname yet.
 
 ## Payslip reference layout - 2026-09-25
 
