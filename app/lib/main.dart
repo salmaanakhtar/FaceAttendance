@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'app_state.dart';
+import 'ui/admin/admin_activity_listener.dart';
 import 'app_time.dart';
 import 'config.dart';
 import 'device/secure_store.dart';
@@ -157,6 +158,7 @@ class _FaceAttendanceAppState extends State<FaceAttendanceApp> {
         ),
         useMaterial3: true,
       ),
+      builder: (context, child) => AdminActivityListener(child: child!),
       home: _buildHome(),
     );
   }

@@ -1,5 +1,12 @@
 # Status
 
+## Manual-entry inactivity fix - 2026-09-25
+
+- Admin taps and scrolling now reset the inactivity timer across dialogs,
+  date/time pickers, and detail pages, keeping active manual entry open.
+- The three-minute idle lock remains enabled. A widget regression test
+  covers extended dialog use, saving, and subsequent idle locking.
+
 ## v1.2.24 — Numeric-only worker codes
 
 - Removed the kiosk option to open a letter keyboard. Workers now enter codes

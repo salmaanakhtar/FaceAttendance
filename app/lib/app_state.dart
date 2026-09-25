@@ -13,7 +13,6 @@ class AppState extends ChangeNotifier {
 
   bool online = true;
   bool adminMode = false;
-  DateTime? _lastAdminActivity;
   Timer? _relockTimer;
   StreamSubscription<List<ConnectivityResult>>? _sub;
 
@@ -44,13 +43,9 @@ class AppState extends ChangeNotifier {
   }
 
   void _touchAdminActivity() {
-    _lastAdminActivity = DateTime.now();
     _relockTimer?.cancel();
     _relockTimer = Timer(kAdminInactivityLock, () {
-      if (adminMode &&
-          _lastAdminActivity != null &&
-          DateTime.now().difference(_lastAdminActivity!) >=
-              kAdminInactivityLock) {
+      if (adminMode) {
         lockToKiosk();
       }
     });
