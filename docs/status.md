@@ -12,6 +12,9 @@
 - Admin credentials and tokens are retained only for the browser session. The
   standalone Node static server adds a restrictive content security policy and
   has no third-party runtime dependencies.
+- The login screen defaults to the live backend used by the Android app
+  (`https://faceattendance-api.salmaan.dev`); the server address remains
+  editable for local development.
 - Validation: JavaScript syntax checks pass; a local HTTP smoke test returned
   200 with the expected page title and security headers. Production hosting
   and live-server end-to-end testing remain to be completed.

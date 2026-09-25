@@ -9,7 +9,7 @@ const money = (value) => value == null ? '—' : new Intl.NumberFormat('en-ZA',{
 const pill = (text, tone='') => `<span class="pill ${tone}">${esc(text)}</span>`;
 
 const state = {
-  server: sessionStorage.getItem('fa_server') || 'http://127.0.0.1:4747',
+  server: sessionStorage.getItem('fa_server') || 'https://faceattendance-api.salmaan.dev',
   access: sessionStorage.getItem('fa_access'),
   refresh: sessionStorage.getItem('fa_refresh'),
   admin: JSON.parse(sessionStorage.getItem('fa_admin') || 'null'),

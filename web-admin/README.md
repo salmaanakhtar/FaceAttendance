@@ -8,8 +8,9 @@ Flutter kiosk app.
 
 1. Start the FaceAttendance backend on port 4747.
 2. In this directory run `npm start`.
-3. Open `http://127.0.0.1:4750` and enter the backend address, for example
-   `http://127.0.0.1:4747`.
+3. Open `http://127.0.0.1:4750`. The login screen defaults to the same live
+   backend used by the Android app: `https://faceattendance-api.salmaan.dev`.
+   For local development, replace it with `http://127.0.0.1:4747`.
 
 The web server uses only Node's standard library, so it has no packages to
 install. Admin tokens are held in browser session storage and are removed when
