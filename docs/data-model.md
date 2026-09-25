@@ -20,6 +20,11 @@ site-local time is derived at read time using the org/site timezone.
   `face_template` (encrypted 128-d embedding + model version), enrollment
   quality metadata (samples, mean distance, worst pose), `created_at`.
 
+Employee `schedule` also stores payslip details: `hourlyRate`, `firstName`,
+`surname`, `identityNumber` (text, preserving leading zeros), `occupation`,
+`startDate`, `paymentMethod`, and optional `employerAddress`. These use the
+existing audited employee create/update APIs.
+
 ### scan_events (raw, immutable, append-only)
 - `id`, `device_id`, `employee_id`, `scan_time` (server-authoritative),
   `device_time`, `direction` (in|out), `confidence`, `face_hash` (per-device

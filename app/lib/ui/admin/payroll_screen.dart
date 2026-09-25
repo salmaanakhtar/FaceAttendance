@@ -66,7 +66,6 @@ class _PayrollScreenState extends State<PayrollScreen> {
     const labels = {
       'holidayPay': 'Holiday pay (R)',
       'otherPay': 'Other earnings (R)',
-      'uif': 'UIF deduction (R)',
       'otherDeductions': 'Other deductions (R)'
     };
     final controllers = {
@@ -82,7 +81,7 @@ class _PayrollScreenState extends State<PayrollScreen> {
                   content: SingleChildScrollView(
                       child: Column(mainAxisSize: MainAxisSize.min, children: [
                     const Text(
-                        'Amounts apply to this export period. No deduction is calculated automatically.'),
+                        'Amounts apply to this export period. UIF is calculated automatically at 1% of gross wages.'),
                     for (final entry in labels.entries)
                       TextField(
                           controller: controllers[entry.key],
@@ -163,7 +162,10 @@ class _PayrollScreenState extends State<PayrollScreen> {
             style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 8),
         const Text(
-            'Excel includes a worker-hours summary, individual payslips below it, and an All times sheet.'),
+            'Excel includes a worker-hours summary, a Payslips sheet with two copies per worker, and an All times sheet.'),
+        const SizedBox(height: 8),
+        const Text(
+            'Default rate: R30.23/hour. All worked hours are normal hours. UIF: 1% of gross wages.'),
         const SizedBox(height: 12),
         FilledButton.icon(
             onPressed:
@@ -190,7 +192,7 @@ class _PayrollScreenState extends State<PayrollScreen> {
                             style: Theme.of(context).textTheme.titleMedium),
                         const SizedBox(height: 6),
                         Text(
-                            '${((worker['workedMinutes'] as num) / 60).toStringAsFixed(2)} hours · '
+                            '${((worker['workedMinutes'] as num) / 60).toStringAsFixed(2)} normal hours · '
                             'Gross ${_money(worker['gross'])} · Net ${_money(worker['net'])}'),
                         if ((worker['unresolvedShifts'] as num) > 0)
                           Text(
@@ -205,7 +207,7 @@ class _PayrollScreenState extends State<PayrollScreen> {
                               onPressed:
                                   _busy ? null : () => _editRates(worker),
                               icon: const Icon(Icons.edit),
-                              label: const Text('Pay rates & details')),
+                              label: const Text('ID, rate & payslip details')),
                           TextButton.icon(
                               onPressed:
                                   _busy ? null : () => _editAdjustments(worker),

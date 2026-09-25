@@ -23,7 +23,7 @@ export function payrollRoutes(app: FastifyInstance) {
     const seen = new Set<string>();
     for (const a of body.adjustments ?? []) {
       if (!a || typeof a.employeeId !== 'string' || seen.has(a.employeeId) ||
-        [a.holidayPay, a.otherPay, a.uif, a.otherDeductions].some(n => typeof n !== 'number' || !Number.isFinite(n) || n < 0 || n > 1e9)) {
+        [a.holidayPay, a.otherPay, a.otherDeductions].some(n => typeof n !== 'number' || !Number.isFinite(n) || n < 0 || n > 1e9)) {
         throw badRequest('Enter each worker once with valid non-negative pay adjustments');
       }
       seen.add(a.employeeId);
@@ -44,7 +44,8 @@ export function payrollRoutes(app: FastifyInstance) {
         AND e.status <> 'deleted' ORDER BY s.work_date, s.check_in_at`, [orgId, body.from, body.to]),
     ]);
     if ((body.adjustments ?? []).some(a => !workers.some(w => w.id === a.employeeId))) throw badRequest('Unknown worker in adjustments');
-    const report = { organization: org?.name ?? '', timezone: org?.timezone ?? 'UTC', from: body.from!, to: body.to!,
+    const report = { organization: org?.name ?? '',
+      employerAddress: org?.name.trim().toLowerCase() === 'yabil' ? '7 HIBISCIS STREET,\nStanger, 4450' : '', timezone: org?.timezone ?? 'UTC', from: body.from!, to: body.to!,
       workers: calculatePayroll(workers, sessions, body.adjustments) };
     if (!body.format || body.format === 'json') return reply.send(report);
     const bytes = await payrollExcel(report);

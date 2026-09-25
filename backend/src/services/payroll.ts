@@ -20,7 +20,7 @@ export interface PayAdjustment {
   employeeId: string;
   holidayPay: number;
   otherPay: number;
-  uif: number;
+  uif?: number; // Accepted for older clients; UIF is calculated, never overridden.
   otherDeductions: number;
 }
 
@@ -40,31 +40,34 @@ export function calculatePayroll(workers: PayrollWorker[], sessions: PayrollSess
     // Open/incomplete shifts cannot supply final hours for payroll.
     const completed = shifts.filter(s => s.status === 'closed' && s.inAt && s.outAt);
     const workedMinutes = completed.reduce((sum, s) => sum + Math.max(0, s.workedMinutes), 0);
-    const overtimeMinutes = completed.reduce((sum, s) => sum + Math.max(0, Math.min(s.workedMinutes, s.overtimeMinutes)), 0);
-    const regularMinutes = workedMinutes - overtimeMinutes;
-    const rate = configured(worker.schedule.hourlyRate);
+    // Payslips pay all completed worked time at the normal hourly rate.
+    // Attendance overtime flags remain available in the attendance register.
+    const overtimeMinutes = 0;
+    const regularMinutes = workedMinutes;
+    const savedRate = worker.schedule.hourlyRate;
+    const rate = configured(savedRate === null || savedRate === undefined || savedRate === '' ? 30.23 : savedRate);
     const multiplier = configured(worker.schedule.overtimeMultiplier);
     const adjustment = adjustments.find(a => a.employeeId === worker.id);
     const holidayPay = adjustment?.holidayPay ?? 0;
     const otherPay = adjustment?.otherPay ?? 0;
-    const uif = adjustment?.uif ?? 0;
     const otherDeductions = adjustment?.otherDeductions ?? 0;
     const regularPay = rate === null ? null : money(regularMinutes / 60 * rate);
-    const overtimePay = overtimeMinutes === 0 ? 0
-      : rate === null || multiplier === null ? null : money(overtimeMinutes / 60 * rate * multiplier);
+    const overtimePay = 0;
     const gross = regularPay === null || overtimePay === null ? null
       : money(regularPay + overtimePay + holidayPay + otherPay);
-    const deductions = money(uif + otherDeductions);
+    const uif = gross === null ? null : money(gross * 0.01);
+    const deductions = uif === null ? null : money(uif + otherDeductions);
     return { ...worker, shifts, workedMinutes, regularMinutes, overtimeMinutes,
       unresolvedShifts: shifts.length - completed.length,
       rate, multiplier, regularPay, overtimePay, holidayPay, otherPay, uif,
-      otherDeductions, gross, deductions, net: gross === null ? null : money(gross - deductions) };
+      otherDeductions, gross, deductions, net: gross === null || deductions === null ? null : money(gross - deductions) };
   });
 }
 
 export type PayrollRow = ReturnType<typeof calculatePayroll>[number];
 export interface PayrollReport {
   organization: string;
+  employerAddress?: string;
   timezone: string;
   from: string;
   to: string;

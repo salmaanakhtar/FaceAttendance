@@ -9,10 +9,12 @@ shows clock-in/out actions before shift history, matching the review-and-correct
 workflow described in [Deputy's timesheet overview](https://developer.deputy.com/docs/timesheets-overview).
 The monthly Excel export separates the hours summary from full time entries,
 following the summary/detail distinction in [Clockify's export guide](https://clockify.me/help/reports/exporting-reports).
-Individual payslips appear below the hours summary using the user's reference
+Individual payslips appear in a separate Payslips worksheet, two copies per page using the user's reference
 layout: worker information, earnings, deductions, gross and net pay, signature.
-Pay adjustments are explicitly entered by the administrator; statutory payroll
-rules are not inferred from a screenshot.
+All completed worked hours are paid at the normal rate; overtime fields remain blank.
+The default hourly rate is R30.23 and remains editable per worker. UIF is
+calculated as 1% of gross wages per the employer's requested payroll rule.
+Other pay adjustments are entered by the administrator.
 
 FaceAttendance is a site-bound biometric time clock, not yet a complete payroll
 or workforce scheduling suite. The goal is to make captured time trustworthy,

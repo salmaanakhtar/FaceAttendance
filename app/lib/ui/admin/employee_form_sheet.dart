@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../admin/admin_api.dart';
-import '../../../admin/models.dart';
+import '../../admin/admin_api.dart';
+import '../../admin/models.dart';
 
 /// Create (or edit) an employee. Returns the created employee map on success.
 class EmployeeFormSheet extends StatefulWidget {
@@ -21,7 +21,9 @@ class _EmployeeFormSheetState extends State<EmployeeFormSheet> {
   final _payFields = <String, TextEditingController>{
     for (final key in [
       'hourlyRate',
-      'overtimeMultiplier',
+      'firstName',
+      'surname',
+      'employerAddress',
       'identityNumber',
       'occupation',
       'startDate',
@@ -38,7 +40,8 @@ class _EmployeeFormSheetState extends State<EmployeeFormSheet> {
     super.initState();
     final e = widget.employee;
     for (final entry in _payFields.entries) {
-      entry.value.text = e?.schedule[entry.key]?.toString() ?? '';
+      entry.value.text = e?.schedule[entry.key]?.toString() ??
+          (entry.key == 'hourlyRate' ? '30.23' : '');
     }
     if (e != null) {
       _name.text = e.name;
@@ -100,14 +103,14 @@ class _EmployeeFormSheetState extends State<EmployeeFormSheet> {
     };
     for (final entry in _payFields.entries) {
       final value = entry.value.text.trim();
-      if (entry.key == 'hourlyRate' || entry.key == 'overtimeMultiplier') {
+      if (entry.key == 'hourlyRate') {
         final number = double.tryParse(value);
         if (value.isNotEmpty &&
             (number == null || !number.isFinite || number < 0)) {
           setState(() => _error = 'Enter a valid non-negative pay rate.');
           return;
         }
-        schedule[entry.key] = value.isEmpty ? null : number;
+        schedule[entry.key] = value.isEmpty ? 30.23 : number;
       } else {
         schedule[entry.key] = value;
       }
@@ -178,11 +181,15 @@ class _EmployeeFormSheetState extends State<EmployeeFormSheet> {
             ExpansionTile(
               tilePadding: EdgeInsets.zero,
               title: const Text('Payslip details'),
+              initiallyExpanded: true,
               children: [
                 for (final entry in const {
                   'hourlyRate': 'Normal hourly rate (R)',
-                  'overtimeMultiplier': 'Overtime multiplier (e.g. 1.5)',
-                  'identityNumber': 'Identity number',
+                  'firstName':
+                      'Name on payslip (optional; defaults to full name)',
+                  'surname': 'Surname on payslip',
+                  'employerAddress': 'Employer address (optional override)',
+                  'identityNumber': 'ID number',
                   'occupation': 'Occupation',
                   'startDate': 'Date engaged (YYYY-MM-DD)',
                   'paymentMethod': 'Payment method',
@@ -190,8 +197,7 @@ class _EmployeeFormSheetState extends State<EmployeeFormSheet> {
                   Padding(
                       padding: const EdgeInsets.only(bottom: 10),
                       child: _field(_payFields[entry.key]!, entry.value,
-                          keyboard: entry.key == 'hourlyRate' ||
-                                  entry.key == 'overtimeMultiplier'
+                          keyboard: entry.key == 'hourlyRate'
                               ? const TextInputType.numberWithOptions(
                                   decimal: true)
                               : TextInputType.text)),

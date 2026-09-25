@@ -1,5 +1,23 @@
 # Status
 
+## Payslip reference layout - 2026-09-25
+
+- Excel now has a printable Payslips sheet with two matching copies per worker,
+  employer address, separate name/surname, ID, employment details and signature.
+- Missing hourly rates default to R30.23; saved custom rates remain editable.
+- UIF is calculated as 1% of gross wages, rounded to cents, including extra
+  earnings. Older clients cannot override UIF with a manually entered amount.
+- All completed worked minutes are normal hours paid at the saved hourly rate;
+  overtime hours and amounts are blank. Unfinished shifts remain excluded.
+- Employee payslip fields open expanded, with name/surname and employer-address
+  overrides. Identity numbers remain text. Existing saved rates are retained.
+- Validation: all 30 backend tests, TypeScript checking, three focused Flutter
+  widget tests, and full Flutter analysis pass.
+- Prepared version 1.2.25 (code 73), including the manual-entry inactivity fix.
+  APK compilation is blocked by Windows Application Control denying Flutter
+  android-arm/android-arm64 gen_snapshot.exe execution. No new APK was produced.
+- Backend deployment and an updated Android APK are needed for these changes.
+
 ## Manual-entry inactivity fix - 2026-09-25
 
 - Admin taps and scrolling now reset the inactivity timer across dialogs,
