@@ -1,0 +1,6 @@
+/* Author styles such as .app-shell { display: grid } otherwise override the
+   browser's default treatment of the hidden attribute. Keep auth views
+   mutually exclusive regardless of their layout display mode. */
+[hidden] {
+  display: none !important;
+}
