@@ -78,7 +78,7 @@ async function renderPage(){
   catch(err){ $('#page').innerHTML=`<div class="card empty"><p class="negative">${esc(err.message)}</p><button class="secondary" id="retry">Try again</button></div>`; $('#retry').onclick=renderPage; }
   finally{setLoading(false);}
 }
-function modal(title,html){$('#modal-title').textContent=title;$('#modal-body').innerHTML=html;$('#modal').showModal();}
+function modal(title,html){const dialog=$('#modal');$('#modal-title').textContent=title;$('#modal-body').innerHTML=html;if(!dialog.open)dialog.showModal();}
 
 async function renderDashboard(){
   const nowDate=new Date(); const today=isoDate(nowDate);
@@ -106,9 +106,9 @@ async function renderDashboard(){
 function openWorkerActions(worker,openSession,weekSessions,monthSessions){
   const recent=monthSessions.filter(s=>s.employeeId===worker.id).sort((a,b)=>b.workDate.localeCompare(a.workDate)).slice(0,8);
   modal(worker.name,`<div class="detail-grid"><div><span>Status</span><strong class="${openSession?'positive':''}">${openSession?'Clocked in':'Clocked out'}</strong></div><div><span>This week</span><strong>${esc(hours(weekSessions.filter(s=>s.employeeId===worker.id).reduce((n,s)=>n+Number(s.workedMinutes||0),0)))}</strong></div><div><span>This month</span><strong>${esc(hours(monthSessions.filter(s=>s.employeeId===worker.id).reduce((n,s)=>n+Number(s.workedMinutes||0),0)))}</strong></div></div><div class="modal-actions"><button id="worker-clock" class="primary">${openSession?'Clock out':'New clock in'}</button><button id="worker-edit" class="secondary">Edit worker</button></div><h3 class="section-title">Recent shifts</h3>${recent.length?`<div class="table-wrap"><table><thead><tr><th>Date</th><th>In</th><th>Out</th><th>Hours</th><th></th></tr></thead><tbody>${recent.map(s=>`<tr><td>${esc(s.workDate)}</td><td>${esc(fmtTime(s.checkInAt))}</td><td>${esc(fmtTime(s.checkOutAt))}</td><td>${esc(hours(s.workedMinutes))}</td><td><button class="link-button edit-recent-session" data-id="${esc(s.id)}">Edit times</button></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No shifts this month.</div>'}`);
-  $('#worker-edit').onclick=()=>{ $('#modal').close(); openWorker(worker); };
+  $('#worker-edit').onclick=()=>openWorker(worker);
   $('#worker-clock').onclick=async()=>{try{if(openSession){await api('/api/v1/admin/corrections',{method:'POST',body:{employeeId:worker.id,sessionId:openSession.id,field:'check_out',value:new Date().toISOString(),reason:'Administrator clock out from web dashboard'}});}else{await api('/api/v1/admin/corrections/manual-session',{method:'POST',body:{employeeId:worker.id,checkInAt:new Date().toISOString(),reason:'Administrator clock in from web dashboard'}});}$('#modal').close();toast(openSession?'Worker clocked out.':'Worker clocked in.');renderDashboard();}catch(err){toast(err.message,true)}};
-  $$('.edit-recent-session').forEach(button=>button.onclick=()=>{const session=recent.find(s=>s.id===button.dataset.id);$('#modal').close();openSession(session,renderDashboard);});
+  $$('.edit-recent-session').forEach(button=>button.onclick=()=>openSession(recent.find(s=>s.id===button.dataset.id),renderDashboard));
 }
 
 async function getEmployees(){const data=await api('/api/v1/admin/employees?status=all&limit=200&offset=0');state.cache.employees=data.employees||[];return state.cache.employees;}
