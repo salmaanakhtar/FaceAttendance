@@ -32,6 +32,87 @@ const correctionSchema = {
  * Raw scan events are never touched.
  */
 export function correctionRoutes(app: FastifyInstance): void {
+  app.patch('/api/v1/admin/attendance/:sessionId/times', {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['employeeId', 'checkInAt'],
+        additionalProperties: false,
+        properties: {
+          employeeId: { type: 'string', minLength: 1 },
+          checkInAt: { type: 'string', minLength: 1 },
+          checkOutAt: { type: ['string', 'null'] },
+        },
+      },
+    },
+    preHandler: requireAdmin,
+  }, async (req, reply) => {
+    const { sessionId } = req.params as { sessionId: string };
+    const body = req.body as {
+      employeeId: string;
+      checkInAt: string;
+      checkOutAt?: string | null;
+    };
+    const checkIn = new Date(body.checkInAt);
+    const checkOut = body.checkOutAt ? new Date(body.checkOutAt) : null;
+    if (Number.isNaN(checkIn.getTime()) || (checkOut && Number.isNaN(checkOut.getTime()))) {
+      throw badRequest('invalid attendance timestamp');
+    }
+    if (checkOut && checkOut <= checkIn) {
+      throw badRequest('time out must be later than time in');
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await client.query(
+        `SELECT s.*, o.timezone
+         FROM attendance_sessions s
+         JOIN orgs o ON o.id = s.org_id
+         WHERE s.id = $1 AND s.employee_id = $2 AND s.org_id = $3
+           AND s.voided_at IS NULL
+         FOR UPDATE`,
+        [sessionId, body.employeeId, req.admin!.orgId],
+      );
+      if (!result.rowCount) throw notFound('session not found');
+      const current = result.rows[0];
+      const status = checkOut
+        ? 'closed'
+        : current.status === 'incomplete' ? 'incomplete' : 'open';
+      const updated = {
+        id: sessionId,
+        employeeId: body.employeeId,
+        workDate: localDate(checkIn, current.timezone),
+        checkInAt: checkIn,
+        checkOutAt: checkOut,
+        checkInSource: 'manual' as const,
+        checkOutSource: 'manual' as const,
+        status: status as Session['status'],
+        breakMinutes: Number(current.break_minutes ?? 0),
+        policy: { ...DEFAULT_POLICY, ...(current.policy ?? {}), timezone: current.timezone },
+        stats: {} as Session['stats'],
+        note: current.note,
+      } satisfies Session;
+      classify(updated, new Date());
+      await client.query(
+        `UPDATE attendance_sessions
+         SET work_date = $2, check_in_at = $3, check_out_at = $4,
+             check_in_source = 'manual', check_out_source = 'manual',
+             status = $5, stats = $6, corrected = true, updated_at = now()
+         WHERE id = $1`,
+        [sessionId, updated.workDate, checkIn, checkOut, updated.status,
+         JSON.stringify(updated.stats)],
+      );
+      await client.query('COMMIT');
+      return reply.send({ ok: true, sessionId });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  });
+
   app.post('/api/v1/admin/corrections/manual-session', {
     schema: {
       body: {

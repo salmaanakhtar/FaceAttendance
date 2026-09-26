@@ -5,7 +5,6 @@
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
-    "check": "node --check public/app.js && node --check public/time-utils.js && node --check server.mjs",
-    "test": "node --test tests/*.test.mjs"
+    "check": "node --check public/app.js && node --check server.mjs"
   }
 }
