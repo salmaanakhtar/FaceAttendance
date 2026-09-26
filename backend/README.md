@@ -14,6 +14,11 @@ npm test                     # vitest — attendance engine + services
 npm run typecheck
 ```
 
+Browser access is restricted to the comma-separated origins in
+`CORS_ORIGINS`. Its default permits the production web admin and the local
+dashboard addresses on port 4750. Native Android requests are unaffected by
+browser CORS enforcement.
+
 ## Demo credentials (dev seed only)
 
 - Admin login: `admin` / `admin123` (POST /api/v1/admin/login)

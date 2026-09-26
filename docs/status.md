@@ -34,6 +34,14 @@
 - `faceattendance.salmaan.dev` already resolves to the existing VPS; HTTPS
   currently returns the platform's 404 because no Hermes route/service has
   been created for that hostname yet.
+- Rechecked on 2026-09-26: the production API health endpoint is healthy and
+  the web hostname still returns the platform Nginx 404. This workstation has
+  neither an authorized VPS SSH key nor Tailscale access to the private Hermes
+  deployer, so creating the service remains blocked on control-plane access.
+- Tightened backend browser CORS from reflected arbitrary origins to an
+  environment-configurable allowlist. The default permits the production web
+  admin plus the documented localhost dashboard addresses; Android requests
+  are unaffected.
 
 ## Payslip reference layout - 2026-09-25
 

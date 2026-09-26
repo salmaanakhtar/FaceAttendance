@@ -20,7 +20,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     ajv: { customOptions: { strictTypes: false } },
   });
 
-  await app.register(cors, { origin: true });
+  await app.register(cors, { origin: config.corsOrigins });
   await app.register(rateLimit, {
     global: false,
   });
