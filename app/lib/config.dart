@@ -4,10 +4,10 @@ library;
 import 'package:camera/camera.dart';
 
 /// Backend base URL. Overridden at build time with
-/// --dart-define=API_BASE=... (production: https://faceattendance-api.salmaan.dev).
+/// --dart-define=API_BASE=... (production: https://faceattendance-api.yabildistributors.com).
 const String kApiBaseUrl = String.fromEnvironment(
   'API_BASE',
-  defaultValue: 'https://faceattendance-api.salmaan.dev',
+  defaultValue: 'https://faceattendance-api.yabildistributors.com',
 );
 
 /// App release tag (git tag of the GitHub release this build came from).
