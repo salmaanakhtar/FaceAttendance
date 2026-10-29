@@ -2,7 +2,7 @@
 # Usage: publish_release.ps1 -Tag v1.0.1 [-ApiBase https://...] [-Notes "what changed"]
 param(
   [Parameter(Mandatory=$true)][string]$Tag,
-  [string]$ApiBase = 'https://faceattendance-api.salmaan.dev',
+  [string]$ApiBase = 'https://faceattendance-api.yabildistributors.com',
   [string]$Notes = 'FaceAttendance release'
 )
 $ErrorActionPreference = 'Stop'
