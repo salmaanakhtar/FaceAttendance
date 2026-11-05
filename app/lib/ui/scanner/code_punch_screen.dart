@@ -127,6 +127,15 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
     }
   }
 
+  _KioskEmployee? _matchCode() {
+    final value = _code.text.trim().toLowerCase();
+    if (value.isEmpty) return null;
+    for (final employee in _employees) {
+      if (employee.code.toLowerCase() == value) return employee;
+    }
+    return null;
+  }
+
   Future<void> _submit(String direction, [String? rawCode]) async {
     if (_busy) return;
     final value = (rawCode ?? _code.text).trim();
@@ -261,6 +270,8 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
   @override
   Widget build(BuildContext context) {
     final now = AppTime.now();
+    final matched = _matchCode();
+    final codeEntered = _code.text.trim().isNotEmpty;
     final time =
         '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
     return Scaffold(
@@ -296,32 +307,17 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
                     icon: const Icon(Icons.lock_outline_rounded,
                         color: Colors.white70)),
               ]),
-              const SizedBox(height: 70),
+              const SizedBox(height: 24),
               const Icon(Icons.pin_outlined,
-                  color: Color(0xFF4DA3FF), size: 54),
-              const SizedBox(height: 18),
-              const Text('Enter your worker code',
+                  color: Color(0xFF4DA3FF), size: 46),
+              const SizedBox(height: 12),
+              const Text('Worker code',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                       color: Colors.white,
-                      fontSize: 25,
+                      fontSize: 24,
                       fontWeight: FontWeight.w700)),
-              const SizedBox(height: 8),
-              const Text(
-                  'Enter your code, then choose Clock in when arriving or Clock out when leaving.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white54, fontSize: 14)),
-              const SizedBox(height: 28),
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text('WORKER CODE',
-                    style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1)),
-              ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 20),
               TextField(
                 controller: _code,
                 focusNode: _focus,
@@ -347,13 +343,41 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
                       const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
                 ),
               ),
+              const SizedBox(height: 12),
+              if (codeEntered) ...[
+                Text(
+                  matched == null
+                      ? 'Code not found'
+                      : '${matched.name}  #${matched.code}',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: matched == null
+                        ? const Color(0xFFFF7272)
+                        : Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (matched != null)
+                  Text(
+                    StatusCache.instance.isIn(matched.id) == true
+                        ? 'Currently clocked in'
+                        : 'Currently clocked out',
+                    style: const TextStyle(
+                        color: Colors.white54, fontSize: 12),
+                  ),
+              ],
               const SizedBox(height: 14),
               _numberKeypad(),
               const SizedBox(height: 16),
               SizedBox(
                   height: 54,
                   child: FilledButton.icon(
-                    onPressed: _busy || _loading ? null : () => _submit('in'),
+                    onPressed: _busy || _loading || matched == null
+                        ? null
+                        : () => _submit('in'),
+                    style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF17623D)),
                     icon: _busy
                         ? const SizedBox(
                             width: 18,
@@ -369,7 +393,11 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
               SizedBox(
                 height: 54,
                 child: FilledButton.icon(
-                  onPressed: _busy || _loading ? null : () => _submit('out'),
+                  onPressed: _busy || _loading || matched == null
+                      ? null
+                      : () => _submit('out'),
+                  style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF174A78)),
                   icon: const Icon(Icons.logout_rounded),
                   label: const Text('Clock out'),
                 ),

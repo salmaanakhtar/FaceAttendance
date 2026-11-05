@@ -1,5 +1,34 @@
 # Status
 
+## Time editing and overtime — 2026-11-05
+
+- Fixed DATE columns being converted to server-local JS Dates. `work_date` is
+  now a `YYYY-MM-DD` string everywhere, so day/week/month totals cannot shift
+  by the server's timezone.
+- Fixed mobile and web time edits:
+  - `work_date` is re-derived from the edited check-in in the org timezone;
+  - edits return the timesheet to `needs_review`;
+  - `/times` now writes `attendance_corrections` and an audit event;
+  - manual sessions use the employee's policy and the org timezone;
+  - the mobile client refetches the exact session by id after an edit.
+- Added `GET /api/v1/admin/attendance/:id` and org timezone/settings in the
+  admin login and `/me` responses.
+- Web admin time inputs and displays now use the organization timezone, not the
+  browser timezone.
+- Added configurable overtime limits (default 46h/week, 184h/month), projected
+  crossings, in-app alerts, and advisory schedule suggestions with a manual
+  Apply action in both the web admin and mobile admin.
+- Added `docs/overtime.md`.
+- Verification: 45 backend tests, TypeScript checking, Flutter analysis, 49
+  Flutter tests, web admin syntax checks, and a browser smoke pass of the
+  overtime page.
+
+### Next
+
+- AWS Rekognition face check-in with worker-code fallback.
+- React rebuild of the web admin with the light electric blue/lime theme.
+
+
 ## Separate desktop web admin — 2026-09-25
 
 - Added an independent `web-admin/` browser dashboard; no Flutter app files or

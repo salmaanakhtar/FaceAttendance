@@ -119,6 +119,12 @@ class AdminApi {
     return res.data as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> put(
+      String path, Map<String, dynamic> body) async {
+    final res = await _dio.put(path, data: body, options: _auth());
+    return res.data as Map<String, dynamic>;
+  }
+
   /// Raw text responses (CSV export).
   Future<String> getText(String path, [Map<String, dynamic>? query]) async {
     final res = await _dio.get(path, queryParameters: query, options: _auth());
@@ -239,6 +245,25 @@ class AdminApi {
         if (from != null) 'from': from,
         if (to != null) 'to': to,
       });
+
+  Future<Map<String, dynamic>> overtimeReport() =>
+      get('/api/v1/admin/overtime');
+
+  Future<Map<String, dynamic>> updateOvertimeSettings({
+    required bool enabled,
+    required double weeklyHours,
+    required double monthlyHours,
+  }) =>
+      put('/api/v1/admin/overtime/settings', {
+        'enabled': enabled,
+        'weeklyHours': weeklyHours,
+        'monthlyHours': monthlyHours,
+      });
+
+  Future<Map<String, dynamic>> applyOvertimeSuggestion(
+          String employeeId, double weeklyHours) =>
+      post('/api/v1/admin/overtime/$employeeId/apply-suggestion',
+          {'weeklyHours': weeklyHours});
 
   Future<Map<String, dynamic>> approveAttendance(String id) =>
       post('/api/v1/admin/attendance/$id/approve', {});

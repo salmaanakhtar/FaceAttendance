@@ -124,10 +124,10 @@ $('#nav').addEventListener('click',(event)=>{const button=event.target.closest('
 $('#refresh').addEventListener('click',()=>renderPage());
 $('#modal-close').addEventListener('click',()=>$('#modal').close());
 
-const titles={dashboard:'Overview',employees:'Workers',attendance:'Attendance',leave:'Leave',payroll:'Payroll',audit:'Audit log'};
+const titles={dashboard:'Overview',employees:'Workers',attendance:'Attendance',leave:'Leave',payroll:'Payroll',overtime:'Overtime',audit:'Audit log'};
 async function renderPage(){
   $('#page-title').textContent=titles[state.page]; setLoading(true);
-  try{ await ({dashboard:renderDashboard,employees:renderEmployees,attendance:renderAttendance,leave:renderLeave,payroll:renderPayroll,audit:renderAudit}[state.page])(); }
+  try{ await ({dashboard:renderDashboard,employees:renderEmployees,attendance:renderAttendance,leave:renderLeave,payroll:renderPayroll,overtime:renderOvertime,audit:renderAudit}[state.page])(); }
   catch(err){ $('#page').innerHTML=`<div class="card empty"><p class="negative">${esc(err.message)}</p><button class="secondary" id="retry">Try again</button></div>`; $('#retry').onclick=renderPage; }
   finally{setLoading(false);}
 }
@@ -138,23 +138,28 @@ async function renderDashboard(){
   const today=isoDate();
   const weekStart=shiftDateString(today, -((new Date(`${today}T12:00:00Z`).getUTCDay()+6)%7));
   const monthStart=`${today.slice(0,7)}-01`;
-  const [now,stats,employees,dayAttendance,weekAttendance,monthAttendance]=await Promise.all([
+  const [now,stats,employees,dayAttendance,weekAttendance,monthAttendance,overtime]=await Promise.all([
     api('/api/v1/admin/attendance/now'),api(`/api/v1/admin/attendance/stats?from=${today}&to=${today}`),
     api('/api/v1/admin/employees?status=active&limit=200&offset=0'),
     api(`/api/v1/admin/attendance?from=${today}&to=${today}&limit=500`),
     api(`/api/v1/admin/attendance?from=${weekStart}&to=${today}&limit=500`),
-    api(`/api/v1/admin/attendance?from=${monthStart}&to=${today}&limit=500`)
+    api(`/api/v1/admin/attendance?from=${monthStart}&to=${today}&limit=500`),
+    api('/api/v1/admin/overtime').catch(()=>({alerts:[],workers:[]}))
   ]);
   state.cache.employees=employees.employees||[]; const agg=stats.aggregate||{}; const current=now.currentlyIn||[];
   const daySessions=dayAttendance.sessions||[]; const weekSessions=weekAttendance.sessions||[]; const monthSessions=monthAttendance.sessions||[];
+  const otAlerts=overtime.alerts||[];
   const total=(id,rows)=>rows.filter(s=>s.employeeId===id).reduce((sum,s)=>sum+Number(s.workedMinutes||0),0);
   $('#page').innerHTML=`
     <div class="stats"><div class="stat"><span>Workers currently in</span><strong class="positive">${current.length}</strong></div><div class="stat"><span>Today's sessions</span><strong>${agg.sessions??daySessions.length}</strong></div><div class="stat"><span>Late today</span><strong class="warning">${agg.lateCount??0}</strong></div><div class="stat"><span>Incomplete</span><strong class="negative">${agg.incompleteCount??0}</strong></div></div>
+    ${otAlerts.length?`<section class="card"><div class="card-head"><div><h3>Overtime alerts</h3><p class="muted">${otAlerts.length} worker${otAlerts.length===1?'':'s'} projected over a limit</p></div><button class="link-button" id="dash-overtime">Open overtime</button></div><div class="table-wrap"><table><thead><tr><th>Worker</th><th>Week</th><th>Month</th><th>Suggested</th><th></th></tr></thead><tbody>${otAlerts.slice(0,6).map(a=>`<tr><td><strong>${esc(a.employeeName)}</strong><br><span class="muted">#${esc(a.employeeCode)}</span></td><td>${esc(hours(a.weekly.workedMinutes))} / ${esc(hours(a.weekly.projectedMinutes))}<br><span class="muted">limit ${a.weekly.thresholdMinutes/60}h</span></td><td>${esc(hours(a.monthly.workedMinutes))} / ${esc(hours(a.monthly.projectedMinutes))}<br><span class="muted">limit ${a.monthly.thresholdMinutes/60}h</span></td><td>${a.suggestedWeeklyHours}h/week<br><span class="muted">${a.suggestedPerDayHours}h/day</span></td><td><button class="link-button dash-apply-ot" data-id="${esc(a.employeeId)}" data-hours="${a.suggestedWeeklyHours}">Apply</button></td></tr>`).join('')}</tbody></table></div></section>`:''}
     <section class="card"><div class="card-head"><div><h3>Worker hours</h3><p class="muted">Hours worked today, from Monday to today, and this calendar month.</p></div>${pill(`${state.cache.employees.length} active workers`)}</div><div class="table-wrap"><table><thead><tr><th>Worker</th><th>Status</th><th>Today</th><th>This week</th><th>This month</th><th></th></tr></thead><tbody>${state.cache.employees.map(worker=>{const open=current.find(s=>s.employeeId===worker.id);return `<tr><td><strong>${esc(worker.name)}</strong><br><span class="muted">#${esc(worker.employeeCode)}</span></td><td>${pill(open?'Clocked in':'Clocked out',open?'green':'')}</td><td><strong>${esc(hours(total(worker.id,daySessions)))}</strong></td><td><strong>${esc(hours(total(worker.id,weekSessions)))}</strong></td><td><strong>${esc(hours(total(worker.id,monthSessions)))}</strong></td><td><button class="link-button manage-worker" data-id="${esc(worker.id)}">Manage</button></td></tr>`}).join('')}</tbody></table></div></section>
     <div class="two-col"><section class="card"><div class="card-head"><h3>In right now</h3>${pill(`${current.length} workers`,'green')}</div>${current.length?`<div class="table-wrap"><table><thead><tr><th>Worker</th><th>Code</th><th>Clocked in</th></tr></thead><tbody>${current.map(s=>`<tr><td>${esc(s.employeeName)}</td><td>${esc(s.employeeCode)}</td><td>${esc(fmtTime(s.checkInAt))}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No workers are currently clocked in.</div>'}</section>
     <section class="card"><div class="card-head"><h3>Today</h3>${pill(`${daySessions.length} sessions`)}</div>${daySessions.length?`<div class="table-wrap"><table><thead><tr><th>Worker</th><th>In</th><th>Out</th><th>Hours</th><th></th></tr></thead><tbody>${daySessions.slice(0,12).map(s=>`<tr><td>${esc(s.employeeName)}</td><td>${esc(fmtTime(s.checkInAt))}</td><td>${esc(fmtTime(s.checkOutAt))}</td><td>${esc(hours(s.workedMinutes))}</td><td><button class="link-button edit-today-session" data-id="${esc(s.id)}">Edit times</button></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No attendance recorded today.</div>'}</section></div>`;
   $$('.manage-worker').forEach(button=>button.onclick=()=>openWorkerActions(state.cache.employees.find(w=>w.id===button.dataset.id),current.find(s=>s.employeeId===button.dataset.id),weekSessions,monthSessions));
   $$('.edit-today-session').forEach(button=>button.onclick=()=>openSession(daySessions.find(s=>s.id===button.dataset.id),renderDashboard));
+  $('#dash-overtime')?.addEventListener('click',()=>{state.page='overtime';$$('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page==='overtime'));renderPage();});
+  $$('.dash-apply-ot').forEach(button=>button.onclick=async()=>{try{await api(`/api/v1/admin/overtime/${button.dataset.id}/apply-suggestion`,{method:'POST',body:{weeklyHours:Number(button.dataset.hours)}});toast('Weekly hours updated.');await renderDashboard();}catch(err){toast(err.message,true)}});
 }
 
 function openWorkerActions(worker,openSession,weekSessions,monthSessions){
@@ -211,6 +216,21 @@ function openLeave(employees,entry){
 async function renderPayroll(){
   const month=isoDate().slice(0,7);$('#page').innerHTML=`<div class="card"><div class="card-head"><div><h3>Monthly payroll and payslips</h3><p class="muted">Default rate R30.23/hour · UIF automatically calculated at 1% of gross wages.</p></div><div class="actions"><input id="pay-month" type="month" value="${month}"><button id="pay-load" class="secondary">Preview</button><button id="pay-export" class="primary" disabled>Download Excel</button></div></div></div><div id="payroll-table"></div>`;
   let report; const load=async()=>{setLoading(true);try{const range=monthRange($('#pay-month').value);report=await api('/api/v1/admin/payroll/report',{method:'POST',body:{...range,format:'json',adjustments:[]}});const rows=report.workers||[];$('#payroll-table').innerHTML=rows.length?`<div class="table-wrap"><table><thead><tr><th>Worker</th><th>Hours</th><th>Rate</th><th>Gross</th><th>UIF (1%)</th><th>Other deductions</th><th>Net pay</th><th>Warnings</th></tr></thead><tbody>${rows.map(w=>`<tr><td>${esc(w.name)} <span class="muted">#${esc(w.code)}</span></td><td>${esc(hours(w.workedMinutes))}</td><td>${money(w.rate)}</td><td>${money(w.gross)}</td><td>${money(w.uif)}</td><td>${money(w.otherDeductions)}</td><td><strong>${money(w.net)}</strong></td><td>${w.unresolvedShifts?pill(`${w.unresolvedShifts} unfinished`,'red'):pill('Ready','green')}</td></tr>`).join('')}</tbody></table></div>`:'<div class="card empty">No workers for this payroll period.</div>';$('#pay-export').disabled=false;}catch(err){toast(err.message,true)}finally{setLoading(false)}};$('#pay-load').onclick=load;$('#pay-month').onchange=load;$('#pay-export').onclick=async()=>{try{const range=monthRange($('#pay-month').value);const blob=await api('/api/v1/admin/payroll/report',{method:'POST',body:{...range,format:'xlsx',adjustments:[]},download:true});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`payroll-${range.from}-${range.to}.xlsx`;a.click();URL.revokeObjectURL(url);toast('Payroll workbook downloaded.');}catch(err){toast(err.message,true)}};await load();
+}
+
+async function renderOvertime(){
+  const data=await api('/api/v1/admin/overtime');
+  const s=data.settings;
+  const alerts=data.alerts||[];
+  const workers=data.workers||[];
+  const statusLabel={projected:'Projected',exceeded:'Over limit',ok:'OK'};
+  const tone={projected:'amber',exceeded:'red',ok:'green'};
+  $('#page').innerHTML=`
+    <div class="card"><div class="card-head"><div><h3>Overtime limits</h3><p class="muted">Total worked hours per worker.</p></div><button id="ot-save" class="primary">Save limits</button></div><div class="form-grid"><label>Weekly limit (hours)<input id="ot-week" type="number" min="1" max="168" step="0.5" value="${s.weeklyHours}"></label><label>Monthly limit (hours)<input id="ot-month" type="number" min="1" max="744" step="0.5" value="${s.monthlyHours}"></label><label class="check-row wide"><input id="ot-enabled" type="checkbox" ${s.enabled?'checked':''}> Enable overtime alerts</label></div></div>
+    <div class="card"><div class="card-head"><div><h3>Alerts</h3><p class="muted">${alerts.length} worker(s) over or projected over a limit</p></div></div>${alerts.length?`<div class="table-wrap"><table><thead><tr><th>Worker</th><th>Week</th><th>Month</th><th>Status</th><th>Suggested schedule</th><th></th></tr></thead><tbody>${alerts.map(a=>`<tr><td><strong>${esc(a.employeeName)}</strong><br><span class="muted">#${esc(a.employeeCode)}</span></td><td>${esc(hours(a.weekly.workedMinutes))} worked<br><span class="muted">${esc(hours(a.weekly.projectedMinutes))} projected / ${a.weekly.thresholdMinutes/60}h</span></td><td>${esc(hours(a.monthly.workedMinutes))} worked<br><span class="muted">${esc(hours(a.monthly.projectedMinutes))} projected / ${a.monthly.thresholdMinutes/60}h</span></td><td>${pill(statusLabel[a.status],tone[a.status])}</td><td>${a.suggestedWeeklyHours}h/week<br><span class="muted">${a.suggestedPerDayHours}h/day</span></td><td><button class="link-button ot-apply" data-id="${esc(a.employeeId)}" data-hours="${a.suggestedWeeklyHours}">Apply</button></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No overtime alerts.</div>'}</div>
+    <div class="card"><div class="card-head"><div><h3>All workers</h3><p class="muted">Week ${data.weekStart} to ${data.weekEnd} · month ${data.monthStart} to ${data.monthEnd}</p></div></div><div class="table-wrap"><table><thead><tr><th>Worker</th><th>Weekly</th><th>Monthly</th><th>Status</th></tr></thead><tbody>${workers.map(a=>`<tr><td>${esc(a.employeeName)} <span class="muted">#${esc(a.employeeCode)}</span></td><td>${esc(hours(a.weekly.workedMinutes))} / ${esc(hours(a.weekly.projectedMinutes))} projected</td><td>${esc(hours(a.monthly.workedMinutes))} / ${esc(hours(a.monthly.projectedMinutes))} projected</td><td>${pill(statusLabel[a.status],tone[a.status])}</td></tr>`).join('')}</tbody></table></div></div>`;
+  $('#ot-save').onclick=async()=>{try{await api('/api/v1/admin/overtime/settings',{method:'PUT',body:{enabled:$('#ot-enabled').checked,weeklyHours:Number($('#ot-week').value),monthlyHours:Number($('#ot-month').value)}});toast('Overtime limits updated.');await renderOvertime();}catch(err){toast(err.message,true)}};
+  $$('.ot-apply').forEach(button=>button.onclick=async()=>{try{await api(`/api/v1/admin/overtime/${button.dataset.id}/apply-suggestion`,{method:'POST',body:{weeklyHours:Number(button.dataset.hours)}});toast('Schedule updated.');await renderOvertime();}catch(err){toast(err.message,true)}});
 }
 
 async function renderAudit(){

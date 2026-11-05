@@ -5,6 +5,7 @@ import 'package:timezone/timezone.dart' as tz;
 
 import '../../../admin/admin_api.dart';
 import '../../../admin/models.dart';
+import '../../../app_state.dart';
 import '../../../app_time.dart';
 import '../session_detail.dart';
 
@@ -29,6 +30,7 @@ class _DashboardTabState extends State<DashboardTab> {
   Map<String, Map<String, dynamic>> _weekAbsence = {};
   Map<String, Map<String, dynamic>> _monthAbsence = {};
   int _monthAbsentDays = 0;
+  Map<String, dynamic>? _overtime;
   String _period = 'week';
   String _search = '';
   bool _loading = true;
@@ -100,6 +102,16 @@ class _DashboardTabState extends State<DashboardTab> {
         exceptionRes = await AdminApi.instance
             .attendanceExceptions(from: exceptionFrom, to: today, limit: 20);
       } catch (_) {}
+      Map<String, dynamic> overtimeRes = const {
+        'settings': <String, dynamic>{},
+        'workers': <dynamic>[],
+        'alerts': <dynamic>[],
+      };
+      try {
+        overtimeRes = await AdminApi.instance.overtimeReport();
+      } catch (_) {
+        // Older servers may not expose overtime yet; keep the dashboard usable.
+      }
       if (mounted) {
         setState(() {
           _now = (nowRes['currentlyIn'] as List<dynamic>)
@@ -134,6 +146,7 @@ class _DashboardTabState extends State<DashboardTab> {
           };
           _monthAbsentDays =
               (monthAbsenceRes['totalAbsentDays'] as num?)?.toInt() ?? 0;
+          _overtime = overtimeRes;
           _loading = false;
           _error = null;
         });
@@ -204,6 +217,8 @@ class _DashboardTabState extends State<DashboardTab> {
             ),
           ],
         ),
+        const SizedBox(height: 18),
+        _overtimeCard(),
         const SizedBox(height: 18),
         Row(children: [
           const Text('Working hours',
@@ -688,6 +703,249 @@ class _DashboardTabState extends State<DashboardTab> {
             const Icon(Icons.chevron_right_rounded, color: Colors.white24),
       ),
     );
+  }
+
+  Widget _overtimeCard() {
+    final data = _overtime;
+    if (data == null) return const SizedBox.shrink();
+    final settings = (data['settings'] as Map<String, dynamic>?) ?? const {};
+    final alerts = (data['alerts'] as List<dynamic>?) ?? const [];
+    final enabled = settings['enabled'] != false;
+    final weekly = (settings['weeklyHours'] as num?)?.toDouble() ?? 46;
+    final monthly = (settings['monthlyHours'] as num?)?.toDouble() ?? 184;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161A20),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+            color: alerts.isEmpty ? Colors.white12 : const Color(0x33FFC857)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.schedule_rounded,
+              color: Color(0xFFFFC857), size: 20),
+          const SizedBox(width: 8),
+          const Text('Overtime',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600)),
+          const Spacer(),
+          Text('${weekly.toStringAsFixed(0)}h/w · ${monthly.toStringAsFixed(0)}h/m',
+              style: const TextStyle(color: Colors.white54, fontSize: 12)),
+          IconButton(
+            tooltip: 'Overtime limits',
+            onPressed: _editOvertimeSettings,
+            icon: const Icon(Icons.tune_rounded,
+                color: Colors.white54, size: 19),
+          ),
+        ]),
+        if (!enabled)
+          const Text('Overtime alerts are disabled.',
+              style: TextStyle(color: Colors.white54, fontSize: 12))
+        else if (alerts.isEmpty)
+          const Text('No workers over the weekly or monthly limit.',
+              style: TextStyle(color: Colors.white54, fontSize: 12))
+        else ...[
+          for (final raw in alerts.take(5))
+            _overtimeRow(raw as Map<String, dynamic>),
+          if (alerts.length > 5)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text('+${alerts.length - 5} more in the web admin',
+                  style: const TextStyle(color: Colors.white38, fontSize: 11)),
+            ),
+        ],
+      ]),
+    );
+  }
+
+  Widget _overtimeRow(Map<String, dynamic> alert) {
+    final week = (alert['weekly'] as Map<String, dynamic>?) ?? const {};
+    final month = (alert['monthly'] as Map<String, dynamic>?) ?? const {};
+    final status = alert['status'] as String? ?? 'ok';
+    final color = status == 'exceeded'
+        ? const Color(0xFFFF7272)
+        : const Color(0xFFFFC857);
+    final weeklyHours =
+        ((week['workedMinutes'] as num?)?.toInt() ?? 0) / 60;
+    final weeklyProjected =
+        ((week['projectedMinutes'] as num?)?.toInt() ?? 0) / 60;
+    final monthlyHours =
+        ((month['workedMinutes'] as num?)?.toInt() ?? 0) / 60;
+    final monthlyProjected =
+        ((month['projectedMinutes'] as num?)?.toInt() ?? 0) / 60;
+    final suggested = (alert['suggestedWeeklyHours'] as num?)?.toDouble() ?? 0;
+    final employeeId = alert['employeeId'] as String? ?? '';
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F1319),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: color.withOpacity(0.25)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(
+            child: Text(
+              '${alert['employeeName'] ?? 'Worker'}  #${alert['employeeCode'] ?? ''}',
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600),
+            ),
+          ),
+          Text(status == 'exceeded' ? 'Over limit' : 'Projected',
+              style: TextStyle(
+                  color: color, fontSize: 11, fontWeight: FontWeight.w700)),
+        ]),
+        const SizedBox(height: 4),
+        Text(
+          'Week ${weeklyHours.toStringAsFixed(1)}h / ${weeklyProjected.toStringAsFixed(1)}h projected · '
+          'Month ${monthlyHours.toStringAsFixed(1)}h / ${monthlyProjected.toStringAsFixed(1)}h',
+          style: const TextStyle(color: Colors.white54, fontSize: 11),
+        ),
+        const SizedBox(height: 4),
+        Row(children: [
+          Expanded(
+            child: Text(
+              'Suggested ${suggested.toStringAsFixed(1)}h/week',
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+          ),
+          TextButton(
+            onPressed: employeeId.isEmpty
+                ? null
+                : () => _applyOvertime(employeeId, suggested),
+            child: const Text('Apply'),
+          ),
+        ]),
+      ]),
+    );
+  }
+
+  Future<void> _editOvertimeSettings() async {
+    AppState.instance.touchAdminActivity();
+    final settings =
+        (_overtime?['settings'] as Map<String, dynamic>?) ?? const {};
+    final weekly = TextEditingController(
+        text: ((settings['weeklyHours'] as num?)?.toDouble() ?? 46)
+            .toStringAsFixed(1));
+    final monthly = TextEditingController(
+        text: ((settings['monthlyHours'] as num?)?.toDouble() ?? 184)
+            .toStringAsFixed(1));
+    var enabled = settings['enabled'] != false;
+    String? error;
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF161A20),
+          title: const Text('Overtime limits',
+              style: TextStyle(color: Colors.white, fontSize: 17)),
+          content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              TextField(
+                controller: weekly,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                    labelText: 'Weekly hours',
+                    labelStyle: TextStyle(color: Colors.white54)),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: monthly,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                    labelText: 'Monthly hours',
+                    labelStyle: TextStyle(color: Colors.white54)),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Overtime alerts',
+                    style: TextStyle(color: Colors.white70, fontSize: 13)),
+                value: enabled,
+                onChanged: (value) => setDialogState(() => enabled = value),
+              ),
+              if (error != null)
+                Text(error!,
+                    style: const TextStyle(
+                        color: Color(0xFFFF5D5D), fontSize: 12)),
+            ]),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () {
+                final w = double.tryParse(weekly.text.trim());
+                final m = double.tryParse(monthly.text.trim());
+                if (w == null || w < 1 || w > 168) {
+                  setDialogState(() => error = 'Weekly hours must be 1–168.');
+                  return;
+                }
+                if (m == null || m < 1 || m > 744) {
+                  setDialogState(() => error = 'Monthly hours must be 1–744.');
+                  return;
+                }
+                Navigator.pop(dialogContext, true);
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (saved == true) {
+      try {
+        await AdminApi.instance.updateOvertimeSettings(
+          enabled: enabled,
+          weeklyHours: double.parse(weekly.text.trim()),
+          monthlyHours: double.parse(monthly.text.trim()),
+        );
+        await _load(silent: true);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Overtime limits updated')));
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text('Could not save limits: ${AdminApi.errorMessage(e)}')));
+        }
+      }
+    }
+    weekly.dispose();
+    monthly.dispose();
+  }
+
+  Future<void> _applyOvertime(String employeeId, double weeklyHours) async {
+    AppState.instance.touchAdminActivity();
+    try {
+      await AdminApi.instance
+          .applyOvertimeSuggestion(employeeId, weeklyHours);
+      await _load(silent: true);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+                'Weekly hours updated to ${weeklyHours.toStringAsFixed(1)}')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content:
+                Text('Could not update schedule: ${AdminApi.errorMessage(e)}')));
+      }
+    }
   }
 
   String _fmtHours(int minutes) => '${minutes ~/ 60}h ${minutes % 60}m';
