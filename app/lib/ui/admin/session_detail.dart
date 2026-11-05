@@ -254,25 +254,24 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
         reason: reason,
         value: picked?.toUtc().toIso8601String() ?? valueOverride,
       );
-      // Refresh the session from the server.
-      final res = await AdminApi.instance.attendanceList(limit: 500);
-      final returnedId = correction['sessionId'] as String?;
-      final fresh = (res['sessions'] as List<dynamic>)
-          .map((e) => AttendanceSession.fromJson(e as Map<String, dynamic>))
-          .where((s) => s.id == (returnedId ?? _session.id))
-          .firstOrNull;
-      if (mounted) {
-        final savedAt = picked?.toUtc().toIso8601String();
-        final refreshed = fresh ?? _session;
-        setState(() {
-          _session = refreshed.withEditedTime(
-            checkInAt:
-                field == 'check_in' || field == 'add_check_in' ? savedAt : null,
-            checkOutAt: field == 'check_out' || field == 'add_check_out'
-                ? savedAt
-                : null,
-          );
-        });
+      // Refresh the exact session from the server. Fetching the latest list
+      // could miss an older edited shift and would keep a stale work_date.
+      final returnedId = correction['sessionId'] as String? ?? _session.id;
+      try {
+        final fresh = await AdminApi.instance.attendanceSession(returnedId);
+        if (mounted) {
+          setState(() {
+            _session = AttendanceSession.fromJson(fresh);
+            _error = null;
+          });
+        }
+      } catch (refreshError) {
+        if (mounted) {
+          setState(() {
+            _error = 'Saved, but the refreshed time could not be loaded. '
+                'Pull to refresh or reopen this entry.';
+          });
+        }
       }
       await _loadCorrections();
       if (mounted) {
@@ -481,12 +480,5 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
             : const Icon(Icons.lock_outline, color: Colors.white24, size: 16),
       ),
     );
-  }
-}
-
-extension _FirstOrNull<T> on Iterable<T> {
-  T? get firstOrNull {
-    final it = iterator;
-    return it.moveNext() ? it.current : null;
   }
 }

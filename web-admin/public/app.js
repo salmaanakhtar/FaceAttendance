@@ -1,9 +1,52 @@
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const isoDate = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
-const monthRange = (value = isoDate().slice(0,7)) => ({from:`${value}-01`,to:isoDate(new Date(Number(value.slice(0,4)),Number(value.slice(5,7)),0))});
-const fmtTime = (value) => value ? new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'short'}).format(new Date(value)) : '—';
+const orgTimezone = () => state.org?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+const isoDate = (date = new Date()) => new Intl.DateTimeFormat('sv-SE', {
+  timeZone: orgTimezone(), year: 'numeric', month: '2-digit', day: '2-digit',
+}).format(date);
+const shiftDateString = (value, days) => {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days, 12)).toISOString().slice(0, 10);
+};
+const monthRange = (value = isoDate().slice(0,7)) => {
+  const [year, month] = value.split('-').map(Number);
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return { from: `${value}-01`, to: `${value}-${String(lastDay).padStart(2, '0')}` };
+};
+const fmtTime = (value) => value ? new Intl.DateTimeFormat(undefined, {
+  dateStyle: 'medium', timeStyle: 'short', timeZone: orgTimezone(),
+}).format(new Date(value)) : '—';
+const localInput = (iso) => {
+  if (!iso) return '';
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: orgTimezone(), year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).format(new Date(iso)).replace(' ', 'T');
+};
+// Interpret a <input type="datetime-local"> as wall time in the org timezone,
+// not the browser timezone. This is the key time-editing fix for remote admins.
+const zonedToUtc = (value, timeZone = orgTimezone()) => {
+  if (!value) return null;
+  const [datePart, timePart] = String(value).split('T');
+  const [year, month, day] = datePart.split('-').map(Number);
+  const [hour, minute] = timePart.split(':').map(Number);
+  const target = Date.UTC(year, month - 1, day, hour, minute);
+  let ts = target;
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  });
+  for (let i = 0; i < 2; i += 1) {
+    const parts = Object.fromEntries(formatter.formatToParts(new Date(ts)).map((p) => [p.type, p.value]));
+    const asLocal = Date.UTC(
+      Number(parts.year), Number(parts.month) - 1, Number(parts.day),
+      Number(parts.hour) % 24, Number(parts.minute),
+    );
+    ts += target - asLocal;
+  }
+  return new Date(ts);
+};
 const hours = (minutes) => `${Math.floor(Number(minutes ?? 0)/60)}h ${Math.round(Number(minutes ?? 0)%60)}m`;
 const money = (value) => value == null ? '—' : new Intl.NumberFormat('en-ZA',{style:'currency',currency:'ZAR'}).format(value);
 const pill = (text, tone='') => `<span class="pill ${tone}">${esc(text)}</span>`;
@@ -13,6 +56,7 @@ const state = {
   access: sessionStorage.getItem('fa_access'),
   refresh: sessionStorage.getItem('fa_refresh'),
   admin: JSON.parse(sessionStorage.getItem('fa_admin') || 'null'),
+  org: JSON.parse(sessionStorage.getItem('fa_org') || 'null'),
   page: 'dashboard',
   cache: {},
 };
@@ -43,17 +87,26 @@ async function api(path,{method='GET',body,download=false,retry=true}={}){
 }
 
 function saveSession(data){
-  state.access=data.accessToken; state.refresh=data.refreshToken; state.admin=data.admin;
+  state.access=data.accessToken; state.refresh=data.refreshToken; state.admin=data.admin; state.org=data.org || null;
   sessionStorage.setItem('fa_server',state.server); sessionStorage.setItem('fa_access',state.access);
   sessionStorage.setItem('fa_refresh',state.refresh); sessionStorage.setItem('fa_admin',JSON.stringify(state.admin));
+  sessionStorage.setItem('fa_org',JSON.stringify(state.org));
 }
 function clearSession(){
-  state.access=null; state.refresh=null; state.admin=null;
-  ['fa_access','fa_refresh','fa_admin'].forEach(k=>sessionStorage.removeItem(k));
+  state.access=null; state.refresh=null; state.admin=null; state.org=null;
+  ['fa_access','fa_refresh','fa_admin','fa_org'].forEach(k=>sessionStorage.removeItem(k));
 }
 function showLogin(){ $('#app-view').hidden=true; $('#login-view').hidden=false; $('#server-url').value=state.server; }
-function showApp(){
-  $('#login-view').hidden=true; $('#app-view').hidden=false; $('#admin-name').textContent=state.admin?.name||'Administrator'; renderPage();
+async function refreshOrg(){
+  try{
+    const me=await api('/api/v1/admin/me');
+    if(me?.org){ state.org=me.org; sessionStorage.setItem('fa_org',JSON.stringify(state.org)); }
+  }catch{}
+}
+async function showApp(){
+  $('#login-view').hidden=true; $('#app-view').hidden=false; $('#admin-name').textContent=state.admin?.name||'Administrator';
+  if(!state.org) await refreshOrg();
+  await renderPage();
 }
 
 $('#login-form').addEventListener('submit',async(event)=>{
@@ -82,9 +135,9 @@ function modal(title,html){const dialog=$('#modal');$('#modal-title').textConten
 function switchModal(render){const dialog=$('#modal');if(!dialog.open){render();return;}dialog.addEventListener('close',()=>requestAnimationFrame(render),{once:true});dialog.close();}
 
 async function renderDashboard(){
-  const nowDate=new Date(); const today=isoDate(nowDate);
-  const weekDate=new Date(nowDate); weekDate.setDate(nowDate.getDate()-((nowDate.getDay()+6)%7));
-  const weekStart=isoDate(weekDate); const monthStart=`${today.slice(0,7)}-01`;
+  const today=isoDate();
+  const weekStart=shiftDateString(today, -((new Date(`${today}T12:00:00Z`).getUTCDay()+6)%7));
+  const monthStart=`${today.slice(0,7)}-01`;
   const [now,stats,employees,dayAttendance,weekAttendance,monthAttendance]=await Promise.all([
     api('/api/v1/admin/attendance/now'),api(`/api/v1/admin/attendance/stats?from=${today}&to=${today}`),
     api('/api/v1/admin/employees?status=active&limit=200&offset=0'),
@@ -136,15 +189,14 @@ async function renderAttendance(){
   const load=async()=>{setLoading(true);try{const query=new URLSearchParams({from:$('#att-from').value,to:$('#att-to').value,limit:'500'});if($('#att-worker').value)query.set('employeeId',$('#att-worker').value);if($('#att-status').value)query.set('status',$('#att-status').value);const data=await api(`/api/v1/admin/attendance?${query}`);const rows=data.sessions||[];$('#attendance-table').innerHTML=rows.length?`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Worker</th><th>Clock in</th><th>Clock out</th><th>Hours</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(s=>`<tr><td>${esc(s.workDate)}</td><td>${esc(s.employeeName)} <span class="muted">#${esc(s.employeeCode)}</span></td><td>${esc(fmtTime(s.checkInAt))}</td><td>${esc(fmtTime(s.checkOutAt))}</td><td>${esc(hours(s.workedMinutes))}</td><td>${pill(s.status,s.status==='closed'?'green':s.status==='incomplete'?'red':'amber')}</td><td><button class="link-button edit-session" data-id="${esc(s.id)}">Edit times</button></td></tr>`).join('')}</tbody></table></div>`:'<div class="card empty">No attendance in this date range.</div>';$$('.edit-session').forEach(b=>b.onclick=()=>openSession(rows.find(r=>r.id===b.dataset.id),load));}catch(err){toast(err.message,true)}finally{setLoading(false)}};
   $('#att-filter').onclick=load;$('#manual-time').onclick=()=>openManualTime(employees,load);$('#mark-absent').onclick=()=>openAbsence(employees,load);await load();
 }
-function localInput(iso){if(!iso)return '';const d=new Date(iso);const local=new Date(d.getTime()-d.getTimezoneOffset()*60000);return local.toISOString().slice(0,16)}
 function openManualTime(employees,onSaved){
-  modal('Add time entry',`<form id="manual-form" class="form-grid"><label class="wide">Worker<select name="employeeId" required>${employees.filter(e=>e.status==='active').map(e=>`<option value="${esc(e.id)}">${esc(e.name)} (#${esc(e.employeeCode)})</option>`).join('')}</select></label><label>Clock in<input name="checkIn" type="datetime-local" required></label><label>Clock out (optional)<input name="checkOut" type="datetime-local"></label><label class="wide">Reason<input name="reason" value="Administrator time entry" required></label><p id="manual-error" class="form-error wide" hidden></p><div class="modal-actions wide"><button type="button" class="secondary" id="cancel-manual">Cancel</button><button class="primary">Save entry</button></div></form>`);$('#cancel-manual').onclick=()=>$('#modal').close();$('#manual-form').onsubmit=async(event)=>{event.preventDefault();const f=new FormData(event.currentTarget);try{const checkIn=new Date(f.get('checkIn'));const out=f.get('checkOut');if(out&&new Date(out)<=checkIn)throw new Error('Clock out must be after clock in.');await api('/api/v1/admin/corrections/manual-session',{method:'POST',body:{employeeId:f.get('employeeId'),checkInAt:checkIn.toISOString(),...(out?{checkOutAt:new Date(out).toISOString()}:{}),reason:f.get('reason').trim()}});$('#modal').close();toast('Time entry saved.');await onSaved();}catch(err){const e=$('#manual-error');e.textContent=err.message;e.hidden=false;}};
+  modal('Add time entry',`<form id="manual-form" class="form-grid"><label class="wide">Worker<select name="employeeId" required>${employees.filter(e=>e.status==='active').map(e=>`<option value="${esc(e.id)}">${esc(e.name)} (#${esc(e.employeeCode)})</option>`).join('')}</select></label><label>Clock in<input name="checkIn" type="datetime-local" required></label><label>Clock out (optional)<input name="checkOut" type="datetime-local"></label><label class="wide">Reason<input name="reason" value="Administrator time entry" required></label><p id="manual-error" class="form-error wide" hidden></p><div class="modal-actions wide"><button type="button" class="secondary" id="cancel-manual">Cancel</button><button class="primary">Save entry</button></div></form>`);$('#cancel-manual').onclick=()=>$('#modal').close();$('#manual-form').onsubmit=async(event)=>{event.preventDefault();const f=new FormData(event.currentTarget);try{const checkIn=zonedToUtc(f.get('checkIn'));const out=zonedToUtc(f.get('checkOut'));if(!checkIn)throw new Error('Clock in is required.');if(out&&out<=checkIn)throw new Error('Clock out must be after clock in.');await api('/api/v1/admin/corrections/manual-session',{method:'POST',body:{employeeId:f.get('employeeId'),checkInAt:checkIn.toISOString(),...(out?{checkOutAt:out.toISOString()}:{}),reason:f.get('reason').trim()}});$('#modal').close();toast('Time entry saved.');await onSaved();}catch(err){const e=$('#manual-error');e.textContent=err.message;e.hidden=false;}};
 }
 function openAbsence(employees,onSaved){
   modal('Mark worker absent',`<form id="absence-form" class="form-grid"><label class="wide">Worker<select name="employeeId" required>${employees.filter(e=>e.status==='active').map(e=>`<option value="${esc(e.id)}">${esc(e.name)} (#${esc(e.employeeCode)})</option>`).join('')}</select></label><label class="wide">Date<input name="workDate" type="date" required value="${isoDate()}"></label><label class="wide">Note<textarea name="note" rows="2"></textarea></label><p id="absence-error" class="form-error wide" hidden></p><div class="modal-actions wide"><button type="button" class="secondary" id="cancel-absence">Cancel</button><button class="danger">Mark absent</button></div></form>`);$('#cancel-absence').onclick=()=>$('#modal').close();$('#absence-form').onsubmit=async(event)=>{event.preventDefault();const f=new FormData(event.currentTarget);try{await api('/api/v1/admin/attendance/absence',{method:'POST',body:{employeeId:f.get('employeeId'),workDate:f.get('workDate'),note:f.get('note').trim()}});$('#modal').close();toast('Worker marked absent.');await onSaved();}catch(err){const e=$('#absence-error');e.textContent=err.message;e.hidden=false;}};
 }
 function openSession(session,onSaved){
-  modal('Edit clock times',`<form id="session-form" class="form-grid"><div class="wide note">${esc(session.employeeName)} · ${esc(session.workDate)}</div><label>Clock in<input name="checkIn" type="datetime-local" required value="${esc(localInput(session.checkInAt))}"></label><label>Clock out<input name="checkOut" type="datetime-local" value="${esc(localInput(session.checkOutAt))}"></label><p id="session-error" class="form-error wide" hidden></p><div class="wide worker-danger"><button type="button" class="secondary" id="approve-session" ${session.status==='open'||session.reviewStatus==='approved'?'disabled':''}>${session.reviewStatus==='approved'?'Approved':'Approve time entry'}</button><button type="button" class="danger" id="delete-session">Delete time entry</button></div><div class="modal-actions wide"><button type="button" class="secondary" id="cancel-session">Cancel</button><button class="primary">Save time changes</button></div></form>`);$('#cancel-session').onclick=()=>$('#modal').close();$('#approve-session').onclick=async()=>{try{await api(`/api/v1/admin/attendance/${session.id}/approve`,{method:'POST',body:{}});$('#modal').close();toast('Time entry approved.');await onSaved();}catch(err){toast(err.message,true)}};$('#delete-session').onclick=async()=>{if(!confirm(`Delete this time entry for ${session.employeeName}? Raw scans and audit history will be retained.`))return;try{await api(`/api/v1/admin/attendance/${session.id}/delete`,{method:'POST',body:{reason:'Attendance entry removed from web dashboard'}});$('#modal').close();toast('Time entry deleted.');await onSaved();}catch(err){toast(err.message,true)}};$('#session-form').onsubmit=async(event)=>{event.preventDefault();const f=new FormData(event.currentTarget);try{const checkIn=new Date(f.get('checkIn')).toISOString();const out=f.get('checkOut');const checkOut=out?new Date(out).toISOString():null;if(checkOut&&new Date(checkOut)<=new Date(checkIn))throw new Error('Clock out must be after clock in.');const originalIn=new Date(session.checkInAt).toISOString();const originalOut=session.checkOutAt?new Date(session.checkOutAt).toISOString():null;if(checkIn===originalIn&&checkOut===originalOut){$('#modal').close();toast('No time changes to save.');return;}await api(`/api/v1/admin/attendance/${session.id}/times`,{method:'PATCH',body:{employeeId:session.employeeId,checkInAt:checkIn,checkOutAt:checkOut}});$('#modal').close();toast('Clock times updated.');await onSaved();}catch(err){const e=$('#session-error');e.textContent=err.message;e.hidden=false;}};
+  modal('Edit clock times',`<form id="session-form" class="form-grid"><div class="wide note">${esc(session.employeeName)} · ${esc(session.workDate)}</div><label>Clock in<input name="checkIn" type="datetime-local" required value="${esc(localInput(session.checkInAt))}"></label><label>Clock out<input name="checkOut" type="datetime-local" value="${esc(localInput(session.checkOutAt))}"></label><p id="session-error" class="form-error wide" hidden></p><div class="wide worker-danger"><button type="button" class="secondary" id="approve-session" ${session.status==='open'||session.reviewStatus==='approved'?'disabled':''}>${session.reviewStatus==='approved'?'Approved':'Approve time entry'}</button><button type="button" class="danger" id="delete-session">Delete time entry</button></div><div class="modal-actions wide"><button type="button" class="secondary" id="cancel-session">Cancel</button><button class="primary">Save time changes</button></div></form>`);$('#cancel-session').onclick=()=>$('#modal').close();$('#approve-session').onclick=async()=>{try{await api(`/api/v1/admin/attendance/${session.id}/approve`,{method:'POST',body:{}});$('#modal').close();toast('Time entry approved.');await onSaved();}catch(err){toast(err.message,true)}};$('#delete-session').onclick=async()=>{if(!confirm(`Delete this time entry for ${session.employeeName}? Raw scans and audit history will be retained.`))return;try{await api(`/api/v1/admin/attendance/${session.id}/delete`,{method:'POST',body:{reason:'Attendance entry removed from web dashboard'}});$('#modal').close();toast('Time entry deleted.');await onSaved();}catch(err){toast(err.message,true)}};$('#session-form').onsubmit=async(event)=>{event.preventDefault();const f=new FormData(event.currentTarget);try{const checkInDate=zonedToUtc(f.get('checkIn'));const checkOutDate=zonedToUtc(f.get('checkOut'));if(!checkInDate)throw new Error('Clock in is required.');const checkIn=checkInDate.toISOString();const checkOut=checkOutDate?checkOutDate.toISOString():null;if(checkOut&&new Date(checkOut)<=new Date(checkIn))throw new Error('Clock out must be after clock in.');const originalIn=new Date(session.checkInAt).toISOString();const originalOut=session.checkOutAt?new Date(session.checkOutAt).toISOString():null;if(checkIn===originalIn&&checkOut===originalOut){$('#modal').close();toast('No time changes to save.');return;}await api(`/api/v1/admin/attendance/${session.id}/times`,{method:'PATCH',body:{employeeId:session.employeeId,checkInAt:checkIn,checkOutAt:checkOut}});$('#modal').close();toast('Clock times updated.');await onSaved();}catch(err){const e=$('#session-error');e.textContent=err.message;e.hidden=false;}};
 }
 
 async function renderLeave(){

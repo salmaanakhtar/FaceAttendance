@@ -158,6 +158,16 @@ export function attendanceRoutes(app: FastifyInstance): void {
     return reply.send({ sessions: rows.map(sessionDto), total: Number(total?.count ?? 0) });
   });
 
+  app.get('/api/v1/admin/attendance/:id', { preHandler: requireAdmin }, async (req, reply) => {
+    const id = (req.params as { id: string }).id;
+    const row = await queryOne<SessionRow>(
+      `SELECT ${sessionColumns} WHERE s.id = $1 AND s.org_id = $2 AND s.voided_at IS NULL`,
+      [id, req.admin!.orgId],
+    );
+    if (!row) throw notFound('attendance session not found');
+    return reply.send(sessionDto(row));
+  });
+
   // Bulk approve all completed shifts in a selected period. Open shifts are
   // intentionally excluded so a missing checkout cannot be hidden.
   app.post('/api/v1/admin/attendance/approve', { preHandler: requireAdmin }, async (req, reply) => {

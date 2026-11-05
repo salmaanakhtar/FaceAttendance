@@ -53,6 +53,15 @@ export function adminAuthRoutes(app: FastifyInstance): void {
       [admin.id, deviceId ?? null, sha256Hex(refreshToken), config.adminSessionTtlSec / 3600],
     );
     const accessToken = await signAdminAccessToken(admin.id, admin.org_id);
+    const org = await queryOne<{
+      id: string;
+      name: string;
+      timezone: string;
+      settings: Record<string, unknown>;
+    }>(
+      'SELECT id, name, timezone, settings FROM orgs WHERE id = $1',
+      [admin.org_id],
+    );
     await audit({
       orgId: admin.org_id,
       actorType: 'admin',
@@ -65,6 +74,7 @@ export function adminAuthRoutes(app: FastifyInstance): void {
       refreshToken,
       expiresInSec: config.jwtAdminTtlSec,
       admin: { id: admin.id, name: admin.name, role: admin.role, orgId: admin.org_id },
+      org: org ?? null,
     });
   });
 
@@ -103,6 +113,15 @@ export function adminAuthRoutes(app: FastifyInstance): void {
   });
 
   app.get('/api/v1/admin/me', { preHandler: requireAdmin }, async (req) => {
-    return req.admin;
+    const org = await queryOne<{
+      id: string;
+      name: string;
+      timezone: string;
+      settings: Record<string, unknown>;
+    }>(
+      'SELECT id, name, timezone, settings FROM orgs WHERE id = $1',
+      [req.admin!.orgId],
+    );
+    return { ...req.admin, org: org ?? null };
   });
 }

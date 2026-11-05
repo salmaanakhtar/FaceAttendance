@@ -3,8 +3,9 @@ import { pool, query, queryOne } from '../db.js';
 import { requireAdmin } from '../auth/guards.js';
 import { badRequest, notFound } from '../lib/errors.js';
 import { audit } from '../services/audit.js';
-import { classify, DEFAULT_POLICY, type Session } from '../services/attendance/engine.js';
 import { localDate } from '../lib/time.js';
+import { toEnginePolicy } from '../services/attendance/service.js';
+import { recalculateSession } from '../services/attendance/recalculate.js';
 
 const correctionSchema = {
   body: {
@@ -76,33 +77,62 @@ export function correctionRoutes(app: FastifyInstance): void {
       );
       if (!result.rowCount) throw notFound('session not found');
       const current = result.rows[0];
-      const status = checkOut
-        ? 'closed'
-        : current.status === 'incomplete' ? 'incomplete' : 'open';
-      const updated = {
-        id: sessionId,
-        employeeId: body.employeeId,
-        workDate: localDate(checkIn, current.timezone),
-        checkInAt: checkIn,
-        checkOutAt: checkOut,
-        checkInSource: 'manual' as const,
-        checkOutSource: 'manual' as const,
-        status: status as Session['status'],
-        breakMinutes: Number(current.break_minutes ?? 0),
-        policy: { ...DEFAULT_POLICY, ...(current.policy ?? {}), timezone: current.timezone },
-        stats: {} as Session['stats'],
-        note: current.note,
-      } satisfies Session;
-      classify(updated, new Date());
+      const oldIn = current.check_in_at ? new Date(current.check_in_at) : null;
+      const oldOut = current.check_out_at ? new Date(current.check_out_at) : null;
+      const inChanged = !oldIn || oldIn.getTime() !== checkIn.getTime();
+      const outChanged = (oldOut?.getTime() ?? null) !== (checkOut?.getTime() ?? null);
+
+      const writeCorrection = async (
+        field: 'check_in' | 'check_out',
+        oldValue: Date | null,
+        newValue: Date | null,
+      ) => {
+        await client.query(
+          `INSERT INTO attendance_corrections
+             (id, org_id, session_id, employee_id, field, old_value, new_value, admin_id, reason)
+           VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8)`,
+          [
+            req.admin!.orgId,
+            sessionId,
+            body.employeeId,
+            field,
+            oldValue ? JSON.stringify({ at: oldValue.toISOString() }) : null,
+            newValue ? JSON.stringify({ at: newValue.toISOString() }) : null,
+            req.admin!.id,
+            'Admin time edit',
+          ],
+        );
+      };
+      if (inChanged) await writeCorrection('check_in', oldIn, checkIn);
+      if (outChanged) await writeCorrection('check_out', oldOut, checkOut);
+
       await client.query(
         `UPDATE attendance_sessions
-         SET work_date = $2, check_in_at = $3, check_out_at = $4,
-             check_in_source = 'manual', check_out_source = 'manual',
-             status = $5, stats = $6, corrected = true, updated_at = now()
-         WHERE id = $1`,
-        [sessionId, updated.workDate, checkIn, checkOut, updated.status,
-         JSON.stringify(updated.stats)],
+         SET check_in_at = $2,
+             check_out_at = $3,
+             check_in_source = 'manual',
+             check_out_source = 'manual',
+             corrected = true
+         WHERE id = $1 AND org_id = $4`,
+        [sessionId, checkIn, checkOut, req.admin!.orgId],
       );
+
+      await recalculateSession(client, sessionId, req.admin!.orgId, { deriveWorkDate: true });
+
+      await audit({
+        orgId: req.admin!.orgId,
+        actorType: 'admin',
+        actorId: req.admin!.id,
+        action: 'correction_times',
+        targetType: 'attendance_session',
+        targetId: sessionId,
+        details: {
+          employeeId: body.employeeId,
+          checkInAt: checkIn.toISOString(),
+          checkOutAt: checkOut?.toISOString() ?? null,
+        },
+      });
+
       await client.query('COMMIT');
       return reply.send({ ok: true, sessionId });
     } catch (error) {
@@ -145,8 +175,12 @@ export function correctionRoutes(app: FastifyInstance): void {
     }
 
     const orgId = req.admin!.orgId;
-    const employee = await queryOne<{ id: string; timezone: string }>(
-      `SELECT e.id, o.timezone FROM employees e
+    const employee = await queryOne<{
+      id: string;
+      timezone: string;
+      schedule: Record<string, unknown>;
+    }>(
+      `SELECT e.id, e.schedule, o.timezone FROM employees e
        JOIN orgs o ON o.id = e.org_id
        WHERE e.id = $1 AND e.org_id = $2 AND e.status = 'active'`,
       [body.employeeId, orgId],
@@ -171,31 +205,18 @@ export function correctionRoutes(app: FastifyInstance): void {
       }
 
       const workDate = localDate(checkIn, employee.timezone);
-      const session = {
-        id: '',
-        employeeId: body.employeeId,
-        workDate,
-        checkInAt: checkIn,
-        checkOutAt: checkOut,
-        checkInSource: 'manual' as const,
-        checkOutSource: 'manual' as const,
-        status: (checkOut ? 'closed' : 'open') as Session['status'],
-        breakMinutes: 0,
-        policy: { ...DEFAULT_POLICY, timezone: employee.timezone },
-        stats: {} as Session['stats'],
-        note: 'manual time entry',
-      } satisfies Session;
-      classify(session, new Date());
+      const policy = toEnginePolicy(employee.schedule, employee.timezone);
       const inserted = await client.query<{ id: string }>(
         `INSERT INTO attendance_sessions
           (id, org_id, employee_id, work_date, check_in_at, check_out_at,
            check_in_source, check_out_source, status, policy, stats, note, corrected)
          VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, 'manual', 'manual',
-           $6, $7, $8, $9, true) RETURNING id`,
-        [orgId, body.employeeId, workDate, checkIn, checkOut, session.status,
-         JSON.stringify(session.policy), JSON.stringify(session.stats), session.note],
+           $6, $7, '{}'::jsonb, $8, true) RETURNING id`,
+        [orgId, body.employeeId, workDate, checkIn, checkOut, checkOut ? 'closed' : 'open',
+         JSON.stringify(policy), 'manual time entry'],
       );
       sessionId = inserted.rows[0]!.id;
+      await recalculateSession(client, sessionId, orgId, { deriveWorkDate: true });
       const corrections = [
         [sessionId, 'add_check_in', JSON.stringify({ at: checkIn.toISOString() })],
         ...(checkOut
@@ -242,11 +263,16 @@ export function correctionRoutes(app: FastifyInstance): void {
     };
     let sessionId = sessionIdInput;
     const orgId = req.admin!.orgId;
-    const emp = await queryOne<{ id: string; name: string }>(
-      'SELECT id, name FROM employees WHERE id = $1 AND org_id = $2',
+    const emp = await queryOne<{ id: string; name: string; schedule: Record<string, unknown> }>(
+      'SELECT id, name, schedule FROM employees WHERE id = $1 AND org_id = $2',
       [employeeId, orgId],
     );
     if (!emp) throw notFound('employee not found');
+    const org = await queryOne<{ timezone: string }>(
+      'SELECT timezone FROM orgs WHERE id = $1',
+      [orgId],
+    );
+    const timezone = org?.timezone ?? 'UTC';
 
     const client = await pool.connect();
     try {
@@ -259,33 +285,6 @@ export function correctionRoutes(app: FastifyInstance): void {
            VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8)`,
           [orgId, sessionId ?? null, employeeId, fieldName, oldValue === null ? null : JSON.stringify(oldValue),
            newValue === null ? null : JSON.stringify(newValue), req.admin!.id, reason],
-        );
-      };
-      const recalculate = async (id: string) => {
-        const refreshed = await client.query(
-          `SELECT check_in_at, check_out_at, break_minutes, policy, status, work_date
-           FROM attendance_sessions WHERE id = $1 AND voided_at IS NULL`,
-          [id],
-        );
-        const current = refreshed.rows[0];
-        const recalculated = {
-          id,
-          employeeId,
-          workDate: String(current.work_date),
-          checkInAt: current.check_in_at ? new Date(current.check_in_at) : null,
-          checkOutAt: current.check_out_at ? new Date(current.check_out_at) : null,
-          checkInSource: 'manual' as const,
-          checkOutSource: 'manual' as const,
-          status: current.status as Session['status'],
-          breakMinutes: Number(current.break_minutes ?? 0),
-          policy: { ...DEFAULT_POLICY, ...(current.policy ?? {}) },
-          stats: {} as Session['stats'],
-          note: null,
-        } satisfies Session;
-        classify(recalculated, new Date());
-        await client.query(
-          'UPDATE attendance_sessions SET stats = $2, updated_at = now() WHERE id = $1',
-          [id, JSON.stringify(recalculated.stats)],
         );
       };
 
@@ -301,32 +300,14 @@ export function correctionRoutes(app: FastifyInstance): void {
              ORDER BY check_in_at DESC LIMIT 1`,
           [employeeId],
         );
-        const newSession = {
-          id: `manual:${employeeId}:${at.getTime()}`,
-          employeeId,
-          workDate: '',
-          checkInAt: field === 'add_check_in' ? at : null,
-          checkOutAt: field === 'add_check_out' ? at : null,
-          checkInSource: 'manual' as const,
-          checkOutSource: 'manual' as const,
-          status: 'open' as const,
-          breakMinutes: 0,
-          policy: {},
-          stats: {},
-          note: null,
-        };
         if (field === 'add_check_in') {
           if (open.rowCount) throw badRequest('employee already has an open session');
-          const tz = await client.query('SELECT timezone FROM orgs WHERE id = $1', [orgId]);
-          const local = new Intl.DateTimeFormat('en-CA', {
-            timeZone: tz.rows[0]?.timezone ?? 'UTC',
-            year: 'numeric', month: '2-digit', day: '2-digit',
-          }).format(at).replaceAll('/', '-');
-          newSession.workDate = local;
+          const workDate = localDate(at, timezone);
+          const policy = toEnginePolicy(emp.schedule, timezone);
           const inserted = await client.query(
             `INSERT INTO attendance_sessions (id, org_id, employee_id, work_date, check_in_at, check_in_source, status, policy)
-             VALUES (gen_random_uuid(), $1, $2, $3, $4, 'manual', 'open', '{}'::jsonb) RETURNING id, work_date`,
-            [orgId, employeeId, newSession.workDate, at],
+             VALUES (gen_random_uuid(), $1, $2, $3, $4, 'manual', 'open', $5) RETURNING id, work_date`,
+            [orgId, employeeId, workDate, at, JSON.stringify(policy)],
           );
           await apply(`UPDATE attendance_sessions SET note = 'manual check-in' WHERE id = $1`, [inserted.rows[0].id],
             'add_check_in', null, { at: at.toISOString(), sessionId: inserted.rows[0].id });
@@ -347,7 +328,7 @@ export function correctionRoutes(app: FastifyInstance): void {
             'add_check_out', null, { at: at.toISOString() });
           sessionId = target.id;
         }
-        await recalculate(sessionId!);
+        await recalculateSession(client, sessionId!, orgId, { deriveWorkDate: true });
         await audit({
           orgId, actorType: 'admin', actorId: req.admin!.id,
           action: `correction_${field}`, targetType: 'attendance_session', targetId: sessionId,
@@ -414,7 +395,9 @@ export function correctionRoutes(app: FastifyInstance): void {
       // Corrections change the derived session inputs. Recompute all payable
       // and exception stats immediately so totals and reports never show the
       // old hours after an edit.
-      await recalculate(sessionId);
+      await recalculateSession(client, sessionId, orgId, {
+        deriveWorkDate: field !== 'work_date',
+      });
 
       await audit({
         orgId, actorType: 'admin', actorId: req.admin!.id,

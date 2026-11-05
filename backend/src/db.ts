@@ -1,6 +1,13 @@
 import 'dotenv/config';
-import { Pool } from 'pg';
+import pg from 'pg';
 import { config } from './config.js';
+
+const { Pool, types } = pg;
+
+// DATE columns represent calendar days, not instants. Letting node-postgres
+// turn them into JS Dates shifts the day when the server timezone differs from
+// the org timezone. Keep them as YYYY-MM-DD strings.
+types.setTypeParser(1082, (value: string) => value);
 
 export const pool = new Pool({ connectionString: config.databaseUrl, max: 10 });
 pool.on('error', (err) => console.error('pg pool error', err));

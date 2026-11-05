@@ -224,6 +224,9 @@ class AdminApi {
         'limit': '$limit',
       });
 
+  Future<Map<String, dynamic>> attendanceSession(String id) =>
+      get('/api/v1/admin/attendance/$id');
+
   Future<Map<String, dynamic>> attendanceEmployee(String id,
           {String? from, String? to}) =>
       get('/api/v1/admin/attendance/employee/$id', {
