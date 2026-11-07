@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { selectFaceMatch } from './rekognition.js';
+import { indexEmployeeFaces, selectFaceMatch } from './rekognition.js';
 
 const matches = (rows: Array<[string, number]>) =>
   rows.map(([employeeId, similarity], index) => ({
@@ -33,5 +33,20 @@ describe('Rekognition match selection', () => {
   it('ignores a runner-up more than the margin below', () => {
     const result = selectFaceMatch(matches([['e1', 95], ['e2', 90]]), 90, 2);
     expect(result?.ambiguous).toBe(false);
+  });
+});
+
+describe('Rekognition enrollment limits', () => {
+  it('requires at least one sample', async () => {
+    await expect(indexEmployeeFaces('org', 'employee', [])).rejects.toThrow(
+      'At least one face image is required.',
+    );
+  });
+
+  it('rejects more than ten samples before calling AWS', async () => {
+    const images = Array.from({ length: 11 }, () => Buffer.from('x'));
+    await expect(indexEmployeeFaces('org', 'employee', images)).rejects.toThrow(
+      'Use at most ten face images.',
+    );
   });
 });
