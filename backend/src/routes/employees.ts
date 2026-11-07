@@ -278,12 +278,14 @@ export function employeeRoutes(app: FastifyInstance): void {
   // not stored by this app; only FaceIds are kept in employee_faces.
   app.post(
     '/api/v1/admin/employees/:id/faces',
-    { preHandler: requireAdmin, bodyLimit: 12 * 1024 * 1024 },
+    { preHandler: requireAdmin, bodyLimit: 30 * 1024 * 1024 },
     async (req, reply) => {
       const id = (req.params as { id: string }).id;
       const body = req.body as { images?: unknown };
-      if (!Array.isArray(body.images) || body.images.length < 1 || body.images.length > 5) {
-        throw badRequest('Provide one to five face images.');
+      // The guided kiosk capture collects 8 poses. Rekognition indexes one
+      // image per call, so the cap is only about request size, not the API.
+      if (!Array.isArray(body.images) || body.images.length < 1 || body.images.length > 10) {
+        throw badRequest('Provide one to ten face images.');
       }
       const images: Buffer[] = [];
       for (const [index, value] of body.images.entries()) {

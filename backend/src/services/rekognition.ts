@@ -91,7 +91,7 @@ export async function indexEmployeeFaces(
   images: Buffer[],
 ): Promise<IndexedFace[]> {
   if (!images.length) throw badRequest('At least one face image is required.');
-  if (images.length > 5) throw badRequest('Use at most five face images.');
+  if (images.length > 10) throw badRequest('Use at most ten face images.');
   const collectionId = await ensureCollection(orgId);
 
   const indexed: IndexedFace[] = [];

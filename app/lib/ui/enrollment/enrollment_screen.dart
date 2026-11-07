@@ -233,10 +233,13 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
           serverMessage = error['message'] as String;
         }
       }
-      final message = e.response?.statusCode == 409
+      final status = e.response?.statusCode;
+      final message = status == 409
           ? (serverMessage ?? 'This face is already enrolled to another active employee. '
               'Open that employee and use Re-enroll, or deactivate the obsolete record first.')
-          : 'Enrollment failed (${e.response?.statusCode ?? 'network'}): $e';
+          : serverMessage != null
+              ? 'Enrollment failed: $serverMessage'
+              : 'Enrollment failed (${status ?? 'network'}): $e';
       if (mounted) {
         setState(() {
           _state = _CaptureState.error;
