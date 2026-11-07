@@ -210,10 +210,19 @@ class AdminApi {
   Future<Map<String, dynamic>> enrollFaceImages(
     String id,
     List<Uint8List> images,
-  ) =>
-      post('/api/v1/admin/employees/$id/faces', {
-        'images': images.map(base64Encode).toList(),
-      });
+  ) async {
+    // The server indexes each sample with Rekognition one at a time, so 8
+    // samples can exceed the default 12s receive timeout on a cold collection.
+    final res = await _dio.post(
+      '/api/v1/admin/employees/$id/faces',
+      data: {'images': images.map(base64Encode).toList()},
+      options: _auth().copyWith(
+        sendTimeout: const Duration(seconds: 60),
+        receiveTimeout: const Duration(seconds: 90),
+      ),
+    );
+    return res.data as Map<String, dynamic>;
+  }
 
   Future<Map<String, dynamic>> employeeFaces(String id) =>
       get('/api/v1/admin/employees/$id/faces');
