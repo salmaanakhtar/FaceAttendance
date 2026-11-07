@@ -19,6 +19,10 @@ COPY --from=build /app/db ./db
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/tsconfig.json ./tsconfig.json
 
+# The runtime user cannot read root-owned 0640 files produced by a restrictive
+# build umask, so hand the application tree to the unprivileged user.
+RUN chown -R node:node /app
+
 USER node
 EXPOSE 4747
 
