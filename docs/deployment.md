@@ -62,6 +62,54 @@ Minimum IAM policy and privacy notes are in [`rekognition.md`](./rekognition.md)
 If the VPS is later moved to EC2/ECS, switch to an instance/task role and remove
 the keys.
 
+### Automated setup
+
+After the AWS CLI is authenticated, run:
+
+```powershell
+# from the repository root
+.\scripts\aws_setup_timekeep.ps1                 # policy + IAM user
+.\scripts\aws_setup_timekeep.ps1 -CreateAccessKey # also mint the VPS key
+.\scripts\aws_setup_timekeep.ps1 -OrgId <uuid>    # also create the collection
+```
+
+The script is idempotent, writes the new key pair to
+`aws-timekeep-credentials.txt` instead of printing the secret, and prints the
+backend environment block.
+
+### If `aws login` returns "Bad Request"
+
+This is a known AWS-side bug: stale sign-in cookies make the sign-in service
+return HTTP 400 instead of redirecting to the login page
+([aws/aws-cli#10186](https://github.com/aws/aws-cli/issues/10186)). It is not
+caused by the CLI version (2.32.0+ is required and 2.39.x is fine).
+
+Fix, in order:
+
+1. In the browser, clear cookies for `aws.amazon.com` and `amazonaws.com`
+   (DevTools → Application → Cookies → Clear), then close the tab.
+2. Retry with a fresh CLI session (the CLI caches the console session in
+   `~/.aws/cli/cache/session.db`; deleting that file is safe):
+   ```powershell
+   Remove-Item "$env:USERPROFILE\.aws\cli\cache\session.db" -Force -ErrorAction SilentlyContinue
+   aws login --region us-east-1
+   ```
+3. If the browser still 400s, use `aws login --remote` and open the printed URL
+   in a private/incognito window; paste the authorization code back into the
+   CLI.
+4. If it still fails, skip `aws login` and use an IAM access key:
+   ```powershell
+   aws configure
+   # AWS Access Key ID / Secret / region sa-east-1 / output json
+   ```
+   Create the key in the IAM console (IAM → Users → `yabil-timekeep-rekognition`
+   → Security credentials → Create access key → "Application running outside
+   AWS"), then run the setup script above with `-CreateAccessKey` omitted.
+
+If the page says "We were unable to complete your request", the CLI region does
+not match the region of the AWS console project. Re-run with the account's
+region, e.g. `aws login --region af-south-1`.
+
 Deploy the backend with the new variables. On the first enrollment the backend
 creates `yabil-timekeep-<org-uuid>` automatically.
 

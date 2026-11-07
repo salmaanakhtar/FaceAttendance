@@ -35,3 +35,6 @@ app/releases/
 
 # Web admin build
 web-admin/dist/
+
+# One-time AWS key handoff
+aws-timekeep-credentials.txt
