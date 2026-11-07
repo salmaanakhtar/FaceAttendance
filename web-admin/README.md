@@ -1,42 +1,58 @@
-# FaceAttendance web admin
+# Yabil Timekeep web admin
 
-A separate browser dashboard for FaceAttendance administrators. It shares the
-existing backend API and database but does not import, build, or modify the
+A React + Vite + TypeScript browser dashboard for Timekeep administrators. It
+shares the existing backend API and database and does not bundle or modify the
 Flutter kiosk app.
 
 ## Run locally
 
-1. Start the FaceAttendance backend on port 4747.
-2. In this directory run `npm start`.
-3. Open `http://127.0.0.1:4750`. The login screen defaults to the same live
-   backend used by the Android app: `https://faceattendance-api.salmaan.dev`.
-   For local development, replace it with `http://127.0.0.1:4747`.
+1. Start the backend on port 4747.
+2. In this directory:
+   ```bash
+   npm install
+   npm run dev
+   ```
+3. Open `http://127.0.0.1:4750`. Enter the API address on the login screen
+   (`http://127.0.0.1:4747` locally, or your production API).
 
-The web server uses only Node's standard library, so it has no packages to
-install. Admin tokens are held in browser session storage and are removed when
-the browser session ends or the administrator signs out.
+For the production bundle:
 
-The Overview page shows each active worker's hours for today, this week and
-this month. Worker management includes web clock-in/out, employee and pay-rate
-editing, manual attendance, corrections, approval, deletion, absence and leave
-management. All changes use the same audited backend records as the Android
-admin page.
+```bash
+npm run build
+npm start        # serves dist/ on http://127.0.0.1:4750
+```
 
-For production, serve `public/` over HTTPS and restrict the backend CORS origin
-to the website's exact HTTPS address.
+Admin tokens are held in browser session storage. The dashboard uses
+org-timezone date/time editing, so it does not depend on the admin's browser
+timezone.
+
+## Pages
+
+- Overview: live workers, today's sessions, late/incomplete counts, overtime
+  alerts, worker hours.
+- Workers: search, create/edit, schedule workdays and weekly hours, pay details,
+  deactivate/delete. Face enrollment is done from the mobile app.
+- Attendance: date/worker/status filters, edit clock times, approve, delete,
+  manual entry, mark absence, CSV export.
+- Leave: record and edit leave with status.
+- Payroll: monthly preview and Excel download.
+- Overtime: configurable 46h/week and 184h/month defaults, projected alerts,
+  schedule suggestions and Apply.
+- Audit: searchable audit history.
 
 ## Production container
 
-`Dockerfile` packages the dashboard as an independent Nginx service with a
-health endpoint at `/health` and browser security headers. In Hermes, create a
-new application from the FaceAttendance repository using:
+`Dockerfile` builds the React app and packages `dist/` into Nginx with a
+`/health` endpoint and browser security headers.
+
+In Hermes:
 
 - root/build directory: `web-admin`
-- Dockerfile: `web-admin/Dockerfile` (or `Dockerfile` when the root directory
-  is already set to `web-admin`)
+- Dockerfile: `web-admin/Dockerfile` (or `Dockerfile` when root is `web-admin`)
 - container port: `80`
 - health path: `/health`
-- suggested domain: `faceattendance.salmaan.dev`
+- suggested domain: `timekeep.salmaan.dev`
 
-TLS should be terminated by the existing Traefik/Hermes platform. No database,
-environment variables, persistent volume, or Android app deployment is needed.
+The backend must include the web origin in `CORS_ORIGINS`. The default allows
+`timekeep.salmaan.dev`, `yabil-timekeep.salmaan.dev`, the old
+`faceattendance.salmaan.dev`, and the localhost dashboard.
