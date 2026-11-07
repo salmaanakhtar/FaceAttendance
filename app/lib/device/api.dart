@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import '../app_time.dart';
 import '../config.dart';
@@ -161,8 +164,44 @@ class ApiClient {
 
   Future<Map<String, dynamic>> fetchTemplates() =>
       _authedGet('/api/v1/device/templates');
+
   Future<Map<String, dynamic>> fetchEmployees() =>
       _authedGet('/api/v1/device/employees');
+
+  /// Server-side AWS Rekognition match. The kiosk sends a JPEG frame and gets
+  /// back the same attendance result shape as a code punch.
+  Future<Map<String, dynamic>> recognizeFace({
+    required Uint8List jpeg,
+    String? dedupeKey,
+    String? directionHint,
+    DateTime? deviceTime,
+  }) async {
+    try {
+      return await _authedPost(
+        '/api/v1/device/recognize',
+        {
+          'image': base64Encode(jpeg),
+          if (dedupeKey != null) 'dedupeKey': dedupeKey,
+          if (directionHint != null) 'directionHint': directionHint,
+          if (deviceTime != null)
+            'deviceTime': deviceTime.toUtc().toIso8601String(),
+        },
+        connectTimeout: const Duration(seconds: 4),
+        sendTimeout: const Duration(seconds: 10),
+        receiveTimeout: const Duration(seconds: 25),
+      );
+    } on DioException catch (e) {
+      final type = e.type;
+      if (type == DioExceptionType.connectionTimeout ||
+          type == DioExceptionType.connectionError ||
+          type == DioExceptionType.sendTimeout ||
+          type == DioExceptionType.receiveTimeout) {
+        throw OfflineException('no connectivity');
+      }
+      throw ServerException(e.response?.statusCode ?? 0, e.response?.data);
+    }
+  }
+
   Future<Map<String, dynamic>> fetchConfig() async {
     final requestTimer = Stopwatch()..start();
     final config = await _authedGet('/api/v1/device/config');

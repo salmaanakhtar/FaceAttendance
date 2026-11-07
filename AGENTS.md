@@ -13,8 +13,10 @@ code. Update docs when behavior changes materially.
 - `backend/` — Node.js + TypeScript + Fastify + PostgreSQL. REST API, attendance
   engine, migrations, unit tests.
 - `app/` — Flutter Android client. Scanner-first kiosk app + in-app admin.
-- `docs/` — architecture, setup, data model, biometrics, attendance rules,
-  security, status, limitations, gauntlet findings.
+- `web-admin/` — React + Vite + Tailwind admin dashboard (Overview, Workers,
+  Attendance, Leave, Payroll, Overtime, Audit).
+- `docs/` — architecture, setup, data model, biometrics, Rekognition, overtime,
+  attendance rules, security, status, limitations, gauntlet findings.
 - `scripts/` — machine-level dev helpers (db start/stop, devices, sync).
 
 ## System of record / rules of thumb
@@ -23,8 +25,9 @@ code. Update docs when behavior changes materially.
   own timestamps as metadata, never as truth.
 - Raw scanner events (`scan_events`) are immutable and never edited.
   Corrections create new records + audit entries; they never mutate raw events.
-- Biometric templates are encrypted at rest server-side and on-device. Raw face
-  imagery is not stored; only enrollment quality metadata and templates.
+- Face data is sent to AWS Rekognition for matching. The app stores no raw face
+  images, only Rekognition FaceIds and quality metadata. Worker-code punches
+  remain the fallback and are queued offline.
 - Duplicate attendance suppression is enforced server-side via idempotency
   keys + min-interval rules (see docs/attendance-rules.md).
 - Dedupe/guard logic must be deterministic and unit tested. The attendance
@@ -57,6 +60,16 @@ code. Update docs when behavior changes materially.
   instead of foreground per global rules)
 - `npm test` — vitest unit tests (attendance engine + services)
 - `npm run typecheck`
+- Face check-in needs `AWS_REGION`, `AWS_ACCESS_KEY_ID`,
+  `AWS_SECRET_ACCESS_KEY`, and `REKOGNITION_SIMILARITY_THRESHOLD` (default 90).
+  See `docs/rekognition.md`.
+
+### Web admin
+- `cd web-admin; npm install`
+- `npm run dev` — Vite on 4750
+- `npm run build` — production bundle in `dist/`
+- `npm start` — serve `dist/` on 4750
+- `npm run check` — TypeScript + server syntax
 
 ### Flutter app
 - `cd app; flutter pub get`

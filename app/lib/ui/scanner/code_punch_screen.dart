@@ -44,7 +44,12 @@ String punchFailureMessage(String action, String? serverMessage) {
 
 class CodePunchScreen extends StatefulWidget {
   final VoidCallback onAdminRequested;
-  const CodePunchScreen({super.key, required this.onAdminRequested});
+  final VoidCallback? onFaceRequested;
+  const CodePunchScreen({
+    super.key,
+    required this.onAdminRequested,
+    this.onFaceRequested,
+  });
 
   @override
   State<CodePunchScreen> createState() => _CodePunchScreenState();
@@ -301,6 +306,12 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
                     onPressed: _loading ? null : _load,
                     icon: const Icon(Icons.refresh_rounded,
                         color: Colors.white70)),
+                if (widget.onFaceRequested != null)
+                  IconButton(
+                      tooltip: 'Face check-in',
+                      onPressed: widget.onFaceRequested,
+                      icon: const Icon(Icons.face_retouching_natural,
+                          color: Colors.white70)),
                 IconButton(
                     tooltip: 'Admin',
                     onPressed: widget.onAdminRequested,

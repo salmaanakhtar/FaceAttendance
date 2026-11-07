@@ -4,6 +4,11 @@ import { requireAdmin } from '../auth/guards.js';
 import { badRequest, conflict, notFound } from '../lib/errors.js';
 import { encryptAesGcm, decryptAesGcm, deriveOrgKey } from '../lib/crypto.js';
 import { audit } from '../services/audit.js';
+import {
+  clearEmployeeFaces,
+  listEmployeeFaces,
+  replaceEmployeeFaces,
+} from '../services/rekognition.js';
 
 interface EmployeeRow {
   id: string;
@@ -19,6 +24,7 @@ interface EmployeeRow {
   enrollment_quality: Record<string, unknown> | null;
   enrolled_at: string | null;
   created_at: string;
+  face_enrolled?: boolean;
 }
 
 const employeeBodySchema = {
@@ -45,7 +51,8 @@ function rowToDto(r: EmployeeRow) {
     phone: r.phone,
     status: r.status,
     schedule: r.schedule,
-    enrolled: !!r.face_template,
+    enrolled: !!r.face_enrolled,
+    legacyEnrolled: !!r.face_template,
     templateVersion: r.template_version,
     enrollmentQuality: r.enrollment_quality,
     enrolledAt: r.enrolled_at,
@@ -81,7 +88,10 @@ export function employeeRoutes(app: FastifyInstance): void {
     const limit = Math.min(Number(q.limit ?? 50), 200);
     const offset = Number(q.offset ?? 0);
     const rows = await query<EmployeeRow>(
-      `SELECT * FROM employees WHERE ${where.join(' AND ')}
+      `SELECT e.*, EXISTS(
+         SELECT 1 FROM employee_faces f WHERE f.employee_id = e.id
+       ) AS face_enrolled
+       FROM employees e WHERE ${where.join(' AND ')}
        ORDER BY name ASC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
       [...params, limit, offset],
     );
@@ -97,7 +107,10 @@ export function employeeRoutes(app: FastifyInstance): void {
 
   app.get('/api/v1/admin/employees/:id', { preHandler: requireAdmin }, async (req, reply) => {
     const row = await queryOne<EmployeeRow>(
-      'SELECT * FROM employees WHERE id = $1 AND org_id = $2',
+      `SELECT e.*, EXISTS(
+         SELECT 1 FROM employee_faces f WHERE f.employee_id = e.id
+       ) AS face_enrolled
+       FROM employees e WHERE e.id = $1 AND e.org_id = $2`,
       [(req.params as { id: string }).id, req.admin!.orgId],
     );
     if (!row) throw notFound('employee not found');
@@ -211,7 +224,7 @@ export function employeeRoutes(app: FastifyInstance): void {
       targetId: id,
       details: { fields: Object.keys(body) },
     });
-    return reply.send(rowToDto(row!));
+    return reply.send(rowToDto({ ...row!, face_enrolled: existing.face_enrolled }));
   });
 
   app.post('/api/v1/admin/employees/:id/deactivate', { preHandler: requireAdmin }, async (req, reply) => {
@@ -222,6 +235,9 @@ export function employeeRoutes(app: FastifyInstance): void {
       [id, req.admin!.orgId],
     );
     if (!row) throw notFound('employee not found');
+    await clearEmployeeFaces(req.admin!.orgId, id).catch((error) => {
+      app.log.warn({ err: error, employeeId: id }, 'failed to clear Rekognition faces');
+    });
     await audit({
       orgId: req.admin!.orgId,
       actorType: 'admin',
@@ -231,7 +247,7 @@ export function employeeRoutes(app: FastifyInstance): void {
       targetId: id,
       details: { name: row.name },
     });
-    return reply.send(rowToDto(row));
+    return reply.send(rowToDto({ ...row, face_enrolled: false }));
   });
 
   app.post('/api/v1/admin/employees/:id/delete', { preHandler: requireAdmin }, async (req, reply) => {
@@ -243,6 +259,9 @@ export function employeeRoutes(app: FastifyInstance): void {
       [id, req.admin!.orgId],
     );
     if (!row) throw notFound('employee not found');
+    await clearEmployeeFaces(req.admin!.orgId, id).catch((error) => {
+      app.log.warn({ err: error, employeeId: id }, 'failed to clear Rekognition faces');
+    });
     await audit({
       orgId: req.admin!.orgId,
       actorType: 'admin',
@@ -253,6 +272,80 @@ export function employeeRoutes(app: FastifyInstance): void {
       details: { name: row.name, employeeCode: row.employee_code },
     });
     return reply.send({ ok: true, id });
+  });
+
+  // Rekognition enrollment: 1-5 JPEG/PNG samples. Images are sent to AWS and
+  // not stored by this app; only FaceIds are kept in employee_faces.
+  app.post(
+    '/api/v1/admin/employees/:id/faces',
+    { preHandler: requireAdmin, bodyLimit: 12 * 1024 * 1024 },
+    async (req, reply) => {
+      const id = (req.params as { id: string }).id;
+      const body = req.body as { images?: unknown };
+      if (!Array.isArray(body.images) || body.images.length < 1 || body.images.length > 5) {
+        throw badRequest('Provide one to five face images.');
+      }
+      const images: Buffer[] = [];
+      for (const [index, value] of body.images.entries()) {
+        if (typeof value !== 'string' || value.length < 100) {
+          throw badRequest(`Face image ${index + 1} is empty.`);
+        }
+        const buffer = Buffer.from(value, 'base64');
+        if (!buffer.length || buffer.length > 2 * 1024 * 1024) {
+          throw badRequest(`Face image ${index + 1} must be under 2 MB.`);
+        }
+        images.push(buffer);
+      }
+
+      const employee = await queryOne<EmployeeRow>(
+        'SELECT * FROM employees WHERE id = $1 AND org_id = $2 AND status = $3',
+        [id, req.admin!.orgId, 'active'],
+      );
+      if (!employee) throw notFound('active employee not found');
+
+      const faces = await replaceEmployeeFaces(req.admin!.orgId, id, images);
+      await audit({
+        orgId: req.admin!.orgId,
+        actorType: 'admin',
+        actorId: req.admin!.id,
+        action: 'employee_face_enroll',
+        targetType: 'employee',
+        targetId: id,
+        details: { faces: faces.length, provider: 'aws-rekognition' },
+      });
+      return reply.send({ ok: true, faces: faces.length });
+    },
+  );
+
+  app.get('/api/v1/admin/employees/:id/faces', { preHandler: requireAdmin }, async (req, reply) => {
+    const id = (req.params as { id: string }).id;
+    const employee = await queryOne<{ id: string }>(
+      'SELECT id FROM employees WHERE id = $1 AND org_id = $2',
+      [id, req.admin!.orgId],
+    );
+    if (!employee) throw notFound('employee not found');
+    const faces = await listEmployeeFaces(req.admin!.orgId, id);
+    return reply.send({ faces, count: faces.length });
+  });
+
+  app.delete('/api/v1/admin/employees/:id/faces', { preHandler: requireAdmin }, async (req, reply) => {
+    const id = (req.params as { id: string }).id;
+    const employee = await queryOne<{ id: string }>(
+      'SELECT id FROM employees WHERE id = $1 AND org_id = $2',
+      [id, req.admin!.orgId],
+    );
+    if (!employee) throw notFound('employee not found');
+    await clearEmployeeFaces(req.admin!.orgId, id);
+    await audit({
+      orgId: req.admin!.orgId,
+      actorType: 'admin',
+      actorId: req.admin!.id,
+      action: 'employee_face_clear',
+      targetType: 'employee',
+      targetId: id,
+      details: { provider: 'aws-rekognition' },
+    });
+    return reply.send({ ok: true });
   });
 
   // Enrollment: fused embedding + quality metadata. Server encrypts at rest.

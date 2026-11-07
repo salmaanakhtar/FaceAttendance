@@ -5,12 +5,13 @@ import 'dart:ui';
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
+import 'package:image/image.dart' as img;
+import 'package:uuid/uuid.dart';
 
 import '../config.dart';
 import '../device/api.dart';
 import '../recognition/embedder.dart';
 import '../recognition/liveness.dart';
-import '../recognition/matcher.dart';
 import '../recognition/template_store.dart';
 import '../util/feedback.dart';
 import 'offline_queue.dart';
@@ -63,7 +64,6 @@ class ScanFlowController extends ChangeNotifier {
   final List<CameraDescription> cameras;
   CameraController? _camera;
   FaceDetector? _detector;
-  FaceEmbedder? _embedder;
   Timer? _cooldownTimer;
   bool _disposed = false;
   bool _busy = false;
@@ -72,16 +72,14 @@ class ScanFlowController extends ChangeNotifier {
   ScanPhase phase = ScanPhase.init;
   ScanOutcome? outcome;
   double? lastConfidence;
-  double? lastLiveness;
   bool lastSyncWasOffline = false;
   bool modelReady = false;
   String? initError;
   CameraDescription? selectedCamera;
 
-  final LivenessTracker _liveness = LivenessTracker();
-  final List<List<double>> _samples = [];
+  ({Uint8List bytes, int width, int height})? _lastFrame;
+  int _frameCount = 0;
   bool _presenceLock = false; // re-scan only after the face leaves the frame
-  int _embedFails = 0;
 
   CameraController? get camera => _camera;
   bool get isFrontCamera =>
@@ -91,19 +89,11 @@ class ScanFlowController extends ChangeNotifier {
     if (_disposed || _initializing) return;
     _initializing = true;
     try {
-      _embedder = FaceEmbedder();
-      await _embedder!.init();
-      modelReady = _embedder!.ready;
-      if (!modelReady) {
-        initError = _embedder!.error;
-        phase = ScanPhase.init;
-        notifyListeners();
-        return;
-      }
+      modelReady = true;
       _detector = FaceDetector(
         options: FaceDetectorOptions(
-          // Fast mode keeps the kiosk responsive; quality gates and the
-          // embedding matcher still reject weak or ambiguous captures.
+          // Fast mode keeps the kiosk responsive; quality gates still reject
+          // weak captures before a frame is sent to Rekognition.
           performanceMode: FaceDetectorMode.fast,
           enableLandmarks: true,
           enableClassification: true,
@@ -161,9 +151,8 @@ class ScanFlowController extends ChangeNotifier {
   Future<void> _onFrame(CameraImage image) async {
     if (_disposed || _busy) return;
     final detector = _detector;
-    final embedder = _embedder;
     final camera = _camera;
-    if (detector == null || embedder == null || camera == null) return;
+    if (detector == null || camera == null) return;
 
     _busy = true;
     try {
@@ -266,49 +255,12 @@ class ScanFlowController extends ChangeNotifier {
       final landmarks = _landmarkOffsets(face, faceBox);
       if (landmarks.length != 5) return;
 
-      _liveness.observe(
-        leftOpen: face.leftEyeOpenProbability ?? 0.5,
-        rightOpen: face.rightEyeOpenProbability ?? 0.5,
-      );
-
-      final embedding = embedder.embed(
-        rgba: upright.bytes,
-        width: upright.width,
-        height: upright.height,
-        landmarks: landmarks,
-      );
-      if (embedding == null) {
-        // A face is in frame but the model keeps refusing frames. Surface
-        // it instead of hanging on "Scanning…" forever.
-        _embedFails++;
-        if (_embedFails > 30 && phase != ScanPhase.submitting) {
-          _resetScan();
-          outcome = ScanOutcome(
-            phase: ScanPhase.backendFailure,
-            message: 'face recognition engine stalled — restart the kiosk',
-          );
-          phase = ScanPhase.backendFailure;
-          notifyListeners();
-          _scheduleCooldown();
-        }
-        return;
-      }
-      _embedFails = 0;
-      _samples.add(embedding);
-      // Progressive matching is expensive on large employee lists. Only
-      // calculate it at the decision point; the final match remains unchanged.
-      if (_samples.length == kMinSamples) {
-        lastConfidence = _progressiveScore(_samples);
-      }
-
-      if (_liveness.isSatisfied && _samples.length >= kMinSamples) {
-        await _finishScan(embedder);
-      } else if (_samples.length >= kMaxSamples) {
-        // Ran out of frames without liveness — fail the session.
-        phase = ScanPhase.livenessFailed;
-        notifyListeners();
-        await FeedbackFx.error();
-        _scheduleCooldown();
+      // No liveness gate in v1: the frame is sent to Rekognition after the
+      // quality/sharpness checks. Keep the last accepted frame for upload.
+      _lastFrame = upright;
+      _frameCount++;
+      if (_frameCount >= kMinSamples) {
+        await _finishScan();
       }
     } catch (e) {
       debugPrint('scan frame error: $e');
@@ -317,90 +269,61 @@ class ScanFlowController extends ChangeNotifier {
     }
   }
 
-  /// Progress score for the live indicator: best cosine of the fused-so-far
-  /// against the best template — monotonic-ish, cheap.
-  double _progressiveScore(List<List<double>> samples) {
-    if (samples.length < 2) return 0.0;
-    final fused = fuseEmbeddings(samples);
-    var best = 0.0;
-    for (final t in TemplateStore.instance.all.values) {
-      final s = cosineSimilarity(fused, t);
-      if (s > best) best = s;
-    }
-    return best;
-  }
-
-  Future<void> _finishScan(FaceEmbedder embedder) async {
+  Future<void> _finishScan() async {
     if (phase == ScanPhase.submitting) return;
+    final frame = _lastFrame;
+    if (frame == null) return;
     phase = ScanPhase.submitting;
     notifyListeners();
 
-    final fused = robustFuse(_samples);
-    final match = matchEmbedding(fused, TemplateStore.instance.candidates());
-
-    if (!match.matched) {
-      if (match.ambiguous) {
-        outcome = ScanOutcome(phase: ScanPhase.ambiguous, score: match.score);
-      } else {
-        outcome = ScanOutcome(phase: ScanPhase.unknown, score: match.score);
-      }
-      phase = outcome!.phase;
-      notifyListeners();
-      await FeedbackFx.error();
-      _resetScan();
-      _scheduleCooldown();
-      return;
-    }
-
-    final template = TemplateStore.instance.byId(match.employeeId!);
-    final direction = matcherHint(match.employeeId!);
-    phase = ScanPhase.recognized;
-    lastConfidence = match.score;
-    lastLiveness = (_liveness.blinks / kMinBlinks).clamp(0.0, 1.0);
-    notifyListeners();
-
-    Map<String, dynamic> result;
-    bool queued = false;
+    Uint8List jpeg;
     try {
-      result = await OfflineQueue.instance.enqueue(
-        employeeId: match.employeeId!,
-        directionHint: direction,
-        confidence: match.score,
-        livenessScore: lastLiveness,
-        faceHash: _faceHash(match.employeeId!),
+      final bitmap = img.Image.fromBytes(
+        width: frame.width,
+        height: frame.height,
+        bytes: frame.bytes.buffer,
+        numChannels: 4,
+        order: img.ChannelOrder.bgra,
       );
-      queued = result['queued'] == true;
-    } on ServerException catch (e) {
-      if (e.status == 429) {
-        // Rate limited — the kiosk is being scanned too fast. Show a calm
-        // "wait" state instead of an error.
-        outcome = ScanOutcome(
-          phase: ScanPhase.duplicate,
-          employeeId: match.employeeId,
-          employeeName: template?.name,
-          message: 'Please wait a moment',
-        );
-        phase = ScanPhase.duplicate;
-        notifyListeners();
-        _resetScan();
-        _scheduleCooldown();
-        return;
-      }
+      jpeg = img.encodeJpg(bitmap, quality: 82);
+    } catch (error) {
       outcome = ScanOutcome(
-          phase: ScanPhase.backendFailure,
-          employeeId: match.employeeId,
-          message: 'server $e');
+        phase: ScanPhase.backendFailure,
+        message: 'Could not prepare the face image — try again',
+      );
       phase = ScanPhase.backendFailure;
       notifyListeners();
       await FeedbackFx.error();
       _resetScan();
       _scheduleCooldown();
       return;
+    }
+
+    Map<String, dynamic> result;
+    try {
+      result = await ApiClient.instance.recognizeFace(
+        jpeg: jpeg,
+        dedupeKey: const Uuid().v4(),
+      );
     } on OfflineException {
-      // Should not happen — enqueue returns queued instead. Safety net.
-      outcome =
-          ScanOutcome(phase: ScanPhase.offline, employeeId: match.employeeId);
-      phase = ScanPhase.offline;
+      outcome = ScanOutcome(
+        phase: ScanPhase.networkUnavailable,
+        message: 'Face check-in is offline — use worker code',
+      );
+      phase = ScanPhase.networkUnavailable;
+      notifyListeners();
+      await FeedbackFx.error();
+      _resetScan();
+      _scheduleCooldown();
+      return;
+    } on ServerException catch (error) {
+      outcome = ScanOutcome(
+        phase: ScanPhase.backendFailure,
+        message: error.status == 429
+            ? 'Please wait a moment'
+            : 'Face service unavailable — use worker code',
+      );
+      phase = ScanPhase.backendFailure;
       notifyListeners();
       await FeedbackFx.error();
       _resetScan();
@@ -408,91 +331,92 @@ class ScanFlowController extends ChangeNotifier {
       return;
     }
 
-    // OfflineQueue intentionally returns only `{queued: true}` until the
-    // server is reachable. Preserve the locally selected direction so the
-    // kiosk can still give an accurate immediate confirmation; the server
-    // remains authoritative when the event is flushed.
-    final action = result['action'] as String? ??
-        (queued ? (direction == 'out' ? 'check_out' : 'check_in') : 'unknown');
-    final serverTime = result['scanTime'] as String?;
-    final at = serverTime != null ? DateTime.tryParse(serverTime) : null;
-    final name = template?.name ?? '';
-    lastSyncWasOffline = queued;
+    final action = result['action'] as String? ?? 'unknown';
+    final employee = result['employee'] as Map<String, dynamic>?;
+    final employeeId = employee?['id'] as String?;
+    final name = employee?['name'] as String? ?? '';
+    final at = DateTime.tryParse(result['scanTime'] as String? ?? '');
+    final match = result['match'] as Map<String, dynamic>?;
+    final similarity = (match?['similarity'] as num?)?.toDouble();
+    lastConfidence = similarity == null ? null : similarity / 100;
+    lastSyncWasOffline = false;
 
     switch (action) {
       case 'check_in':
-        StatusCache.instance
-            .recordOutcome(match.employeeId!, action, at ?? DateTime.now());
+        if (employeeId != null) {
+          StatusCache.instance.recordOutcome(
+              employeeId, action, at ?? DateTime.now());
+        }
         outcome = ScanOutcome(
             phase: ScanPhase.checkIn,
-            employeeId: match.employeeId,
+            employeeId: employeeId,
             employeeName: name,
             at: at);
-        phase = queued ? ScanPhase.offline : ScanPhase.checkIn;
+        phase = ScanPhase.checkIn;
         await FeedbackFx.success();
         unawaited(FeedbackFx.speak('Welcome $name'));
         break;
       case 'check_out':
-        StatusCache.instance
-            .recordOutcome(match.employeeId!, action, at ?? DateTime.now());
+        if (employeeId != null) {
+          StatusCache.instance.recordOutcome(
+              employeeId, action, at ?? DateTime.now());
+        }
         outcome = ScanOutcome(
             phase: ScanPhase.checkOut,
-            employeeId: match.employeeId,
+            employeeId: employeeId,
             employeeName: name,
             at: at);
-        phase = queued ? ScanPhase.offline : ScanPhase.checkOut;
+        phase = ScanPhase.checkOut;
         await FeedbackFx.success();
         unawaited(FeedbackFx.speak('Goodbye $name'));
         break;
       case 'duplicate':
         outcome = ScanOutcome(
             phase: ScanPhase.duplicate,
-            employeeId: match.employeeId,
+            employeeId: employeeId,
             employeeName: name,
             message: result['message'] as String?);
-        phase = queued ? ScanPhase.offline : ScanPhase.duplicate;
-        if (!queued) await FeedbackFx.error();
+        phase = ScanPhase.duplicate;
+        await FeedbackFx.error();
         break;
       case 'already_in':
         outcome = ScanOutcome(
             phase: ScanPhase.alreadyIn,
-            employeeId: match.employeeId,
+            employeeId: employeeId,
             employeeName: name,
             at: at);
-        phase = queued ? ScanPhase.offline : ScanPhase.alreadyIn;
-        if (!queued) await FeedbackFx.error();
+        phase = ScanPhase.alreadyIn;
+        await FeedbackFx.error();
         break;
       case 'already_out':
         outcome = ScanOutcome(
             phase: ScanPhase.alreadyOut,
-            employeeId: match.employeeId,
+            employeeId: employeeId,
             employeeName: name,
             at: at);
-        phase = queued ? ScanPhase.offline : ScanPhase.alreadyOut;
-        if (!queued) await FeedbackFx.error();
+        phase = ScanPhase.alreadyOut;
+        await FeedbackFx.error();
+        break;
+      case 'ambiguous':
+        outcome = ScanOutcome(
+          phase: ScanPhase.ambiguous,
+          message: 'Face match is unclear — try again or use worker code',
+        );
+        phase = ScanPhase.ambiguous;
+        await FeedbackFx.error();
         break;
       default:
         outcome = ScanOutcome(
-            phase: ScanPhase.backendFailure,
-            employeeId: match.employeeId,
-            message: 'unexpected action $action');
-        phase = ScanPhase.backendFailure;
+          phase: ScanPhase.unknown,
+          message: 'Face not recognized — use worker code or ask an admin',
+        );
+        phase = ScanPhase.unknown;
         await FeedbackFx.error();
     }
+
     notifyListeners();
     _resetScan();
     _scheduleCooldown();
-  }
-
-  String? _faceHash(String employeeId) {
-    return employeeId;
-  }
-
-  String? matcherHint(String employeeId) {
-    return hintDirection(
-      lastDirection: StatusCache.instance.lastDirection(employeeId),
-      isCurrentlyIn: StatusCache.instance.isIn(employeeId),
-    );
   }
 
   /// 5 alignment points. Prefers ML Kit landmarks; falls back to face-box
@@ -552,9 +476,8 @@ class ScanFlowController extends ChangeNotifier {
   }
 
   void _resetScan() {
-    _samples.clear();
-    _liveness.reset();
-    _embedFails = 0;
+    _lastFrame = null;
+    _frameCount = 0;
   }
 
   void _scheduleCooldown() {

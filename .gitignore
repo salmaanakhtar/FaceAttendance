@@ -32,3 +32,6 @@ scripts/*.json
 
 # Phone-test builds
 app/releases/
+
+# Web admin build
+web-admin/dist/

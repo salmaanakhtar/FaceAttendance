@@ -43,7 +43,24 @@ flutter run -d <device-id>
 The app connects to `http://10.0.2.2:4747` on Android emulators by default
 (host loopback). Change `app/lib/device/config.dart` for physical devices.
 
-## 4. Tests
+## 4. Web admin
+
+```powershell
+cd web-admin
+npm install
+npm run dev        # http://127.0.0.1:4750
+```
+
+Enter `http://127.0.0.1:4747` as the server address on the login screen. For a
+production bundle use `npm run build && npm start`.
+
+## 5. Face recognition
+
+Face check-in calls AWS Rekognition from the backend. Add the variables from
+[`rekognition.md`](./rekognition.md) to `backend/.env` before testing. Without
+them, the kiosk shows the worker-code fallback.
+
+## 6. Tests
 
 ```powershell
 cd backend; npm test; npm run typecheck

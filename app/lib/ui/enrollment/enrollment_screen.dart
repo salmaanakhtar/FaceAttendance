@@ -1,18 +1,16 @@
 import 'dart:async';
-import 'dart:math' show Point;
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
+import 'package:image/image.dart' as img;
 
 import '../../../admin/admin_api.dart';
 import '../../../config.dart';
 import '../../../recognition/embedder.dart';
 import '../../../recognition/liveness.dart';
-import '../../../recognition/matcher.dart';
-import '../../../recognition/template_store.dart';
 import '../../../util/feedback.dart';
 
 enum _CaptureState { ready, busy, done, error }
@@ -30,11 +28,10 @@ class EnrollmentScreen extends StatefulWidget {
 class _EnrollmentScreenState extends State<EnrollmentScreen> {
   CameraController? _camera;
   FaceDetector? _detector;
-  FaceEmbedder? _embedder;
   bool _busy = false;
   _CaptureState _state = _CaptureState.ready;
   String? _error;
-  final List<List<double>> _samples = [];
+  final List<Uint8List> _images = [];
   final EnrollmentCaptureGuide _guide = EnrollmentCaptureGuide();
   DateTime? _lastCaptureAt;
   int _captured = 0;
@@ -53,8 +50,6 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
 
   Future<void> _init() async {
     try {
-      _embedder = FaceEmbedder();
-      await _embedder!.init();
       _detector = FaceDetector(
         options: FaceDetectorOptions(
           performanceMode: FaceDetectorMode.accurate,
@@ -95,9 +90,8 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
   Future<void> _onFrame(CameraImage image) async {
     if (_busy || _guide.complete || _state != _CaptureState.ready) return;
     final detector = _detector;
-    final embedder = _embedder;
     final camera = _camera;
-    if (detector == null || embedder == null || camera == null) return;
+    if (detector == null || camera == null) return;
     _busy = true;
     try {
       final camera = _camera!;
@@ -157,9 +151,8 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
         }
         return;
       }
-      final landmarks = _landmarks(face, upright.width, upright.height, face.boundingBox);
       // Sharpness gate: skip motion-blurred frames so they never pollute
-      // the template.
+      // the enrollment samples.
       final sharpness = ImageSharpness.faceRegionSharpness(
         upright.bytes, upright.width, upright.height,
         face.boundingBox.left.round(), face.boundingBox.top.round(),
@@ -174,20 +167,23 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
       if (_lastCaptureAt != null && now.difference(_lastCaptureAt!) < _captureSpacing) {
         return;
       }
-      final emb = embedder.embed(
-          rgba: upright.bytes,
-          width: upright.width,
-          height: upright.height,
-          landmarks: landmarks);
-      if (emb == null) {
-        _setHint('Face model could not capture this frame — try again');
+      final bitmap = img.Image.fromBytes(
+        width: upright.width,
+        height: upright.height,
+        bytes: upright.bytes.buffer,
+        numChannels: 4,
+        order: img.ChannelOrder.bgra,
+      );
+      final jpeg = img.encodeJpg(bitmap, quality: 85);
+      if (jpeg.length > 2 * 1024 * 1024) {
+        _setHint('Image is too large — move back slightly');
         return;
       }
       if (!_guide.accept(yaw)) {
         _setHint(_guide.hint);
         return;
       }
-      _samples.add(emb);
+      _images.add(jpeg);
       _lastCaptureAt = now;
       _captured = _guide.captured;
       await FeedbackFx.scanCapture();
@@ -220,22 +216,10 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
 
   Future<void> _finish() async {
     setState(() => _state = _CaptureState.busy);
-    final fused = robustFuse(_samples);
-    final quality = {
-      'samples': _samples.length,
-      'model': 'w600k_mbf',
-      'guidedPoses': true,
-      'rejectedFrames': _rejected,
-      // Per-sample embeddings: the kiosk matches against all of them for
-      // multi-view accuracy.
-      'embeddings': _samples,
-    };
     try {
-      await AdminApi.instance.enrollEmployee(widget.employeeId,
-          embedding: fused, quality: quality);
-      // Push the new template to this kiosk immediately and report the
-      // outcome so a broken sync is visible, not silent.
-      _syncResult = await TemplateStore.instance.resync();
+      await AdminApi.instance.enrollFaceImages(widget.employeeId, _images);
+      _syncResult =
+          '${_images.length} face samples enrolled in AWS Rekognition';
       if (mounted) {
         setState(() => _state = _CaptureState.done);
       }
@@ -267,39 +251,6 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
         });
       }
     }
-  }
-
-  /// 5 alignment points. Prefers ML Kit landmarks; falls back to face-box
-  /// geometry so the flow can never stall on missing landmarks.
-  List<Offset> _landmarks(Face face, int w, int h, Rect box) {
-    final lm = face.landmarks;
-    Point<int>? get(FaceLandmarkType t) => lm[t]?.position;
-    final lEye = get(FaceLandmarkType.leftEye);
-    final rEye = get(FaceLandmarkType.rightEye);
-    final nose = get(FaceLandmarkType.noseBase);
-    final lMouth = get(FaceLandmarkType.leftMouth);
-    final rMouth = get(FaceLandmarkType.rightMouth);
-    if (lEye != null && rEye != null && nose != null && lMouth != null && rMouth != null) {
-      return [
-        Offset(lEye.x.toDouble(), lEye.y.toDouble()),
-        Offset(rEye.x.toDouble(), rEye.y.toDouble()),
-        Offset(nose.x.toDouble(), nose.y.toDouble()),
-        Offset(lMouth.x.toDouble(), lMouth.y.toDouble()),
-        Offset(rMouth.x.toDouble(), rMouth.y.toDouble()),
-      ];
-    }
-    // Fallback: proportional face-box geometry (eyes, nose, mouth corners).
-    final x = box.left.toDouble();
-    final y = box.top.toDouble();
-    final bw = box.width.toDouble();
-    final bh = box.height.toDouble();
-    return [
-      Offset(x + 0.33 * bw, y + 0.30 * bh),
-      Offset(x + 0.67 * bw, y + 0.30 * bh),
-      Offset(x + 0.50 * bw, y + 0.50 * bh),
-      Offset(x + 0.38 * bw, y + 0.72 * bh),
-      Offset(x + 0.62 * bw, y + 0.72 * bh),
-    ];
   }
 
   double _meanLuma(Uint8List bgra, int w, int h) {

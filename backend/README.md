@@ -29,14 +29,20 @@ browser CORS enforcement.
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
 | POST | /api/v1/device/handshake | deviceKey | exchange provisioning key for device token |
-| POST | /api/v1/scans | device | ingest scan event (idempotent, server time authoritative) |
-| GET | /api/v1/device/templates | device | encrypted template bundle for kiosk sync |
+| POST | /api/v1/device/recognize | device | server-side AWS Rekognition face match + attendance |
+| POST | /api/v1/scans | device | ingest code-punch scan event (idempotent, server time authoritative) |
+| GET | /api/v1/device/templates | device | legacy on-device template bundle (not used by the Rekognition flow) |
 | GET | /api/v1/device/config | device | org config + server clock + measured offset |
 | POST | /api/v1/admin/login / refresh / logout | — | admin auth (sessions, revocable) |
 | GET | /api/v1/admin/me | admin | current admin |
 | GET/POST/PATCH | /api/v1/admin/employees[/:id] | admin | employee CRUD + search/filter |
-| POST | /api/v1/admin/employees/:id/enroll | admin | submit fused embedding (encrypted at rest) |
+| POST | /api/v1/admin/employees/:id/faces | admin | index 1–5 Rekognition face samples |
+| GET/DELETE | /api/v1/admin/employees/:id/faces | admin | list or clear Rekognition faces |
+| POST | /api/v1/admin/employees/:id/enroll | admin | legacy embedding enrollment (historical) |
 | POST | /api/v1/admin/employees/:id/deactivate\|delete | admin | soft lifecycle, audited |
+| GET | /api/v1/admin/overtime | admin | overtime limits, projections, alerts |
+| PUT | /api/v1/admin/overtime/settings | admin | edit weekly/monthly limits |
+| POST | /api/v1/admin/overtime/:employeeId/apply-suggestion | admin | apply suggested weekly hours |
 | GET | /api/v1/admin/attendance/now | admin | currently checked in |
 | GET | /api/v1/admin/attendance | admin | sessions list w/ filters + pagination |
 | GET | /api/v1/admin/attendance/employee/:id | admin | per-employee history + totals |

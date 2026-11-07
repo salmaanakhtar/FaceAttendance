@@ -1,5 +1,37 @@
 # Status
 
+## Rekognition + React web admin — 2026-11-07
+
+- Replaced the kiosk's primary flow with AWS Rekognition:
+  - `POST /api/v1/device/recognize` performs the server-side match and feeds
+    the result into the existing attendance engine;
+  - worker-code punch remains the offline/fallback screen;
+  - threshold 90, region `sa-east-1` (closest supported Rekognition region),
+    configurable ambiguity margin.
+- Added Rekognition enrollment:
+  - mobile captures 1–5 JPEG samples and uploads them to the backend;
+  - `employee_faces` stores FaceIds/quality only, no raw images;
+  - re-enrollment replaces old faces; deactivate/delete clears them.
+- Rebuilt `web-admin` as React + Vite + Tailwind:
+  - light electric blue/lime theme;
+  - Overview, Workers, Attendance, Leave, Payroll, Overtime, Audit;
+  - org-timezone date/time editing, overtime alerts and schedule Apply;
+  - the old vanilla `public/app.js` is no longer served.
+- Added `docs/rekognition.md` with AWS region, IAM, privacy, and re-enrollment
+  instructions.
+- Verification: backend typecheck + 45 tests, Flutter analysis + 49 tests,
+  React typecheck/build, and a browser smoke pass of the React admin.
+
+### Required deployment
+
+1. Apply backend migration `008_rekognition_faces.sql`.
+2. Add AWS Rekognition environment variables and IAM access keys.
+3. Rebuild/redeploy the backend.
+4. Rebuild/redeploy `web-admin`.
+5. Build and install a new Android APK; re-enroll every worker's face from the
+   mobile admin before relying on face check-in.
+
+
 ## Time editing and overtime — 2026-11-05
 
 - Fixed DATE columns being converted to server-local JS Dates. `work_date` is

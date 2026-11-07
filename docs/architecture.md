@@ -7,7 +7,7 @@
 │  Android kiosk (Flutter)    │ ───────────────────►│  Backend (Fastify+TS)    │
 │  Scanner-first kiosk mode   │  device auth + sync │  REST API on :4747       │
 │  In-app admin (locked)      │ ◄───────────────────│  Attendance engine       │
-│  On-device recognition      │  templates, config  │  PostgreSQL on :5434     │
+│  Rekognition (server-side)  │  templates, config  │  PostgreSQL on :5434     │
 └─────────────────────────────┘                     └──────────────────────────┘
 ```
 
@@ -21,10 +21,10 @@
 3. **Raw events are immutable.** `scan_events` are append-only. Corrections
    never mutate them — they create corrected attendance records plus an audit
    trail.
-4. **On-device recognition, server-synced templates.** Face embeddings
-   (MobileFaceNet, 128-d) are computed on-device with TFLite. Matching happens
-   locally so the kiosk keeps working offline. Templates are encrypted at rest
-   server-side (AES-256-GCM) and on-device; raw face images are never stored.
+4. **Server-side recognition, code fallback.** The kiosk sends a JPEG frame to
+   the backend; the backend matches it with AWS Rekognition. Worker-code punch
+   remains the offline fallback. The legacy on-device embedding pipeline is
+   retained in the repository only for migration history.
 5. **Deterministic attendance.** The attendance engine is a pure module
    (no I/O). Given raw events + policy, it produces sessions; output is a pure
    function of input, so it is unit-testable and reproducible.
@@ -52,8 +52,9 @@
 
 - **Flutter over native:** single codebase across phones/tablets/kiosks,
   strong camera + ML ecosystem, fast iteration.
-- **MobileFaceNet + TFLite over server-side recognition:** offline operation is
-  a hard requirement; embeddings are small (128 floats) and cheap to match.
+- **Rekognition over on-device matching:** face matching moved to the backend
+  so the collection is central and every kiosk sees enrollments immediately.
+  Worker-code punch remains the offline fallback.
 - **PostgreSQL over SQLite:** concurrent kiosks, transaction-heavy corrections,
   realistic production target. Project-local cluster on :5434 so we never touch
   the machine's system Postgres.

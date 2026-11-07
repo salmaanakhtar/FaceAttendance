@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 
 import '../config.dart';
@@ -201,6 +204,25 @@ class AdminApi {
         'templateVersion': kTemplateVersion,
         'quality': quality ?? {},
       });
+
+  /// Rekognition enrollment: 1-5 JPEG images. The server indexes them and
+  /// keeps only FaceIds.
+  Future<Map<String, dynamic>> enrollFaceImages(
+    String id,
+    List<Uint8List> images,
+  ) =>
+      post('/api/v1/admin/employees/$id/faces', {
+        'images': images.map(base64Encode).toList(),
+      });
+
+  Future<Map<String, dynamic>> employeeFaces(String id) =>
+      get('/api/v1/admin/employees/$id/faces');
+
+  Future<Map<String, dynamic>> clearEmployeeFaces(String id) async {
+    final res = await _dio.delete('/api/v1/admin/employees/$id/faces',
+        options: _auth());
+    return res.data as Map<String, dynamic>;
+  }
 
   // ---- Attendance ----
 

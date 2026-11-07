@@ -8,7 +8,6 @@ import '../../attendance/offline_queue.dart';
 import '../../app_time.dart';
 import '../../device/secure_store.dart';
 import '../../app_state.dart';
-import '../../recognition/template_store.dart';
 import '../../updater/update_state.dart';
 
 /// The kiosk's primary surface: live camera + scan state feedback.
@@ -16,8 +15,12 @@ import '../../updater/update_state.dart';
 class ScannerScreen extends StatefulWidget {
   final ScanFlowController controller;
   final VoidCallback onAdminRequested;
+  final VoidCallback? onCodeRequested;
   const ScannerScreen(
-      {super.key, required this.controller, required this.onAdminRequested});
+      {super.key,
+      required this.controller,
+      required this.onAdminRequested,
+      this.onCodeRequested});
 
   @override
   State<ScannerScreen> createState() => _ScannerScreenState();
@@ -55,10 +58,12 @@ class _ScannerScreenState extends State<ScannerScreen> {
           children: [
             _CameraLayer(controller: widget.controller),
             _StatusOverlay(controller: widget.controller),
-            _TopBar(orgName: _orgName, onAdmin: widget.onAdminRequested),
+            _TopBar(
+                orgName: _orgName,
+                onAdmin: widget.onAdminRequested,
+                onCode: widget.onCodeRequested),
             _OfflineBadge(controller: widget.controller),
             const _UpdateBanner(),
-            const _TemplateDiag(),
           ],
         ),
       ),
@@ -120,7 +125,8 @@ class _CameraLayer extends StatelessWidget {
 class _TopBar extends StatelessWidget {
   final String orgName;
   final VoidCallback onAdmin;
-  const _TopBar({required this.orgName, required this.onAdmin});
+  final VoidCallback? onCode;
+  const _TopBar({required this.orgName, required this.onAdmin, this.onCode});
 
   @override
   Widget build(BuildContext context) {
@@ -149,6 +155,21 @@ class _TopBar extends StatelessWidget {
               ],
             ),
             const Spacer(),
+            if (onCode != null)
+              TextButton.icon(
+                onPressed: onCode,
+                icon: const Icon(Icons.dialpad_rounded, size: 17),
+                label: const Text('Code', style: TextStyle(fontSize: 12)),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.white70,
+                  backgroundColor: Colors.black38,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20)),
+                ),
+              ),
+            const SizedBox(width: 8),
             // Lock — the only admin entry point.
             Material(
               color: Colors.black38,
@@ -323,68 +344,6 @@ class _UpdateBanner extends StatelessWidget {
   }
 }
 
-/// Live template-sync diagnostics (debug aid): template count and any sync
-/// failure, so a broken sync is visible on screen instead of silent.
-/// Tapping the warning opens the full error + stack trace.
-class _TemplateDiag extends StatelessWidget {
-  const _TemplateDiag();
-
-  @override
-  Widget build(BuildContext context) {
-    final store = TemplateStore.instance;
-    final tplCount = store.count;
-    final err = store.lastSyncError;
-    if (tplCount > 0 && err == null) return const SizedBox.shrink();
-    return Positioned(
-      top: 108,
-      left: 0,
-      right: 0,
-      child: Center(
-        child: GestureDetector(
-          onTap: () {
-            if (err == null) return;
-            showDialog(
-              context: context,
-              builder: (context) => AlertDialog(
-                backgroundColor: const Color(0xFF161A20),
-                title: const Text('Template sync error',
-                    style: TextStyle(color: Colors.white, fontSize: 16)),
-                content: SingleChildScrollView(
-                  child: Text(err,
-                      style: const TextStyle(
-                          color: Colors.white54,
-                          fontSize: 11,
-                          fontFamily: 'monospace')),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Close',
-                        style: TextStyle(color: Colors.white70)),
-                  ),
-                ],
-              ),
-            );
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: const Color(0xCC3A2E14),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Text(
-              tplCount == 0
-                  ? 'No face templates synced — tap for details'
-                  : 'templates: $tplCount',
-              style: const TextStyle(color: Color(0xFFFFC857), fontSize: 12),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _PromptBanner extends StatelessWidget {
   final ScanPhase phase;
   const _PromptBanner({required this.phase});
@@ -411,6 +370,8 @@ class _PromptBanner extends StatelessWidget {
         return 'Unclear match — try again or ask an admin';
       case ScanPhase.livenessFailed:
         return 'Look at the camera and blink naturally';
+      case ScanPhase.networkUnavailable:
+        return 'Face check-in is offline — use worker code';
       default:
         return '';
     }
@@ -527,6 +488,13 @@ class _ResultCard extends StatelessWidget {
           const Color(0xFFFFC857),
           'Unclear match',
           'Try again or ask an admin'
+        );
+      case ScanPhase.networkUnavailable:
+        return (
+          Icons.cloud_off_rounded,
+          const Color(0xFFFFC857),
+          'Face service unavailable',
+          outcome.message ?? 'Use worker code'
         );
       default:
         return (

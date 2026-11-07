@@ -1,6 +1,8 @@
 import 'dotenv/config';
 
 const defaultCorsOrigins = [
+  'https://timekeep.salmaan.dev',
+  'https://yabil-timekeep.salmaan.dev',
   'https://faceattendance.salmaan.dev',
   'http://127.0.0.1:4750',
   'http://localhost:4750',
@@ -19,4 +21,13 @@ export const config = {
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean),
+  awsRegion: process.env.AWS_REGION ?? 'sa-east-1',
+  rekognitionCollectionPrefix:
+    process.env.REKOGNITION_COLLECTION_PREFIX ?? 'yabil-timekeep',
+  rekognitionSimilarityThreshold: Number(
+    process.env.REKOGNITION_SIMILARITY_THRESHOLD ?? 90,
+  ),
+  rekognitionAmbiguityMargin: Number(
+    process.env.REKOGNITION_AMBIGUITY_MARGIN ?? 2,
+  ),
 };

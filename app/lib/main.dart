@@ -12,6 +12,7 @@ import 'attendance/offline_queue.dart';
 import 'ui/admin/admin_gate.dart';
 import 'ui/provision/provision_screen.dart';
 import 'ui/scanner/code_punch_screen.dart';
+import 'ui/scanner/face_gate.dart';
 import 'recognition/template_store.dart';
 import 'updater/update_state.dart';
 
@@ -36,7 +37,6 @@ Future<void> initializeLocalStores() async {
   await SecureStore.instance.ensureTemplateKey();
   await AppTime.init(); // org-local time for every screen
   await OfflineQueue.instance.init();
-  await TemplateStore.instance.init();
   await StatusCache.instance.init();
 
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
@@ -97,6 +97,7 @@ class _FaceAttendanceAppState extends State<FaceAttendanceApp> {
   bool _provisioned = false;
   bool _checkingProvision = true;
   bool _provisionError = false;
+  bool _codeMode = false;
 
   @override
   void initState() {
@@ -199,8 +200,15 @@ class _FaceAttendanceAppState extends State<FaceAttendanceApp> {
           // ignore: prefer_const_constructors
           return AdminGate();
         }
-        return CodePunchScreen(
+        if (_codeMode) {
+          return CodePunchScreen(
+            onAdminRequested: () => AppState.instance.enterAdmin(),
+            onFaceRequested: () => setState(() => _codeMode = false),
+          );
+        }
+        return FaceGate(
           onAdminRequested: () => AppState.instance.enterAdmin(),
+          onCodeRequested: () => setState(() => _codeMode = true),
         );
       },
     );

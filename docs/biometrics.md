@@ -1,12 +1,27 @@
 # Biometrics / face recognition approach
 
+## Current flow (v2)
+
+Face check-in now uses **AWS Rekognition server-side**:
+
+- the kiosk captures a quality-gated JPEG frame;
+- the backend searches the organization's Rekognition collection with
+  `SearchFacesByImage` at a **90** similarity threshold;
+- the matched employee is passed into the deterministic attendance engine;
+- worker-code punch remains the offline/fallback path;
+- no liveness check is enabled in v1 (owner decision).
+
+Enrollment is done from the mobile admin and indexed with `IndexFaces`. Raw
+images are not stored by this app. See [`rekognition.md`](./rekognition.md) for
+region, IAM, cost, privacy, and re-enrollment details. The on-device
+MobileFaceNet notes below are retained as legacy architecture; that pipeline is
+no longer the active kiosk flow.
+
 ## Legacy biometric architecture
 
-The kiosk no longer uses face recognition for attendance. Worker punches are
-entered by employee code and processed by the same server attendance engine.
-The following remains as legacy enrollment/template documentation for existing
-records and any future optional biometric mode; it is not part of the active
-kiosk check-in flow.
+The legacy on-device pipeline below is retained for historical reference; the
+active kiosk flow is the Rekognition flow above. Worker-code punch remains
+available as the offline fallback.
 
 1. **Detection** — Google ML Kit face detection (on-device) on camera frames:
    face box, landmarks, probabilities (eyes open, smile), head Euler angles.

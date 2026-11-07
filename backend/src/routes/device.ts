@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { randomUUID } from 'node:crypto';
 import { query, queryOne } from '../db.js';
 import { signDeviceToken } from '../auth/tokens.js';
 import { requireDevice } from '../auth/guards.js';
@@ -7,6 +8,7 @@ import { sha256Hex } from '../lib/crypto.js';
 import { ingestScan } from '../services/attendance/service.js';
 import { audit } from '../services/audit.js';
 import { decryptAesGcm, deriveOrgKey } from '../lib/crypto.js';
+import { searchEmployeeFace } from '../services/rekognition.js';
 
 const deviceSchema = {
   body: {
@@ -33,6 +35,20 @@ const scanSchema = {
       livenessScore: { type: 'number', minimum: 0, maximum: 1 },
       faceHash: { type: 'string', maxLength: 128 },
       syncState: { type: 'string', enum: ['live', 'offline'] },
+    },
+    additionalProperties: false,
+  },
+};
+
+const recognizeSchema = {
+  body: {
+    type: 'object',
+    required: ['image'],
+    properties: {
+      image: { type: 'string', minLength: 100, maxLength: 6_000_000 },
+      dedupeKey: { type: 'string', minLength: 16, maxLength: 128 },
+      deviceTime: { type: 'string', maxLength: 40 },
+      directionHint: { type: 'string', enum: ['in', 'out'] },
     },
     additionalProperties: false,
   },
@@ -106,6 +122,86 @@ export function deviceRoutes(app: FastifyInstance): void {
       syncState: body.syncState ?? 'live',
     });
     return reply.code(result.action === 'check_in' || result.action === 'check_out' ? 201 : 200).send(result);
+  });
+
+  // Face recognition: the server performs the Rekognition match and then
+  // feeds the matched employee into the same attendance engine as a code
+  // punch. The client never supplies the employee identity.
+  app.post('/api/v1/device/recognize', {
+    schema: recognizeSchema,
+    preHandler: requireDevice,
+    config: {
+      rateLimit: { max: 10, timeWindow: '10 seconds' },
+    },
+    bodyLimit: 8 * 1024 * 1024,
+  }, async (req, reply) => {
+    const body = req.body as {
+      image: string;
+      dedupeKey?: string;
+      deviceTime?: string;
+      directionHint?: 'in' | 'out';
+    };
+    const image = Buffer.from(body.image, 'base64');
+    if (!image.length || image.length > 2 * 1024 * 1024) {
+      throw badRequest('face image must be under 2 MB');
+    }
+
+    const match = await searchEmployeeFace(req.device!.orgId, image);
+    if (!match) {
+      return reply.send({
+        action: 'unknown',
+        status: 'none',
+        message: 'Face not recognized',
+        scanTime: new Date().toISOString(),
+      });
+    }
+    if (match.ambiguous) {
+      return reply.send({
+        action: 'ambiguous',
+        status: 'none',
+        message: 'Face match is unclear',
+        scanTime: new Date().toISOString(),
+      });
+    }
+
+    const employee = await queryOne<{ id: string; name: string; employee_code: string }>(
+      `SELECT id, name, employee_code FROM employees
+       WHERE id = $1 AND org_id = $2 AND status = 'active'`,
+      [match.employeeId, req.device!.orgId],
+    );
+    if (!employee) {
+      return reply.send({
+        action: 'unknown',
+        status: 'none',
+        message: 'Face not recognized',
+        scanTime: new Date().toISOString(),
+      });
+    }
+
+    const result = await ingestScan({
+      deviceId: req.device!.id,
+      orgId: req.device!.orgId,
+      dedupeKey: body.dedupeKey ?? randomUUID(),
+      deviceTime: body.deviceTime ?? null,
+      directionHint: body.directionHint ?? null,
+      employeeId: employee.id,
+      confidence: match.similarity / 100,
+      livenessScore: null,
+      faceHash: null,
+      syncState: 'live',
+    });
+
+    return reply
+      .code(result.action === 'check_in' || result.action === 'check_out' ? 201 : 200)
+      .send({
+        ...result,
+        match: {
+          employeeId: employee.id,
+          employeeName: employee.name,
+          employeeCode: employee.employee_code,
+          similarity: match.similarity,
+        },
+      });
   });
 
   // Template bundle for kiosk sync: active employees' encrypted embeddings,

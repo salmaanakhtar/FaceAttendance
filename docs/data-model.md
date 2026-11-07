@@ -53,6 +53,13 @@ existing audited employee create/update APIs.
   enrollment changes, employee lifecycle, login failures, device sync,
   deletes/retention.
 
+### employee_faces
+- `org_id`, `employee_id`, `collection_id`, `face_id`, `image_id`,
+  `external_image_id`, `quality`, `created_at`.
+- Rekognition enrollment metadata. The app stores no raw face images.
+- Deactivating or deleting an employee clears their faces from the collection
+  and this table.
+
 ### employee_leave
 - `id`, `org_id`, `employee_id`, `start_date`, `end_date`, `leave_type`
   (`annual|sick|unpaid|other`), `status`
