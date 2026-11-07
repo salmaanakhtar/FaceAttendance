@@ -20,7 +20,8 @@ with a deterministic attendance engine.
   [Data model](docs/data-model.md) · [Biometrics](docs/biometrics.md) ·
   [Rekognition](docs/rekognition.md) · [Attendance rules](docs/attendance-rules.md) ·
   [Overtime](docs/overtime.md) · [Security](docs/security.md) ·
-  [Status](docs/status.md) · [Limitations](docs/limitations.md) ·
+  [Deployment](docs/deployment.md) · [Status](docs/status.md) ·
+  [Limitations](docs/limitations.md) ·
   [Gauntlet findings](docs/gauntlet-findings.md)
 
 ## Quick start

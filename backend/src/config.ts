@@ -10,7 +10,7 @@ const defaultCorsOrigins = [
 
 export const config = {
   port: Number(process.env.PORT ?? 4747),
-  databaseUrl: process.env.DATABASE_URL ?? 'postgres://postgres@127.0.0.1:5434/faceattendance',
+  databaseUrl: process.env.DATABASE_URL ?? 'postgres://postgres@127.0.0.1:5434/yabil-timekeep',
   jwtSecret: process.env.JWT_SECRET ?? 'dev-secret-change-me',
   jwtAdminTtlSec: Number(process.env.JWT_ADMIN_TTL_SEC ?? 30 * 60),
   jwtDeviceTtlSec: Number(process.env.JWT_DEVICE_TTL_SEC ?? 7 * 24 * 3600),
