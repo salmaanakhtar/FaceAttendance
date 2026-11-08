@@ -144,9 +144,18 @@ export async function ingestScan(input: ScanIngest): Promise<ScanResult> {
        ORDER BY check_in_at DESC LIMIT 1`,
       [emp.id],
     );
+    // Only accepted attendance transitions should start the anti-double-scan
+    // interval. Rejected attempts are still written to scan_events for audit,
+    // but including them here slides the window forward on every retry, which
+    // makes the kiosk appear locked out for far longer than the policy.
     const lastEvent = await client.query<{ scan_time: string; direction: 'in' | 'out' | null }>(
-      `SELECT scan_time, direction FROM scan_events
-       WHERE employee_id = $1 ORDER BY scan_time DESC LIMIT 1`,
+      `SELECT e.scan_time, e.direction
+       FROM scan_events e
+       JOIN scan_outcomes o ON o.dedupe_key = e.dedupe_key
+       WHERE e.employee_id = $1
+         AND o.action IN ('check_in','check_out')
+       ORDER BY e.scan_time DESC
+       LIMIT 1`,
       [emp.id],
     );
 
