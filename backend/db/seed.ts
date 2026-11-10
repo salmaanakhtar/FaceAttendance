@@ -39,7 +39,7 @@ async function seed() {
        VALUES (gen_random_uuid(), 'yabil', 'Yabil', 'Africa/Johannesburg', $1, $2) RETURNING id`,
       [
         JSON.stringify({
-          minIntervalMinutes: 1,
+          minIntervalSeconds: 10,
           breakAfterHours: 6,
           breakMinutes: 30,
           overnightCheckoutCutoff: '06:00',
@@ -79,7 +79,7 @@ async function seed() {
     shiftStart: '09:00',
     shiftEnd: '18:00',
     graceMinutes: 5,
-    minIntervalMinutes: 1,
+    minIntervalSeconds: 10,
     overnightCheckoutCutoff: '06:00',
     shiftGapHours: 4,
     breakAfterHours: 6,

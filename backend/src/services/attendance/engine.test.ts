@@ -112,13 +112,22 @@ describe('check-out', () => {
 });
 
 describe('duplicates and guards', () => {
-  it('drops an event within the min interval of the previous one', () => {
+  it('drops an event within the 10-second min interval', () => {
     const r = processScan({
-      ...base(ev('e1', '2026-08-11T04:30:30Z', 'in')),
+      ...base(ev('e1', '2026-08-11T04:30:05Z', 'in')),
       lastEventAt: new Date('2026-08-11T04:30:00Z'),
       lastEventDirection: 'in',
     });
     expect(r.action).toBe('duplicate');
+  });
+
+  it('allows an event once the 10-second min interval has elapsed', () => {
+    const r = processScan({
+      ...base(ev('e1', '2026-08-11T04:30:10Z', 'in')),
+      lastEventAt: new Date('2026-08-11T04:30:00Z'),
+      lastEventDirection: 'in',
+    });
+    expect(r.action).toBe('check_in');
   });
 
   it('allows clock-in immediately after an unsuccessful clock-out', () => {

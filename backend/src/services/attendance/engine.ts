@@ -17,7 +17,7 @@ export interface ShiftPolicy {
   shiftStart: string; // "09:00" — local wall time
   shiftEnd: string; // "18:00"
   graceMinutes: number; // late = check-in past shiftStart + grace
-  minIntervalMinutes: number; // min gap between two events of same direction
+  minIntervalSeconds: number; // min gap between two events of same direction
   overnightCheckoutCutoff: string; // "06:00": checkouts earlier than this attach to the open session
   shiftGapHours: number; // min gap before a same-day second shift is accepted
   breakAfterHours: number; // raw shift longer than this triggers break deduction
@@ -30,7 +30,7 @@ export const DEFAULT_POLICY: ShiftPolicy = {
   shiftStart: '09:00',
   shiftEnd: '18:00',
   graceMinutes: 5,
-  minIntervalMinutes: 1,
+  minIntervalSeconds: 10,
   overnightCheckoutCutoff: '06:00',
   shiftGapHours: 4,
   breakAfterHours: 6,
@@ -199,8 +199,8 @@ export function processScan(params: {
     ) {
       return false;
     }
-    const gapMin = (t.getTime() - lastEventAt.getTime()) / 60000;
-    return gapMin >= 0 && gapMin < policy.minIntervalMinutes;
+    const gapSec = (t.getTime() - lastEventAt.getTime()) / 1000;
+    return gapSec >= 0 && gapSec < policy.minIntervalSeconds;
   };
 
   // --- No open session: this is (normally) a check-in ---
