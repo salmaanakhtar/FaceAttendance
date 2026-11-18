@@ -12,6 +12,7 @@ class PendingScan {
   final String dedupeKey;
   final String employeeId;
   final DateTime deviceTime;
+  final int sequence;
   final String? directionHint;
   final double? confidence;
   final double? livenessScore;
@@ -22,6 +23,7 @@ class PendingScan {
     required this.dedupeKey,
     required this.employeeId,
     required this.deviceTime,
+    this.sequence = 0,
     this.directionHint,
     this.confidence,
     this.livenessScore,
@@ -33,6 +35,7 @@ class PendingScan {
         'dedupeKey': dedupeKey,
         'employeeId': employeeId,
         'deviceTime': deviceTime.toUtc().toIso8601String(),
+        'sequence': sequence,
         'directionHint': directionHint,
         'confidence': confidence,
         'livenessScore': livenessScore,
@@ -44,12 +47,20 @@ class PendingScan {
         dedupeKey: j['dedupeKey'] as String,
         employeeId: j['employeeId'] as String,
         deviceTime: DateTime.parse(j['deviceTime'] as String),
+        sequence: (j['sequence'] as num?)?.toInt() ?? 0,
         directionHint: j['directionHint'] as String?,
         confidence: (j['confidence'] as num?)?.toDouble(),
         livenessScore: (j['livenessScore'] as num?)?.toDouble(),
         faceHash: j['faceHash'] as String?,
         retries: (j['retries'] as num?)?.toInt() ?? 0,
       );
+}
+
+int _comparePendingScans(PendingScan a, PendingScan b) {
+  final time = a.deviceTime.compareTo(b.deviceTime);
+  if (time != 0) return time;
+  final order = a.sequence.compareTo(b.sequence);
+  return order != 0 ? order : a.dedupeKey.compareTo(b.dedupeKey);
 }
 
 /// Ensures concurrent callers share the same delivery for one idempotency key.
@@ -87,15 +98,33 @@ class OfflineQueue extends ChangeNotifier {
   bool _flushing = false;
   bool _online = true;
   Timer? _retryTimer;
+  bool _disposed = false;
+  int _sequence = 0;
   final ScanDeliveryGate _deliveryGate = ScanDeliveryGate();
   final _uuid = const Uuid();
 
+  DateTime? lastDeliveredAt;
+  String? deliveryError;
+  bool get syncing => _flushing;
+
   int get pendingCount => _box?.values.length ?? 0;
   bool get online => _online;
-  void setOnline(bool value) {
+  Future<void> setOnline(bool value) async {
     _online = value;
     notifyListeners();
-    if (value) flush();
+    if (value) await flush();
+  }
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) super.notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _retryTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> init() async {
@@ -107,8 +136,7 @@ class OfflineQueue extends ChangeNotifier {
     notifyListeners();
   }
 
-  PendingScan? _pendingForEmployee(
-      String employeeId, String? directionHint) {
+  PendingScan? _pendingForEmployee(String employeeId, String? directionHint) {
     PendingScan? latest;
     for (final raw in _box?.values ?? const Iterable<String>.empty()) {
       try {
@@ -154,10 +182,22 @@ class OfflineQueue extends ChangeNotifier {
         'scanTime': existing.deviceTime.toUtc().toIso8601String(),
       };
     }
+    // Persist a tie-breaker: some device clocks give consecutive punches
+    // identical timestamps. UUID/Hive key order cannot establish arrival order.
+    for (final raw in _box!.values) {
+      try {
+        final saved =
+            PendingScan.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+        if (saved.sequence > _sequence) _sequence = saved.sequence;
+      } catch (_) {
+        // Preserve unreadable records for recovery.
+      }
+    }
     final scan = PendingScan(
       dedupeKey: _uuid.v4(),
       employeeId: employeeId,
       deviceTime: deviceTime ?? DateTime.now(),
+      sequence: ++_sequence,
       directionHint: directionHint,
       confidence: confidence,
       livenessScore: livenessScore,
@@ -188,21 +228,20 @@ class OfflineQueue extends ChangeNotifier {
         // Hive key iteration order is not guaranteed, so order explicitly by
         // the locally captured event time rather than the box's key order.
         final earlier = <PendingScan>[];
-        for (final raw
-            in _box?.values ?? const Iterable<String>.empty()) {
+        for (final raw in _box?.values ?? const Iterable<String>.empty()) {
           try {
             final previous =
                 PendingScan.fromJson(jsonDecode(raw) as Map<String, dynamic>);
             if (previous.dedupeKey != scan.dedupeKey &&
                 previous.employeeId == scan.employeeId &&
-                previous.deviceTime.isBefore(scan.deviceTime)) {
+                _comparePendingScans(previous, scan) < 0) {
               earlier.add(previous);
             }
           } catch (_) {
             // Preserve unreadable records for recovery.
           }
         }
-        earlier.sort((a, b) => a.deviceTime.compareTo(b.deviceTime));
+        earlier.sort(_comparePendingScans);
         for (final previous in earlier) {
           await _deliver(previous, offline: true);
         }
@@ -213,19 +252,35 @@ class OfflineQueue extends ChangeNotifier {
 
   Future<Map<String, dynamic>> _deliverOnce(PendingScan scan,
       {required bool offline}) async {
-    final res = _sender != null
-        ? await _sender!(scan)
-        : await ApiClient.instance.ingestScan(
-            dedupeKey: scan.dedupeKey,
-            employeeId: scan.employeeId,
-            deviceTime: scan.deviceTime,
-            directionHint: scan.directionHint,
-            confidence: scan.confidence,
-            livenessScore: scan.livenessScore,
-            faceHash: scan.faceHash,
-            offline: offline,
-          );
+    late final Map<String, dynamic> res;
+    try {
+      res = _sender != null
+          ? await _sender!(scan)
+          : await ApiClient.instance.ingestScan(
+              dedupeKey: scan.dedupeKey,
+              employeeId: scan.employeeId,
+              deviceTime: scan.deviceTime,
+              directionHint: scan.directionHint,
+              confidence: scan.confidence,
+              livenessScore: scan.livenessScore,
+              faceHash: scan.faceHash,
+              offline: offline,
+            );
+    } on OfflineException {
+      deliveryError =
+          'Server unreachable. Saved punches will retry automatically.';
+      notifyListeners();
+      rethrow;
+    } on ServerException catch (error) {
+      deliveryError = error.status == 401 || error.status == 403
+          ? 'Device access needs attention. Ask your manager to check device setup.'
+          : 'Server could not accept a punch. It remains saved for retry.';
+      notifyListeners();
+      rethrow;
+    }
     await _box!.delete(scan.dedupeKey);
+    lastDeliveredAt = DateTime.now();
+    deliveryError = null;
     notifyListeners();
     return res;
   }
@@ -234,6 +289,7 @@ class OfflineQueue extends ChangeNotifier {
   Future<void> flush() async {
     if (_flushing || !_online || _box == null) return;
     _flushing = true;
+    notifyListeners();
     try {
       final keys = List<String>.of(_box!.keys.cast<String>());
       for (final key in keys) {
@@ -252,11 +308,14 @@ class OfflineQueue extends ChangeNotifier {
             break; // retain attendance and ordering until delivery succeeds
           }
         } catch (_) {
+          deliveryError ??=
+              'A saved punch needs attention. Contact your manager.';
           break; // storage/auth failures must never delete an unsent punch
         }
       }
     } finally {
       _flushing = false;
+      notifyListeners();
     }
   }
 }

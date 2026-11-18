@@ -28,6 +28,7 @@ Thumbs.db
 *.swp
 
 # Local tooling
+.tooling/
 scripts/*.json
 
 # Phone-test builds

@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:timezone/timezone.dart' as tz;
 
-import '../../app_state.dart';
+import '../sync_status.dart';
 import '../../app_time.dart';
 import '../../attendance/offline_queue.dart';
 import '../../device/api.dart';
@@ -284,7 +285,11 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
       body: SafeArea(
         child: Stack(children: [
           ListView(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+            padding: EdgeInsets.fromLTRB(
+                math.max(24, (MediaQuery.sizeOf(context).width - 520) / 2),
+                24,
+                math.max(24, (MediaQuery.sizeOf(context).width - 520) / 2),
+                40),
             children: [
               Row(children: [
                 Expanded(
@@ -319,6 +324,12 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
                         color: Colors.white70)),
               ]),
               const SizedBox(height: 24),
+              const SyncStatusButton(),
+              const SizedBox(height: 20),
+              if (_message != null) ...[
+                Semantics(liveRegion: true, child: _notice(_message!, true)),
+                const SizedBox(height: 20),
+              ],
               const Icon(Icons.pin_outlined,
                   color: Color(0xFF4DA3FF), size: 46),
               const SizedBox(height: 12),
@@ -382,7 +393,7 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
               _numberKeypad(),
               const SizedBox(height: 16),
               SizedBox(
-                  height: 54,
+                  height: 64,
                   child: FilledButton.icon(
                     onPressed: _busy || _loading || matched == null
                         ? null
@@ -398,11 +409,11 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
                         : const Icon(Icons.login_rounded),
                     label: Text(_busy ? 'Saving…' : 'Clock in',
                         style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w600)),
+                            fontSize: 18, fontWeight: FontWeight.w600)),
                   )),
               const SizedBox(height: 12),
               SizedBox(
-                height: 54,
+                height: 64,
                 child: FilledButton.icon(
                   onPressed: _busy || _loading || matched == null
                       ? null
@@ -422,37 +433,12 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
                 const SizedBox(height: 20),
                 _notice(_error!, false)
               ],
-              if (_message != null) ...[
-                const SizedBox(height: 20),
-                _notice(_message!, true)
-              ],
               if (_employees.isEmpty && !_loading && _error == null) ...[
                 const SizedBox(height: 20),
                 _notice('No active worker codes are available.', false),
               ],
             ],
           ),
-          Positioned(
-              bottom: 14,
-              left: 0,
-              right: 0,
-              child: ListenableBuilder(
-                  listenable: AppState.instance,
-                  builder: (context, _) => ListenableBuilder(
-                      listenable: OfflineQueue.instance,
-                      builder: (context, _) {
-                        final pending = OfflineQueue.instance.pendingCount;
-                        if (AppState.instance.online && pending == 0) {
-                          return const SizedBox.shrink();
-                        }
-                        return Center(
-                            child: Text(
-                                pending > 0
-                                    ? '$pending punch${pending == 1 ? '' : 'es'} waiting to sync'
-                                    : 'Offline — punches will sync later',
-                                style: const TextStyle(
-                                    color: Color(0xFFFFC857), fontSize: 12)));
-                      })))
         ]),
       ),
     );
@@ -536,7 +522,8 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
                       color: success
                           ? const Color(0xFF8FE0B1)
                           : const Color(0xFFFFA0A0),
-                      fontSize: 14))),
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600))),
         ]),
       );
 }

@@ -12,8 +12,9 @@ import '../session_detail.dart';
 /// Live operations snapshot: who is in right now + today's numbers.
 class DashboardTab extends StatefulWidget {
   final int refreshSignal;
+  final bool active;
 
-  const DashboardTab({super.key, this.refreshSignal = 0});
+  const DashboardTab({super.key, this.refreshSignal = 0, this.active = true});
 
   @override
   State<DashboardTab> createState() => _DashboardTabState();
@@ -36,13 +37,18 @@ class _DashboardTabState extends State<DashboardTab> {
   bool _loading = true;
   String? _error;
   Timer? _poll;
+  bool _refreshing = false;
+  DateTime? _lastUpdated;
+  String? _exceptionWarning;
+  bool _showAllAlerts = false;
 
   @override
   void initState() {
     super.initState();
     _load();
-    _poll =
-        Timer.periodic(const Duration(seconds: 15), (_) => _load(silent: true));
+    _poll = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (widget.active) _load(silent: true);
+    });
   }
 
   @override
@@ -60,6 +66,8 @@ class _DashboardTabState extends State<DashboardTab> {
   }
 
   Future<void> _load({bool silent = false}) async {
+    if (_refreshing || !mounted) return;
+    _refreshing = true;
     if (!silent) setState(() => _loading = true);
     try {
       final now = AppTime.now();
@@ -67,20 +75,21 @@ class _DashboardTabState extends State<DashboardTab> {
           '${value.year}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
       final today = date(now);
       final exceptionFrom = date(now.subtract(const Duration(days: 14)));
-      final nowRes = await AdminApi.instance.attendanceNow();
-      final statsRes =
-          await AdminApi.instance.attendanceStats(from: today, to: today);
       final monthStart = tz.TZDateTime(tz.local, now.year, now.month, 1);
       final weekStart = now.subtract(Duration(days: now.weekday - 1));
       final results = await Future.wait([
+        AdminApi.instance.attendanceNow(),
+        AdminApi.instance.attendanceStats(from: today, to: today),
         AdminApi.instance.attendanceList(from: today, to: today, limit: 500),
         AdminApi.instance
             .attendanceList(from: date(weekStart), to: today, limit: 500),
         AdminApi.instance
             .attendanceList(from: date(monthStart), to: today, limit: 500),
+        AdminApi.instance.listEmployees(status: 'active', limit: 500),
       ]);
-      final employeeRes =
-          await AdminApi.instance.listEmployees(status: 'active', limit: 500);
+      final nowRes = results[0];
+      final statsRes = results[1];
+      final employeeRes = results[5];
       Map<String, dynamic> weekAbsenceRes = const {'workers': <dynamic>[]};
       Map<String, dynamic> monthAbsenceRes = const {'workers': <dynamic>[]};
       try {
@@ -98,10 +107,14 @@ class _DashboardTabState extends State<DashboardTab> {
       // Older servers do not expose the exception inbox yet. Keep the rest of
       // the dashboard usable during a rolling app/backend deployment.
       Map<String, dynamic> exceptionRes = const {'exceptions': <dynamic>[]};
+      String? exceptionWarning;
       try {
         exceptionRes = await AdminApi.instance
             .attendanceExceptions(from: exceptionFrom, to: today, limit: 20);
-      } catch (_) {}
+      } catch (_) {
+        exceptionWarning =
+            'Attendance alerts could not be refreshed. Retry to check for missing punches.';
+      }
       Map<String, dynamic> overtimeRes = const {
         'settings': <String, dynamic>{},
         'workers': <dynamic>[],
@@ -118,16 +131,20 @@ class _DashboardTabState extends State<DashboardTab> {
               .map((e) => AttendanceSession.fromJson(e as Map<String, dynamic>))
               .toList();
           _stats = statsRes['aggregate'] as Map<String, dynamic>?;
-          _exceptions =
-              (exceptionRes['exceptions'] as List<dynamic>? ?? const [])
-                  .cast<Map<String, dynamic>>();
-          _daySessions = (results[0]['sessions'] as List<dynamic>? ?? const [])
+          if (exceptionWarning == null) {
+            _exceptions =
+                (exceptionRes['exceptions'] as List<dynamic>? ?? const [])
+                    .cast<Map<String, dynamic>>();
+          }
+          _exceptions.sort((a, b) => (b['severity'] == 'high' ? 1 : 0)
+              .compareTo(a['severity'] == 'high' ? 1 : 0));
+          _daySessions = (results[2]['sessions'] as List<dynamic>? ?? const [])
               .map((e) => AttendanceSession.fromJson(e as Map<String, dynamic>))
               .toList();
-          _weekSessions = (results[1]['sessions'] as List<dynamic>? ?? const [])
+          _weekSessions = (results[3]['sessions'] as List<dynamic>? ?? const [])
               .map((e) => AttendanceSession.fromJson(e as Map<String, dynamic>))
               .toList();
-          _monthSessions = (results[2]['sessions'] as List<dynamic>? ??
+          _monthSessions = (results[4]['sessions'] as List<dynamic>? ??
                   const [])
               .map((e) => AttendanceSession.fromJson(e as Map<String, dynamic>))
               .toList();
@@ -149,15 +166,21 @@ class _DashboardTabState extends State<DashboardTab> {
           _overtime = overtimeRes;
           _loading = false;
           _error = null;
+          _lastUpdated = AppTime.now();
+          _exceptionWarning = exceptionWarning;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
           _loading = false;
-          _error = 'Could not load dashboard: $e';
+          _error =
+              'Could not refresh dashboard. Check your connection and retry.';
         });
       }
+    } finally {
+      _refreshing = false;
+      if (mounted) setState(() {});
     }
   }
 
@@ -167,7 +190,7 @@ class _DashboardTabState extends State<DashboardTab> {
       return const Center(
           child: CircularProgressIndicator(color: Colors.white24));
     }
-    if (_error != null) {
+    if (_error != null && _lastUpdated == null) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -188,6 +211,25 @@ class _DashboardTabState extends State<DashboardTab> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        Row(children: [
+          Expanded(
+              child: Text(
+                  _lastUpdated == null
+                      ? 'Loading dashboard'
+                      : 'Last updated ${_lastUpdated!.hour.toString().padLeft(2, '0')}:${_lastUpdated!.minute.toString().padLeft(2, '0')}',
+                  style: const TextStyle(color: Colors.white70))),
+          IconButton(
+              tooltip: 'Refresh dashboard',
+              onPressed: _refreshing ? null : () => _load(silent: true),
+              icon: const Icon(Icons.refresh)),
+        ]),
+        if (_error != null)
+          Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text('$_error Showing previously loaded data.',
+                  style: const TextStyle(color: Colors.amber))),
+        _attentionList(),
+        const SizedBox(height: 16),
         _StatRow(
           stats: [
             (
@@ -283,33 +325,49 @@ class _DashboardTabState extends State<DashboardTab> {
               child: ListTile(
                 contentPadding: EdgeInsets.zero,
                 onTap: () => _showWorkerSessions(s.employeeId, s.employeeName),
-                leading: const Icon(Icons.person_rounded, color: Color(0xFF2FBF71)),
+                leading:
+                    const Icon(Icons.person_rounded, color: Color(0xFF2FBF71)),
                 title: Text(s.employeeName),
                 subtitle: Text('Clocked in at ${formatLocal(s.checkInAt)}'),
                 trailing: const Icon(Icons.chevron_right),
               ),
             ),
         const SizedBox(height: 20),
-        Row(
-          children: [
-            const Text('Needs attention',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600)),
-            const Spacer(),
-            Text('${_exceptions.length} exceptions',
-                style: const TextStyle(color: Colors.white38, fontSize: 12)),
-          ],
-        ),
-        const SizedBox(height: 8),
-        if (_exceptions.isEmpty)
-          const _EmptyCard(text: 'No attendance exceptions in this period.')
-        else
-          for (final issue in _exceptions.take(6)) _exceptionCard(issue),
       ],
     );
   }
+
+  Widget _attentionList() =>
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('Needs attention',
+            style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w600)),
+        const Text('Attendance alerts from the last 14 days',
+            style: TextStyle(color: Colors.white70, fontSize: 12)),
+        const SizedBox(height: 8),
+        if (_exceptionWarning != null)
+          Text(_exceptionWarning!, style: const TextStyle(color: Colors.amber)),
+        if (_exceptions.isEmpty && _exceptionWarning == null)
+          const _EmptyCard(text: 'No attendance exceptions in this period.'),
+        if (_exceptions.isNotEmpty) ...[
+          for (final issue
+              in _exceptions.take(_showAllAlerts ? _exceptions.length : 4))
+            _exceptionCard(issue),
+          if (_exceptions.length > 4)
+            TextButton(
+                onPressed: () =>
+                    setState(() => _showAllAlerts = !_showAllAlerts),
+                child: Text(_showAllAlerts
+                    ? 'Show fewer alerts'
+                    : 'Show all ${_exceptions.length} loaded alerts')),
+          if (_exceptions.length == 20)
+            const Text(
+                'Showing up to 20 alerts. Use Attendance to review further records.',
+                style: TextStyle(color: Colors.white70)),
+        ],
+      ]);
 
   Widget _workerTotals() {
     final totals = <String,

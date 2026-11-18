@@ -9,6 +9,7 @@ import '../../app_time.dart';
 import '../../device/secure_store.dart';
 import '../../app_state.dart';
 import '../../updater/update_state.dart';
+import '../sync_status.dart';
 
 /// The kiosk's primary surface: live camera + scan state feedback.
 /// Everything else (admin) is behind the lock icon.
@@ -170,6 +171,7 @@ class _TopBar extends StatelessWidget {
                 ),
               ),
             const SizedBox(width: 8),
+            const SyncStatusButton(),
             // Lock — the only admin entry point.
             Material(
               color: Colors.black38,

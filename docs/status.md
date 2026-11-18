@@ -58,7 +58,6 @@
   valid v1/v2 signatures. It uses the same local signing key as v1.2.26; v1.2.25 still requires
   its original signing key for an in-place upgrade. Source is committed locally;
   command-line GitHub authentication is still unavailable.
-
 ## Usability update v1.2.26 (74) — 2026-11-18
 
 - Worker-code kiosk: larger green/blue clock-in/out buttons, constrained keypad

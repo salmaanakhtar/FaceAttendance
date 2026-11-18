@@ -40,6 +40,11 @@ class SecureStore {
       _storage.write(key: 'kiosk_roster', value: roster);
   Future<String?> getKioskRoster() => _storage.read(key: 'kiosk_roster');
 
+  Future<void> setAttendanceRange(String range) =>
+      _storage.write(key: 'attendance_date_range', value: range);
+  Future<String?> getAttendanceRange() =>
+      _storage.read(key: 'attendance_date_range');
+
   Future<void> setAdminRefreshToken(String token) =>
       _storage.write(key: 'admin_refresh', value: token);
   Future<String?> getAdminRefreshToken() => _storage.read(key: 'admin_refresh');
@@ -66,6 +71,7 @@ class SecureStore {
       'admin_refresh',
       'template_key',
       'kiosk_roster',
+      'attendance_date_range',
     ]) {
       await _storage.delete(key: key);
     }
