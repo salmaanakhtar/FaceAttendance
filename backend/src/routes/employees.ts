@@ -4,6 +4,7 @@ import { requireAdmin } from '../auth/guards.js';
 import { badRequest, conflict, notFound } from '../lib/errors.js';
 import { encryptAesGcm, decryptAesGcm, deriveOrgKey } from '../lib/crypto.js';
 import { audit } from '../services/audit.js';
+import { operationalSchedule } from '../auth/permissions.js';
 
 interface EmployeeRow {
   id: string;
@@ -36,7 +37,7 @@ const employeeBodySchema = {
   },
 };
 
-function rowToDto(r: EmployeeRow) {
+function rowToDto(r: EmployeeRow, fullAccess = true) {
   return {
     id: r.id,
     employeeCode: r.employee_code,
@@ -44,7 +45,7 @@ function rowToDto(r: EmployeeRow) {
     email: r.email,
     phone: r.phone,
     status: r.status,
-    schedule: r.schedule,
+    schedule: fullAccess ? r.schedule : operationalSchedule(r.schedule),
     enrolled: !!r.face_template,
     templateVersion: r.template_version,
     enrollmentQuality: r.enrollment_quality,
@@ -90,7 +91,7 @@ export function employeeRoutes(app: FastifyInstance): void {
       params,
     );
     return reply.send({
-      employees: rows.map(rowToDto),
+      employees: rows.map(row => rowToDto(row, ['admin', 'owner'].includes(req.admin!.role))),
       total: Number(total?.count ?? 0),
     });
   });
@@ -101,7 +102,7 @@ export function employeeRoutes(app: FastifyInstance): void {
       [(req.params as { id: string }).id, req.admin!.orgId],
     );
     if (!row) throw notFound('employee not found');
-    return reply.send(rowToDto(row));
+    return reply.send(rowToDto(row, ['admin', 'owner'].includes(req.admin!.role)));
   });
 
   app.post('/api/v1/admin/employees', { preHandler: requireAdmin }, async (req, reply) => {

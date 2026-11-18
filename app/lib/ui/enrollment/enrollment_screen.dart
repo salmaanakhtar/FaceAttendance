@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:math' show Point;
-import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
 import '../../../admin/admin_api.dart';
@@ -394,7 +394,7 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
                     Text(_hint,
                         textAlign: TextAlign.center,
                         style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500)),
-                    if (_diag.isNotEmpty) ...[
+                    if (kDebugMode && _diag.isNotEmpty) ...[
                       const SizedBox(height: 6),
                       Text(_diag,
                           textAlign: TextAlign.center,

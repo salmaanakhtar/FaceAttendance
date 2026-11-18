@@ -43,7 +43,11 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
       await FeedbackFx.adminUnlock();
       if (mounted) widget.onSuccess();
     } catch (e) {
-      setState(() => _error = 'Sign-in failed. Check your credentials.');
+      if (mounted) {
+        setState(() => _error = AdminApi.statusCode(e) == 401
+            ? 'Sign-in failed. Check your credentials.'
+            : AdminApi.errorMessage(e));
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -63,12 +67,16 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Icon(Icons.lock_outline_rounded, color: Colors.white38, size: 40),
+                  const Icon(Icons.lock_outline_rounded,
+                      color: Colors.white38, size: 40),
                   const SizedBox(height: 16),
                   const Text(
                     'Admin access',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w700),
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 4),
                   const Text(
@@ -94,8 +102,10 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: 14),
-                    Text(_error!, textAlign: TextAlign.center,
-                        style: const TextStyle(color: Color(0xFFFF5D5D), fontSize: 13)),
+                    Text(_error!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            color: Color(0xFFFF5D5D), fontSize: 13)),
                   ],
                   const SizedBox(height: 20),
                   FilledButton(
@@ -103,18 +113,24 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFF2F6BFF),
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
                     ),
                     child: _busy
                         ? const SizedBox(
-                            width: 20, height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Text('Sign in', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white))
+                        : const Text('Sign in',
+                            style: TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.w600)),
                   ),
                   const SizedBox(height: 12),
                   TextButton(
                     onPressed: () => AppState.instance.lockToKiosk(),
-                    child: const Text('Back to scanner', style: TextStyle(color: Colors.white54)),
+                    child: const Text('Back to scanner',
+                        style: TextStyle(color: Colors.white54)),
                   ),
                 ],
               ),

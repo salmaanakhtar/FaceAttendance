@@ -241,7 +241,8 @@ class _EmployeeFormSheetState extends State<EmployeeFormSheet> {
             ],
             const SizedBox(height: 16),
             FilledButton(
-              onPressed: _busy ? null : _save,
+              onPressed:
+                  _busy || !AdminApi.instance.canManageWorkers ? null : _save,
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFF2F6BFF),
                 padding: const EdgeInsets.symmetric(vertical: 14),

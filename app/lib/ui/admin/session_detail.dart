@@ -5,6 +5,7 @@ import '../../../admin/admin_api.dart';
 import '../../../admin/models.dart';
 import '../../../app_state.dart';
 import '../../../app_time.dart';
+import 'review_change.dart';
 
 /// A single attendance session with manual override actions.
 /// Every correction is audited server-side (old value, new value, admin,
@@ -109,45 +110,30 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
             .showSnackBar(const SnackBar(content: Text('Timesheet approved')));
       }
     } catch (e) {
-      if (mounted) setState(() => _error = 'Approval failed: $e');
+      if (mounted) {
+        setState(() => _error = 'Approval failed: ${AdminApi.errorMessage(e)}');
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
   Future<void> _deleteEntry() async {
-    if (_busy) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF161A20),
-        title: const Text('Delete this time entry?',
-            style: TextStyle(color: Colors.white, fontSize: 18)),
-        content: const Text(
-          'It will be removed from attendance, totals, and reports. The audit history and original scanner events will be kept.',
-          style: TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
-          FilledButton.icon(
-            onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFC83E4D)),
-            icon: const Icon(Icons.delete_outline_rounded, size: 18),
-            label: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
+    if (_busy || !AdminApi.instance.canEditAttendance) return;
+    final reason = await reviewAttendanceChange(context,
+        worker: _session.employeeName,
+        before:
+            '${_session.workDate}: ${formatLocal(_session.checkInAt)} to ${formatLocal(_session.checkOutAt)}',
+        after:
+            'Removed from attendance and payroll totals. Audit history and raw scanner events remain.',
+        removing: true);
+    if (reason == null || !mounted) return;
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      await AdminApi.instance.deleteAttendance(_session.id);
+      await AdminApi.instance.deleteAttendance(_session.id, reason: reason);
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('Time entry deleted')));
@@ -167,6 +153,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     DateTime? initialValue,
     String? presetValue,
   }) async {
+    if (!AdminApi.instance.canEditAttendance) return;
     AppState.instance.touchAdminActivity();
     DateTime? picked = initialValue;
     String? valueOverride = presetValue;
@@ -230,14 +217,32 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
           ],
         ),
       );
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      controller.dispose();
       if (entered == null || !mounted) return;
       valueOverride = entered;
     }
 
     if (!mounted) return;
-    // Keep the server-side audit trail while removing the extra reason form
-    // from routine manager edits.
-    const reason = 'Admin timesheet edit';
+    final isIn = field == 'check_in' || field == 'add_check_in';
+    final oldTime = isIn ? _session.checkInAt : _session.checkOutAt;
+    if (field == 'break_minutes' &&
+        (int.tryParse(valueOverride ?? '') == null ||
+            int.parse(valueOverride!) < 0)) {
+      setState(() => _error = 'Enter a valid number of break minutes.');
+      return;
+    }
+    final reason = await reviewAttendanceChange(context,
+        worker: _session.employeeName,
+        before: field == 'break_minutes'
+            ? '${_session.breakMinutes} unpaid break minutes'
+            : oldTime == null
+                ? 'No recorded time'
+                : '${formatLocalDate(oldTime)} ${formatLocal(oldTime)}',
+        after: field == 'break_minutes'
+            ? '$valueOverride unpaid break minutes'
+            : '${formatLocalDate(picked?.toUtc().toIso8601String())} ${formatLocal(picked?.toUtc().toIso8601String())}');
+    if (reason == null || !mounted) return;
 
     setState(() {
       _busy = true;
@@ -281,7 +286,10 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
         );
       }
     } catch (e) {
-      setState(() => _error = 'Correction failed: $e');
+      if (mounted) {
+        setState(
+            () => _error = 'Correction failed: ${AdminApi.errorMessage(e)}');
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -313,14 +321,18 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
               Expanded(
                 child: _timeCard('Check-in', formatLocal(s.checkInAt), null,
                     actionLabel: s.checkInAt == null ? 'Add time' : 'Edit time',
-                    onTap: _busy ? null : _editCheckIn),
+                    onTap: _busy || !AdminApi.instance.canEditAttendance
+                        ? null
+                        : _editCheckIn),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: _timeCard('Check-out', formatLocal(s.checkOutAt), null,
                     actionLabel:
                         s.checkOutAt == null ? 'Add time' : 'Edit time',
-                    onTap: _busy ? null : _editCheckOut),
+                    onTap: _busy || !AdminApi.instance.canEditAttendance
+                        ? null
+                        : _editCheckOut),
               ),
             ],
           ),
@@ -347,13 +359,17 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                 style: TextStyle(color: Colors.white54, fontSize: 13))
           else
             FilledButton.icon(
-              onPressed: _busy ? null : _approve,
+              onPressed: _busy || !AdminApi.instance.canEditAttendance
+                  ? null
+                  : _approve,
               icon: const Icon(Icons.verified_rounded),
               label: const Text('Approve timesheet'),
             ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
-            onPressed: _busy ? null : _deleteEntry,
+            onPressed: _busy || !AdminApi.instance.canEditAttendance
+                ? null
+                : _deleteEntry,
             style: OutlinedButton.styleFrom(
               foregroundColor: const Color(0xFFFF7272),
               side: const BorderSide(color: Color(0xFFFF7272)),
@@ -372,7 +388,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
               onTap: () => _correction(
                   field: 'break_minutes',
                   presetValue: '${_session.breakMinutes}'),
-              enabled: !_busy),
+              enabled: !_busy && AdminApi.instance.canEditAttendance),
           const SizedBox(height: 20),
           const Text('Audit trail',
               style: TextStyle(

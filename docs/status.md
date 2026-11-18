@@ -1,5 +1,43 @@
 # Status
 
+## Completed usability update v1.2.27 (75) — 2026-11-18
+
+- Includes the v1.2.26 clocking, sync, dashboard and manual-entry changes below.
+- Payroll now refreshes its report and attendance review state before export,
+  shows unresolved/unapproved shifts and negative-net warnings, blocks invalid
+  rates, and requires confirmation. Each worker has an expandable calculation
+  breakdown. Existing pay calculations remain unchanged.
+- Corrections/removals show before/after values and require a reason. Bulk
+  approval explicitly confirms its date scope and warns that local search does
+  not restrict approval. These actions retain server auditing and raw scans.
+- Landscape is enabled. Wide admin screens use a navigation rail; compact
+  screens retain bottom navigation. Attendance headers scroll with the keyboard.
+- Dashboard, register, payroll review and worker pickers load all pages instead
+  of silently truncating records. Worker search ignores stale request results;
+  the register defaults to today when no remembered date range exists. The
+  dashboard links unapproved monthly shifts to the attention-filtered register.
+- Added limited supervisor/viewer accounts, an administrator Team access screen,
+  current-database-role enforcement in the backend, and matching client controls.
+  Restricted employee responses omit pay/identity fields. Team creation and
+  access changes are transactional and audited; privileged accounts cannot be
+  changed through the limited-account surface.
+- Scanner has worker-code fallback; release enrollment/scanning hides technical
+  diagnostics. Login/request errors provide recovery guidance.
+- Validation: Flutter analysis has no issues; all 60 Flutter tests pass. Backend
+  TypeScript checking and all 45 tests pass, including injected HTTP authorization
+  and account-management transaction tests. The PostgreSQL migration has not been
+  applied on this workstation or production; real tablet/camera validation is
+  still pending.
+- Backend rollout requires migration `008_admin_roles.sql` plus the updated
+  service. Existing administrator flows use compatible endpoints; Team access
+  explains when the server still needs updating. No production deployment was
+  performed because this environment has no deployment credentials.
+- One final APK build is being generated after completing implementation and
+  checks. It uses the same local signing key as v1.2.26; v1.2.25 still requires
+  its original signing key for an in-place upgrade. Source is committed locally;
+  command-line GitHub authentication is still unavailable.
+
+
 ## Usability update v1.2.26 (74) — 2026-11-18
 
 - Worker-code kiosk: larger green/blue clock-in/out buttons, constrained keypad

@@ -163,7 +163,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
           IconButton(
             tooltip: 'Edit',
             icon: const Icon(Icons.edit_outlined),
-            onPressed: _edit,
+            onPressed: AdminApi.instance.canManageWorkers ? _edit : null,
           ),
         ],
       ),
@@ -224,7 +224,8 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
                     ),
                     const SizedBox(height: 20),
                     FilledButton.icon(
-                      onPressed: _enroll,
+                      onPressed:
+                          AdminApi.instance.canManageWorkers ? _enroll : null,
                       style: FilledButton.styleFrom(
                         backgroundColor: const Color(0xFF2F6BFF),
                         padding: const EdgeInsets.symmetric(vertical: 14),
@@ -321,7 +322,9 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
                     const SizedBox(height: 20),
                     if (_employee.status == 'active')
                       OutlinedButton.icon(
-                        onPressed: _deactivate,
+                        onPressed: AdminApi.instance.canManageWorkers
+                            ? _deactivate
+                            : null,
                         style: OutlinedButton.styleFrom(
                           foregroundColor: const Color(0xFFFF5D5D),
                           side: const BorderSide(color: Color(0x55FF5D5D)),
@@ -333,7 +336,8 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
                       ),
                     const SizedBox(height: 8),
                     OutlinedButton.icon(
-                      onPressed: _delete,
+                      onPressed:
+                          AdminApi.instance.canManageWorkers ? _delete : null,
                       style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFFFF5D5D),
                         side: const BorderSide(color: Color(0x55FF5D5D)),
