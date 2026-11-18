@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../admin/admin_api.dart';
 import '../../app_state.dart';
+import '../sync_status.dart';
 import 'tabs/attendance_tab.dart';
 import 'tabs/audit_tab.dart';
 import 'tabs/dashboard_tab.dart';
@@ -58,6 +59,7 @@ class _AdminShellScreenState extends State<AdminShellScreen>
         foregroundColor: Colors.white,
         title: Text(_tabs[_tab].label),
         actions: [
+          const SyncStatusButton(),
           IconButton(
             tooltip: 'Lock kiosk',
             icon: const Icon(Icons.lock_outline_rounded),
@@ -71,7 +73,8 @@ class _AdminShellScreenState extends State<AdminShellScreen>
       body: IndexedStack(
         index: _tab,
         children: [
-          DashboardTab(refreshSignal: _dashboardRefreshSignal),
+          DashboardTab(
+              refreshSignal: _dashboardRefreshSignal, active: _tab == 0),
           const EmployeesTab(),
           const AttendanceTab(),
           const LeaveTab(),

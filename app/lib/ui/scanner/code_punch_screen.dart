@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:timezone/timezone.dart' as tz;
 
-import '../../app_state.dart';
+import '../sync_status.dart';
 import '../../app_time.dart';
 import '../../attendance/offline_queue.dart';
 import '../../device/api.dart';
@@ -268,7 +269,11 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
       body: SafeArea(
         child: Stack(children: [
           ListView(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+            padding: EdgeInsets.fromLTRB(
+                math.max(24, (MediaQuery.sizeOf(context).width - 520) / 2),
+                24,
+                math.max(24, (MediaQuery.sizeOf(context).width - 520) / 2),
+                40),
             children: [
               Row(children: [
                 Expanded(
@@ -296,7 +301,12 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
                     icon: const Icon(Icons.lock_outline_rounded,
                         color: Colors.white70)),
               ]),
-              const SizedBox(height: 70),
+              const SyncStatusButton(),
+              const SizedBox(height: 20),
+              if (_message != null) ...[
+                Semantics(liveRegion: true, child: _notice(_message!, true)),
+                const SizedBox(height: 20),
+              ],
               const Icon(Icons.pin_outlined,
                   color: Color(0xFF4DA3FF), size: 54),
               const SizedBox(height: 18),
@@ -351,9 +361,12 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
               _numberKeypad(),
               const SizedBox(height: 16),
               SizedBox(
-                  height: 54,
+                  height: 64,
                   child: FilledButton.icon(
                     onPressed: _busy || _loading ? null : () => _submit('in'),
+                    style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF17623D),
+                        foregroundColor: Colors.white),
                     icon: _busy
                         ? const SizedBox(
                             width: 18,
@@ -363,13 +376,18 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
                         : const Icon(Icons.login_rounded),
                     label: Text(_busy ? 'Saving…' : 'Clock in',
                         style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w600)),
+                            fontSize: 18, fontWeight: FontWeight.w600)),
                   )),
               const SizedBox(height: 12),
               SizedBox(
-                height: 54,
+                height: 64,
                 child: FilledButton.icon(
                   onPressed: _busy || _loading ? null : () => _submit('out'),
+                  style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF174A78),
+                      foregroundColor: Colors.white,
+                      textStyle: const TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.w600)),
                   icon: const Icon(Icons.logout_rounded),
                   label: const Text('Clock out'),
                 ),
@@ -383,37 +401,12 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
                 const SizedBox(height: 20),
                 _notice(_error!, false)
               ],
-              if (_message != null) ...[
-                const SizedBox(height: 20),
-                _notice(_message!, true)
-              ],
               if (_employees.isEmpty && !_loading && _error == null) ...[
                 const SizedBox(height: 20),
                 _notice('No active worker codes are available.', false),
               ],
             ],
           ),
-          Positioned(
-              bottom: 14,
-              left: 0,
-              right: 0,
-              child: ListenableBuilder(
-                  listenable: AppState.instance,
-                  builder: (context, _) => ListenableBuilder(
-                      listenable: OfflineQueue.instance,
-                      builder: (context, _) {
-                        final pending = OfflineQueue.instance.pendingCount;
-                        if (AppState.instance.online && pending == 0) {
-                          return const SizedBox.shrink();
-                        }
-                        return Center(
-                            child: Text(
-                                pending > 0
-                                    ? '$pending punch${pending == 1 ? '' : 'es'} waiting to sync'
-                                    : 'Offline — punches will sync later',
-                                style: const TextStyle(
-                                    color: Color(0xFFFFC857), fontSize: 12)));
-                      })))
         ]),
       ),
     );
@@ -497,7 +490,8 @@ class _CodePunchScreenState extends State<CodePunchScreen> {
                       color: success
                           ? const Color(0xFF8FE0B1)
                           : const Color(0xFFFFA0A0),
-                      fontSize: 14))),
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600))),
         ]),
       );
 }

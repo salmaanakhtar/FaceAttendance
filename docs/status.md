@@ -1,5 +1,39 @@
 # Status
 
+## Usability update v1.2.26 (74) — 2026-11-18
+
+- Worker-code kiosk: larger green/blue clock-in/out buttons, constrained keypad
+  width on tablets, prominent confirmation above the keypad, and a sync-status
+  button showing pending punches.
+- Sync details are available from the kiosk, scanner and admin toolbar. They
+  show queued count, network availability, the most recent delivery during this
+  app session, safe error guidance, and manual retry. Network availability is
+  not presented as proof of server connectivity. Failed punches remain queued.
+- Queue regression checks exposed identical-timestamp punches arriving in UUID
+  order. A persisted local sequence now breaks timestamp ties without altering
+  captured timestamps or server idempotency keys. Old records remain readable.
+  Queue disposal cancels its retry timer and prevents late UI notifications.
+- Dashboard independent core requests run concurrently. Refreshes cannot
+  overlap, polling pauses on other admin tabs, and the interval is 30 seconds.
+  Failed refreshes retain previous data with an explicit warning and timestamp.
+  Attendance alerts appear first, with high severity first and expandable rows;
+  failed alert requests no longer imply there are no exceptions.
+- Attendance supports name/code search and a needs-attention filter. Export and
+  bulk approval still apply to the selected dates, not the local search filter.
+  The loaded-record cap is disclosed. Date ranges are remembered in secure
+  preferences, and headers scroll to accommodate small screens and keyboards.
+- Manual entries use searchable worker selection with validation, an explicit
+  next-day clock-out option, and a confirmation summary before saving attendance
+  or absence. Overnight timestamps use the organization's timezone.
+- Version prepared as 1.2.26+74. Flutter analysis reports no issues and all 54
+  tests pass, including offline retry/error recovery, equal-timestamp ordering,
+  sync-dialog recovery, and overnight month-boundary handling. Android release
+  compilation is in progress.
+- This workstation initially lacked Flutter, Java and Android SDK. Local tools
+  were installed under ignored `.tooling/`; no system PATH change was needed.
+- Physical tablet/camera and live-server workflow validation remain pending.
+
+
 ## Separate desktop web admin — 2026-09-25
 
 - Added an independent `web-admin/` browser dashboard; no Flutter app files or
