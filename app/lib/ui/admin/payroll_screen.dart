@@ -5,6 +5,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../admin/admin_api.dart';
 import '../../admin/models.dart';
 import '../../app_time.dart';
+import '../../admin/payroll_review.dart';
 import 'employee_form_sheet.dart';
 
 class PayrollScreen extends StatefulWidget {
@@ -19,6 +20,8 @@ class _PayrollScreenState extends State<PayrollScreen> {
   Map<String, dynamic>? _report;
   String? _error;
   bool _busy = false;
+  bool _reviewing = false;
+  int _unapproved = 0;
   final Map<String, Map<String, dynamic>> _adjustments = {};
   String _date(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -39,9 +42,22 @@ class _PayrollScreenState extends State<PayrollScreen> {
       _error = null;
     });
     try {
-      final report =
-          await AdminApi.instance.post('/api/v1/admin/payroll/report', _body);
-      if (mounted) setState(() => _report = report);
+      final results = await Future.wait([
+        AdminApi.instance.post('/api/v1/admin/payroll/report', _body),
+        AdminApi.instance
+            .allAttendance(from: _date(widget.from), to: _date(widget.to)),
+      ]);
+      final sessions =
+          (results[1]['sessions'] as List).cast<Map<String, dynamic>>();
+      if (mounted) {
+        setState(() {
+          _report = results[0];
+          _unapproved = sessions
+              .where((s) =>
+                  s['status'] == 'closed' && s['reviewStatus'] != 'approved')
+              .length;
+        });
+      }
     } catch (e) {
       if (mounted) setState(() => _error = AdminApi.errorMessage(e));
     } finally {
@@ -149,6 +165,59 @@ class _PayrollScreenState extends State<PayrollScreen> {
     }
   }
 
+  Future<void> _reviewAndExport() async {
+    if (_busy || _reviewing) return;
+    setState(() => _reviewing = true);
+    try {
+      await _load();
+      if (!mounted || _error != null || _report == null) return;
+      final workers =
+          (_report!['workers'] as List).cast<Map<String, dynamic>>();
+      final review =
+          PayrollReview.fromWorkers(workers, unapproved: _unapproved);
+      final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+                title: const Text('Review payroll before export'),
+                content: SingleChildScrollView(
+                    child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Text('${_date(widget.from)} to ${_date(widget.to)}'),
+                      Text(
+                          '${workers.length} workers · Net total ${_money(workers.fold<num>(0, (sum, w) => sum + (w['net'] as num? ?? 0)))}'),
+                      const SizedBox(height: 12),
+                      if (review.warnings.isEmpty)
+                        const Text(
+                            'All completed shifts are approved and pay rates are valid.'),
+                      for (final warning in review.warnings)
+                        Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Text(warning,
+                                style: const TextStyle(color: Colors.amber))),
+                      const Text(
+                          'Pay includes all completed worked hours. Review warnings before using the workbook for payment.'),
+                    ])),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Back to review')),
+                  FilledButton(
+                      onPressed: review.missingRates > 0 || workers.isEmpty
+                          ? null
+                          : () => Navigator.pop(context, true),
+                      child: Text(review.hasWarnings
+                          ? 'Export with warnings'
+                          : 'Confirm export')),
+                ],
+              ));
+      if (confirmed == true && mounted) await _export();
+    } finally {
+      if (mounted) setState(() => _reviewing = false);
+    }
+  }
+
   String _money(dynamic value) =>
       value == null ? 'Set rate' : 'R ${(value as num).toStringAsFixed(2)}';
   @override
@@ -168,10 +237,15 @@ class _PayrollScreenState extends State<PayrollScreen> {
             'Default rate: R30.23/hour. All worked hours are normal hours. UIF: 1% of gross wages.'),
         const SizedBox(height: 12),
         FilledButton.icon(
-            onPressed:
-                _busy || _report == null || _error != null ? null : _export,
+            onPressed: _busy ||
+                    _reviewing ||
+                    workers.isEmpty ||
+                    _report == null ||
+                    _error != null
+                ? null
+                : _reviewAndExport,
             icon: const Icon(Icons.download),
-            label: const Text('Export Excel workbook')),
+            label: const Text('Review & export Excel')),
         if (_busy) const LinearProgressIndicator(),
         if (_error != null) ...[
           Text(_error!, style: const TextStyle(color: Colors.redAccent)),
@@ -179,6 +253,23 @@ class _PayrollScreenState extends State<PayrollScreen> {
               onPressed: _busy ? null : _load, child: const Text('Retry'))
         ],
         const SizedBox(height: 12),
+        if (_report != null)
+          Card(
+              child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Payroll readiness',
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.w600)),
+                        for (final warning in PayrollReview.fromWorkers(workers,
+                                unapproved: _unapproved)
+                            .warnings)
+                          Text(warning,
+                              style: const TextStyle(color: Colors.amber)),
+                        Text('$_unapproved completed shifts awaiting approval'),
+                      ]))),
         const Text(
             'Pay adjustments are kept while this report is open. Save the Excel file to retain them.'),
         for (final worker in workers)
@@ -202,6 +293,30 @@ class _PayrollScreenState extends State<PayrollScreen> {
                         if (worker['gross'] == null)
                           const Text('Set pay rates before payment.',
                               style: TextStyle(color: Colors.orangeAccent)),
+                        ExpansionTile(
+                            tilePadding: EdgeInsets.zero,
+                            title: const Text('How pay is calculated'),
+                            children: [
+                              ListTile(
+                                  title: Text(
+                                      '${((worker['workedMinutes'] as num) / 60).toStringAsFixed(2)} hours × ${_money(worker['rate'])}/hour'),
+                                  trailing: Text(_money(worker['regularPay']))),
+                              ListTile(
+                                  title: const Text(
+                                      'Holiday pay + other earnings'),
+                                  trailing: Text(_money(
+                                      (worker['holidayPay'] as num? ?? 0) +
+                                          (worker['otherPay'] as num? ?? 0)))),
+                              ListTile(
+                                  title: const Text('Gross pay'),
+                                  trailing: Text(_money(worker['gross']))),
+                              ListTile(
+                                  title: const Text('UIF + other deductions'),
+                                  trailing: Text(_money(worker['deductions']))),
+                              ListTile(
+                                  title: const Text('Net pay'),
+                                  trailing: Text(_money(worker['net']))),
+                            ]),
                         Wrap(spacing: 8, children: [
                           TextButton.icon(
                               onPressed:

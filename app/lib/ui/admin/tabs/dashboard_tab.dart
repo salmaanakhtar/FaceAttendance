@@ -13,8 +13,13 @@ import '../session_detail.dart';
 class DashboardTab extends StatefulWidget {
   final int refreshSignal;
   final bool active;
+  final VoidCallback? onReviewAttendance;
 
-  const DashboardTab({super.key, this.refreshSignal = 0, this.active = true});
+  const DashboardTab(
+      {super.key,
+      this.refreshSignal = 0,
+      this.active = true,
+      this.onReviewAttendance});
 
   @override
   State<DashboardTab> createState() => _DashboardTabState();
@@ -80,12 +85,10 @@ class _DashboardTabState extends State<DashboardTab> {
       final results = await Future.wait([
         AdminApi.instance.attendanceNow(),
         AdminApi.instance.attendanceStats(from: today, to: today),
-        AdminApi.instance.attendanceList(from: today, to: today, limit: 500),
-        AdminApi.instance
-            .attendanceList(from: date(weekStart), to: today, limit: 500),
-        AdminApi.instance
-            .attendanceList(from: date(monthStart), to: today, limit: 500),
-        AdminApi.instance.listEmployees(status: 'active', limit: 500),
+        AdminApi.instance.allAttendance(from: today, to: today),
+        AdminApi.instance.allAttendance(from: date(weekStart), to: today),
+        AdminApi.instance.allAttendance(from: date(monthStart), to: today),
+        AdminApi.instance.allEmployees(status: 'active'),
       ]);
       final nowRes = results[0];
       final statsRes = results[1];
@@ -229,6 +232,17 @@ class _DashboardTabState extends State<DashboardTab> {
               child: Text('$_error Showing previously loaded data.',
                   style: const TextStyle(color: Colors.amber))),
         _attentionList(),
+        if (_monthSessions
+            .any((s) => s.status == 'closed' && s.reviewStatus != 'approved'))
+          Card(
+              child: ListTile(
+            leading: const Icon(Icons.fact_check_outlined, color: Colors.amber),
+            title: Text(
+                '${_monthSessions.where((s) => s.status == 'closed' && s.reviewStatus != 'approved').length} shifts awaiting approval'),
+            subtitle: const Text('This month · Review in Attendance'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: widget.onReviewAttendance,
+          )),
         const SizedBox(height: 16),
         _StatRow(
           stats: [
@@ -549,7 +563,7 @@ class _DashboardTabState extends State<DashboardTab> {
             const SizedBox(height: 8),
             Wrap(spacing: 8, runSpacing: 8, children: [
               FilledButton.icon(
-                onPressed: open != null
+                onPressed: !AdminApi.instance.canEditAttendance || open != null
                     ? null
                     : () {
                         Navigator.pop(sheetContext);
@@ -559,7 +573,7 @@ class _DashboardTabState extends State<DashboardTab> {
                 label: const Text('New clock in'),
               ),
               OutlinedButton.icon(
-                onPressed: open == null
+                onPressed: !AdminApi.instance.canEditAttendance || open == null
                     ? null
                     : () {
                         Navigator.pop(sheetContext);

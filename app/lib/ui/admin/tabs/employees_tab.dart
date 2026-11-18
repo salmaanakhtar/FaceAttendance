@@ -23,6 +23,7 @@ class _EmployeesTabState extends State<EmployeesTab> {
   String _query = '';
   String _status = 'all';
   Timer? _searchDebounce;
+  int _loadVersion = 0;
 
   @override
   void initState() {
@@ -37,14 +38,15 @@ class _EmployeesTabState extends State<EmployeesTab> {
   }
 
   Future<void> _load() async {
+    if (!mounted) return;
+    final version = ++_loadVersion;
     setState(() => _loading = true);
     try {
-      final res = await AdminApi.instance.listEmployees(
+      final res = await AdminApi.instance.allEmployees(
         search: _query,
         status: _status,
-        limit: 200,
       );
-      if (mounted) {
+      if (mounted && version == _loadVersion) {
         setState(() {
           _employees = (res['employees'] as List<dynamic>)
               .map((e) => Employee.fromJson(e as Map<String, dynamic>))
@@ -54,10 +56,10 @@ class _EmployeesTabState extends State<EmployeesTab> {
         });
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && version == _loadVersion) {
         setState(() {
           _loading = false;
-          _error = 'Could not load employees: $e';
+          _error = 'Could not load workers. Check your connection and retry.';
         });
       }
     }
@@ -76,24 +78,29 @@ class _EmployeesTabState extends State<EmployeesTab> {
                   onChanged: (v) {
                     _query = v;
                     _searchDebounce?.cancel();
-                    _searchDebounce = Timer(const Duration(milliseconds: 350), _load);
+                    _searchDebounce =
+                        Timer(const Duration(milliseconds: 350), _load);
                   },
                   style: const TextStyle(color: Colors.white, fontSize: 14),
                   decoration: InputDecoration(
                     hintText: 'Search name, code, or department',
-                    hintStyle: const TextStyle(color: Colors.white38, fontSize: 14),
-                    prefixIcon: const Icon(Icons.search_rounded, color: Colors.white38, size: 20),
+                    hintStyle:
+                        const TextStyle(color: Colors.white38, fontSize: 14),
+                    prefixIcon: const Icon(Icons.search_rounded,
+                        color: Colors.white38, size: 20),
                     filled: true,
                     fillColor: const Color(0xFF161A20),
                     isDense: true,
                     border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none),
                   ),
                 ),
               ),
               const SizedBox(width: 8),
               PopupMenuButton<String>(
-                icon: const Icon(Icons.filter_list_rounded, color: Colors.white70),
+                icon: const Icon(Icons.filter_list_rounded,
+                    color: Colors.white70),
                 onSelected: (v) {
                   _status = v;
                   _load();
@@ -116,14 +123,16 @@ class _EmployeesTabState extends State<EmployeesTab> {
 
   Widget _buildBody() {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: Colors.white24));
+      return const Center(
+          child: CircularProgressIndicator(color: Colors.white24));
     }
     if (_error != null) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_error!, textAlign: TextAlign.center,
+            Text(_error!,
+                textAlign: TextAlign.center,
                 style: const TextStyle(color: Colors.white54)),
             const SizedBox(height: 12),
             FilledButton(onPressed: _load, child: const Text('Retry')),
@@ -150,25 +159,31 @@ class _EmployeesTabState extends State<EmployeesTab> {
           ),
           child: ListTile(
             onTap: () {
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => EmployeeDetailScreen(employee: e),
-              )).then((_) => _load());
+              Navigator.of(context)
+                  .push(MaterialPageRoute(
+                    builder: (_) => EmployeeDetailScreen(employee: e),
+                  ))
+                  .then((_) => _load());
             },
             leading: CircleAvatar(
               backgroundColor: const Color(0xFF2F6BFF),
               child: Text(
                 e.name.isNotEmpty ? e.name[0].toUpperCase() : '?',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.w700),
               ),
             ),
-            title: Text(e.name, style: const TextStyle(color: Colors.white, fontSize: 15)),
+            title: Text(e.name,
+                style: const TextStyle(color: Colors.white, fontSize: 15)),
             subtitle: Text(
               '${e.employeeCode}${e.status != 'active' ? '  ·  ${e.status}' : ''}',
               style: const TextStyle(color: Colors.white38, fontSize: 12),
             ),
             trailing: e.enrolled
-                ? const Icon(Icons.face_retouching_natural, color: Color(0xFF2FBF71), size: 20)
-                : const Icon(Icons.face_retouching_off, color: Colors.white24, size: 20),
+                ? const Icon(Icons.face_retouching_natural,
+                    color: Color(0xFF2FBF71), size: 20)
+                : const Icon(Icons.face_retouching_off,
+                    color: Colors.white24, size: 20),
           ),
         );
       },

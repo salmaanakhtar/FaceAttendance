@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../attendance/scan_flow.dart';
 import '../../attendance/offline_queue.dart';
@@ -10,6 +11,7 @@ import '../../device/secure_store.dart';
 import '../../app_state.dart';
 import '../../updater/update_state.dart';
 import '../sync_status.dart';
+import 'code_punch_screen.dart';
 
 /// The kiosk's primary surface: live camera + scan state feedback.
 /// Everything else (admin) is behind the lock icon.
@@ -65,6 +67,29 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 onCode: widget.onCodeRequested),
             _OfflineBadge(controller: widget.controller),
             const _UpdateBanner(),
+            Positioned(
+                top: 78,
+                left: 20,
+                child: FilledButton.icon(
+                  onPressed: () async {
+                    widget.controller.pause();
+                    try {
+                      await Navigator.of(context).push(MaterialPageRoute(
+                          builder: (routeContext) => Scaffold(
+                                appBar: AppBar(
+                                    title: const Text('Worker-code clocking')),
+                                body: CodePunchScreen(onAdminRequested: () {
+                                  Navigator.pop(routeContext);
+                                  widget.onAdminRequested();
+                                }),
+                              )));
+                    } finally {
+                      if (mounted) await widget.controller.resume();
+                    }
+                  },
+                  icon: const Icon(Icons.pin_outlined),
+                  label: const Text('Use worker code'),
+                )),
           ],
         ),
       ),
@@ -363,7 +388,7 @@ class _PromptBanner extends StatelessWidget {
       case ScanPhase.faceTooFar:
         return 'Move closer to the camera';
       case ScanPhase.poorLighting:
-        return 'Lighting too low — please face the light';
+        return 'Face an even light; avoid darkness or strong glare';
       case ScanPhase.multipleFaces:
         return 'Only one person at a time, please';
       case ScanPhase.unknown:
@@ -557,7 +582,7 @@ class _ResultCard extends StatelessWidget {
                     fontFeatures: [FontFeature.tabularFigures()]),
               ),
             ],
-            if (outcome.score != null) ...[
+            if (kDebugMode && outcome.score != null) ...[
               const SizedBox(height: 2),
               Text(
                 'match ${(outcome.score! * 100).toStringAsFixed(0)}%',

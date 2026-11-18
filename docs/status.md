@@ -17,7 +17,6 @@
 - Rollout requires deploying/restarting the backend with this source change.
   No database migration or new APK is needed. Live-server/tablet verification
   remains pending; this workstation has no documented deployment credentials.
-
 ## Completed usability update v1.2.27 (75) — 2026-11-18
 
 - Includes the v1.2.26 clocking, sync, dashboard and manual-entry changes below.

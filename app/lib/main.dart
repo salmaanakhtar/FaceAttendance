@@ -40,7 +40,11 @@ Future<void> initializeLocalStores() async {
   await StatusCache.instance.init();
 
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-  SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+  SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight
+  ]);
 }
 
 class StartupScreen extends StatefulWidget {
@@ -66,7 +70,8 @@ class _StartupScreenState extends State<StartupScreen> {
             theme: ThemeData.dark(),
             home: Scaffold(
               body: Center(
-                child: snapshot.connectionState == ConnectionState.done && snapshot.hasError
+                child: snapshot.connectionState == ConnectionState.done &&
+                        snapshot.hasError
                     ? Column(mainAxisSize: MainAxisSize.min, children: [
                         const Text('Could not open local attendance storage.'),
                         const Text(

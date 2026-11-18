@@ -5,18 +5,22 @@ import 'package:dio/dio.dart';
 
 import '../config.dart';
 import '../device/secure_store.dart';
+import 'permissions.dart';
 
 /// Admin (kiosk-side) API client. Sessions are server-side, revocable,
 /// and bound to this device.
 class AdminApi {
-  AdminApi._();
+  AdminApi._() : _testingDio = null;
+  AdminApi.forTesting(Dio client) : _testingDio = client;
+  final Dio? _testingDio;
   static final AdminApi instance = AdminApi._();
 
-  late final Dio _dio = Dio(BaseOptions(
-    baseUrl: kApiBaseUrl,
-    connectTimeout: const Duration(seconds: 8),
-    receiveTimeout: const Duration(seconds: 12),
-  ));
+  late final Dio _dio = _testingDio ??
+      Dio(BaseOptions(
+        baseUrl: kApiBaseUrl,
+        connectTimeout: const Duration(seconds: 8),
+        receiveTimeout: const Duration(seconds: 12),
+      ));
 
   String? _accessToken;
   String? _refreshToken;
@@ -24,11 +28,28 @@ class AdminApi {
 
   Map<String, dynamic>? get admin => _admin;
   bool get isLoggedIn => _accessToken != null;
+  // Older restored sessions did not expose role. The server remains authoritative.
+  String get role => _admin?['role'] as String? ?? 'admin';
+  bool get canManageWorkers => roleCanManage(role);
+  bool get canEditAttendance => roleCanEditAttendance(role);
+  void _checkAccess(String method, String path) {
+    if (!roleAllowsRequest(role, method, path)) {
+      throw StateError(
+          'Your role does not allow this action. Ask an administrator.');
+    }
+  }
 
   /// Returns the message sent by the API instead of Dio's long transport
   /// exception. This keeps validation failures useful in forms.
   static String errorMessage(Object error) {
+    if (error is StateError &&
+        error.message.toString().startsWith('Your role')) {
+      return error.message.toString();
+    }
     if (error is DioException) {
+      if ((error.response?.statusCode ?? 0) >= 500) {
+        return 'The server is temporarily unavailable. Please retry shortly.';
+      }
       final data = error.response?.data;
       if (data is Map) {
         final apiError = data['error'];
@@ -43,8 +64,15 @@ class AdminApi {
           error.type == DioExceptionType.connectionError) {
         return 'Could not reach the server. Check the connection and try again.';
       }
+      if (error.response?.statusCode == 401) {
+        return 'Your session has expired. Lock the kiosk and sign in again.';
+      }
+      if (error.response?.statusCode == 403) {
+        return 'Your role does not allow this action. Ask an administrator.';
+      }
+      return 'The server could not complete this request. Please retry.';
     }
-    return error.toString();
+    return 'Could not complete this action. Please retry or ask your administrator.';
   }
 
   static int? statusCode(Object error) =>
@@ -100,24 +128,28 @@ class AdminApi {
 
   Future<Map<String, dynamic>> get(String path,
       [Map<String, dynamic>? query]) async {
+    _checkAccess('GET', path);
     final res = await _dio.get(path, queryParameters: query, options: _auth());
     return res.data as Map<String, dynamic>;
   }
 
   Future<List<dynamic>> getList(String path,
       [Map<String, dynamic>? query]) async {
+    _checkAccess('GET', path);
     final res = await _dio.get(path, queryParameters: query, options: _auth());
     return res.data as List<dynamic>;
   }
 
   Future<Map<String, dynamic>> post(
       String path, Map<String, dynamic> body) async {
+    _checkAccess('POST', path);
     final res = await _dio.post(path, data: body, options: _auth());
     return res.data as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> patch(
       String path, Map<String, dynamic> body) async {
+    _checkAccess('PATCH', path);
     final res = await _dio.patch(path, data: body, options: _auth());
     return res.data as Map<String, dynamic>;
   }
@@ -130,12 +162,14 @@ class AdminApi {
 
   /// Raw text responses (CSV export).
   Future<String> getText(String path, [Map<String, dynamic>? query]) async {
+    _checkAccess('GET', path);
     final res = await _dio.get(path, queryParameters: query, options: _auth());
     return res.data as String;
   }
 
   // ---- Employees ----
   Future<List<int>> exportPayroll(Map<String, dynamic> body) async {
+    _checkAccess('POST', '/api/v1/admin/payroll/report');
     final response = await _dio.post<List<int>>('/api/v1/admin/payroll/report',
         data: {...body, 'format': 'xlsx'},
         options: _auth().copyWith(
@@ -252,6 +286,7 @@ class AdminApi {
     String? employeeId,
     String? status,
     int limit = 200,
+    int offset = 0,
   }) =>
       get('/api/v1/admin/attendance', {
         if (from != null) 'from': from,
@@ -259,10 +294,53 @@ class AdminApi {
         if (employeeId != null) 'employeeId': employeeId,
         if (status != null) 'status': status,
         'limit': '$limit',
+        'offset': '$offset',
       });
 
   Future<Map<String, dynamic>> attendanceSession(String id) =>
       get('/api/v1/admin/attendance/$id');
+
+  Future<Map<String, dynamic>> allAttendance({String? from, String? to}) async {
+    final rows = <dynamic>[];
+    while (true) {
+      final page = await attendanceList(
+          from: from, to: to, limit: 500, offset: rows.length);
+      final items = page['sessions'] as List<dynamic>;
+      rows.addAll(items);
+      final total = (page['total'] as num?)?.toInt();
+      if (total != null && rows.length >= total ||
+          total == null && items.length < 500) break;
+      if (items.isEmpty) {
+        throw StateError(
+            'Attendance changed while loading. Refresh the date range.');
+      }
+      if (rows.length >= 50000) {
+        throw StateError('Choose a shorter date range.');
+      }
+    }
+    return {'sessions': rows, 'total': rows.length};
+  }
+
+  Future<Map<String, dynamic>> allEmployees(
+      {String? status, String? search}) async {
+    final rows = <dynamic>[];
+    while (true) {
+      final page = await listEmployees(
+          status: status, search: search, limit: 200, offset: rows.length);
+      final items = page['employees'] as List<dynamic>;
+      rows.addAll(items);
+      final total = (page['total'] as num?)?.toInt();
+      if (total != null && rows.length >= total ||
+          total == null && items.length < 200) break;
+      if (items.isEmpty) {
+        throw StateError('Worker list changed while loading. Please refresh.');
+      }
+      if (rows.length >= 50000) {
+        throw StateError('Worker list is too large to load on this device.');
+      }
+    }
+    return {'employees': rows, 'total': rows.length};
+  }
 
   Future<Map<String, dynamic>> attendanceEmployee(String id,
           {String? from, String? to}) =>

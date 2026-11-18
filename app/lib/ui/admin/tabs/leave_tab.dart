@@ -31,7 +31,7 @@ class _LeaveTabState extends State<LeaveTab> {
     try {
       final now = AppTime.now();
       final employeesResult =
-          await AdminApi.instance.listEmployees(status: 'active', limit: 500);
+          await AdminApi.instance.allEmployees(status: 'active');
       Map<String, dynamic> leaveResult = const {'leave': <dynamic>[]};
       var serverSupportsLeave = true;
       try {
@@ -114,7 +114,9 @@ class _LeaveTabState extends State<LeaveTab> {
                         fontWeight: FontWeight.w700)),
               ),
               FilledButton.icon(
-                onPressed: !_serverSupportsLeave || _employees.isEmpty
+                onPressed: !AdminApi.instance.canEditAttendance ||
+                        !_serverSupportsLeave ||
+                        _employees.isEmpty
                     ? null
                     : () => _openForm(),
                 icon: const Icon(Icons.add_rounded),
@@ -173,7 +175,9 @@ class _LeaveTabState extends State<LeaveTab> {
                 color: const Color(0xFF161A20),
                 margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
-                  onTap: () => _openForm(entry),
+                  onTap: AdminApi.instance.canEditAttendance
+                      ? () => _openForm(entry)
+                      : null,
                   leading: Icon(
                     entry.leaveType == 'absence'
                         ? Icons.person_off_outlined

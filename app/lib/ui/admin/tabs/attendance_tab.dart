@@ -20,7 +20,8 @@ DateTime attendanceEntryTime(DateTime date, TimeOfDay time,
 
 /// Attendance register with date range filter + CSV export.
 class AttendanceTab extends StatefulWidget {
-  const AttendanceTab({super.key});
+  final int reviewSignal;
+  const AttendanceTab({super.key, this.reviewSignal = 0});
 
   @override
   State<AttendanceTab> createState() => _AttendanceTabState();
@@ -50,6 +51,9 @@ class _AttendanceTabState extends State<AttendanceTab> {
   }
 
   Future<void> _restoreRange() async {
+    final today = AppTime.now();
+    _from = tz.TZDateTime(tz.local, today.year, today.month, today.day);
+    _to = _from;
     try {
       final saved = await SecureStore.instance.getAttendanceRange();
       final parts = saved?.split('|');
@@ -79,6 +83,15 @@ class _AttendanceTabState extends State<AttendanceTab> {
     }
   }
 
+  @override
+  void didUpdateWidget(covariant AttendanceTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.reviewSignal != oldWidget.reviewSignal) {
+      _attentionOnly = true;
+      _quickRange('month');
+    }
+  }
+
   String get _fromStr => _from == null ? '' : _fmt(_from!);
   String get _toStr => _to == null ? '' : _fmt(_to!);
 
@@ -90,10 +103,9 @@ class _AttendanceTabState extends State<AttendanceTab> {
     final version = ++_loadVersion;
     setState(() => _loading = true);
     try {
-      final res = await AdminApi.instance.attendanceList(
+      final res = await AdminApi.instance.allAttendance(
         from: _from == null ? null : _fmt(_from!),
         to: _to == null ? null : _fmt(_to!),
-        limit: 200,
       );
       if (mounted && version == _loadVersion) {
         setState(() {
@@ -185,7 +197,7 @@ class _AttendanceTabState extends State<AttendanceTab> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Export failed: $e')),
+          SnackBar(content: Text('Export failed: ${AdminApi.errorMessage(e)}')),
         );
       }
     }
@@ -193,6 +205,22 @@ class _AttendanceTabState extends State<AttendanceTab> {
 
   Future<void> _bulkApprove() async {
     AppState.instance.touchAdminActivity();
+    if (!AdminApi.instance.canEditAttendance) return;
+    final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+                title: const Text('Approve completed attendance?'),
+                content: Text(
+                    'Approve all completed shifts for ${_from == null ? 'all dates' : '$_fromStr to $_toStr'}. Worker search and the attention filter do not limit this action. Open shifts remain unapproved.'),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Cancel')),
+                  FilledButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Approve completed shifts'))
+                ]));
+    if (confirmed != true || !mounted) return;
     try {
       final result = await AdminApi.instance.bulkApproveAttendance(
         from: _from == null ? null : _fmt(_from!),
@@ -208,8 +236,8 @@ class _AttendanceTabState extends State<AttendanceTab> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Approval failed: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Approval failed: ${AdminApi.errorMessage(e)}')));
       }
     }
   }
@@ -262,7 +290,8 @@ class _AttendanceTabState extends State<AttendanceTab> {
                 runSpacing: 8,
                 children: [
                   OutlinedButton.icon(
-                    onPressed: _export,
+                    onPressed:
+                        AdminApi.instance.canManageWorkers ? _export : null,
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white70,
                       side: const BorderSide(color: Colors.white24),
@@ -275,13 +304,17 @@ class _AttendanceTabState extends State<AttendanceTab> {
                   ),
                   const SizedBox(width: 8),
                   OutlinedButton.icon(
-                    onPressed: _exportPayslips,
+                    onPressed: AdminApi.instance.canManageWorkers
+                        ? _exportPayslips
+                        : null,
                     icon: const Icon(Icons.payments_outlined, size: 18),
                     label: const Text('Monthly Excel & payslips',
                         style: TextStyle(fontSize: 13)),
                   ),
                   OutlinedButton.icon(
-                    onPressed: _bulkApprove,
+                    onPressed: AdminApi.instance.canEditAttendance
+                        ? _bulkApprove
+                        : null,
                     icon: const Icon(Icons.verified_outlined, size: 18),
                     label: const Text('Approve completed',
                         style: TextStyle(fontSize: 13)),
@@ -294,7 +327,8 @@ class _AttendanceTabState extends State<AttendanceTab> {
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: OutlinedButton.icon(
-                  onPressed: _manualEntry,
+                  onPressed:
+                      AdminApi.instance.canEditAttendance ? _manualEntry : null,
                   icon: const Icon(Icons.edit_calendar_outlined, size: 18),
                   label: const Text('Add attendance'),
                 ),
@@ -394,10 +428,6 @@ class _AttendanceTabState extends State<AttendanceTab> {
         Text(
             '${visible.length} of ${_sessions.length} loaded shifts. Exports use the selected dates.',
             style: const TextStyle(color: Colors.white70, fontSize: 12)),
-        if (_sessions.length == 200)
-          const Text(
-              'Showing the first 200 shifts. Narrow the date range to review all records.',
-              style: TextStyle(color: Colors.amber)),
         if (visible.isEmpty)
           const Padding(
               padding: EdgeInsets.all(24),
@@ -411,7 +441,7 @@ class _AttendanceTabState extends State<AttendanceTab> {
     AppState.instance.touchAdminActivity();
     try {
       final employeeRes =
-          await AdminApi.instance.listEmployees(status: 'active', limit: 500);
+          await AdminApi.instance.allEmployees(status: 'active');
       final employees = (employeeRes['employees'] as List<dynamic>)
           .map((e) => Employee.fromJson(e as Map<String, dynamic>))
           .toList();
