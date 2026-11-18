@@ -28,10 +28,25 @@
 - Version prepared as 1.2.26+74. Flutter analysis reports no issues and all 54
   tests pass, including offline retry/error recovery, equal-timestamp ordering,
   sync-dialog recovery, and overnight month-boundary handling. Android release
-  compilation is in progress.
+  compilation succeeded. Package version/code, three supported ABIs and APK
+  signature were checked with Android build tools.
+- Local test APK: `app/releases/FaceAttendance-v1.2.26-test.apk` (61,813,189
+  bytes), also copied to the workspace root. SHA-256:
+  `22687AF51520AB775E0B2BFB36E7763C099FE9C56EEED6A26F351FA9543DDE45`.
+- This build uses this workstation's generated debug signing certificate
+  (`0F36651695ABC427D93C30C9C37949E01982D9391EB56DAC101ADE8F276DAA9A`).
+  It differs from v1.2.25's signer, so Android will not accept it as an in-place
+  upgrade over that APK. Recover the previous signing keystore before updating
+  deployed kiosks; uninstalling would remove local provisioning and queued data.
+  This artifact is for a fresh test installation until signing is resolved.
+- Gradle emitted non-fatal Kotlin metadata diagnostics from older Android
+  dependency tooling; assembleRelease still exited successfully. No dependency
+  versions were changed as part of this update.
 - This workstation initially lacked Flutter, Java and Android SDK. Local tools
   were installed under ignored `.tooling/`; no system PATH change was needed.
 - Physical tablet/camera and live-server workflow validation remain pending.
+- Source changes were committed locally. GitHub push was attempted but blocked
+  by missing command-line credentials; push from an authenticated Git client.
 
 
 ## Separate desktop web admin — 2026-09-25
