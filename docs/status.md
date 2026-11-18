@@ -32,8 +32,12 @@
   service. Existing administrator flows use compatible endpoints; Team access
   explains when the server still needs updating. No production deployment was
   performed because this environment has no deployment credentials.
-- One final APK build is being generated after completing implementation and
-  checks. It uses the same local signing key as v1.2.26; v1.2.25 still requires
+- One final APK build was generated after completing implementation and checks.
+  `FaceAttendance-v1.2.27.apk` is in the workspace root and `app/releases/`,
+  61,924,545 bytes. SHA-256:
+  `03BDA5D0D8765C686799DB7A7B53043864B6E3724C8E7422816C931DAE30EE6D`.
+  Android tools verified version 1.2.27/code 75, ARM32/ARM64/x86_64 support and
+  valid v1/v2 signatures. It uses the same local signing key as v1.2.26; v1.2.25 still requires
   its original signing key for an in-place upgrade. Source is committed locally;
   command-line GitHub authentication is still unavailable.
 
