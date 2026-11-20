@@ -255,7 +255,7 @@ describe('multiple daily work blocks', () => {
       lastEventAt: closed.checkOutAt,
     };
     expect(processScan(params).action).toBe('check_in');
-    expect(processScan({ ...params, event: ev('double-scan', '2026-08-11T05:00:10Z') }).action).toBe('duplicate');
+    expect(processScan({ ...params, event: ev('double-scan', '2026-08-11T05:00:05Z') }).action).toBe('duplicate');
   });
 });
 
