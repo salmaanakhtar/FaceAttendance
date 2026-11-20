@@ -1,5 +1,23 @@
 # Status
 
+## Repeat clock-in after breaks — 2026-11-20
+
+- Removed the same-day shift-gap rejection from the attendance engine. Existing
+  employee policies defaulted to a four-hour gap, which incorrectly rejected a
+  worker returning from a toilet/lunch break. Any number of completed work
+  blocks may now be recorded each day, including immediate explicit returns.
+- Existing duplicate/idempotency protection and open-session checks remain.
+  Each return opens a separate session; time away is excluded from worked time.
+  The legacy `shiftGapHours` snapshot field remains compatible but is ignored.
+- Validation: all 52 backend tests pass, including multiple workers completing
+  four daily work blocks, 10-second returns, legacy nonzero gap policies, and
+  inferred-scan duplicate protection. TypeScript checking passes. Vitest was
+  run programmatically with the same configuration because the config bundler
+  cannot enumerate a parent directory under this workstation's sandbox.
+- Rollout requires deploying/restarting the backend with this source change.
+  No database migration or new APK is needed. Live-server/tablet verification
+  remains pending; this workstation has no documented deployment credentials.
+
 ## Completed usability update v1.2.27 (75) — 2026-11-18
 
 - Includes the v1.2.26 clocking, sync, dashboard and manual-entry changes below.

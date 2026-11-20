@@ -35,9 +35,12 @@ is marked pending rather than a server-confirmed attendance result.
    whichever is later) is attributed to the *previous* work date's open
    session. A work_date session can span midnight; only one open session may
    exist at a time (per employee).
-6. **Multiple shifts in one day.** A check-out closes the open session; a new
-   check-in after the schedule's shift gap threshold opens a new session with
-   the same work_date.
+6. **Multiple work blocks in one day.** A check-out closes the open session;
+   workers can clock back in after any break, as often as needed. Each return
+   opens a new session with the current local work_date. There is no shift-gap
+   waiting period, including for existing policies with `shiftGapHours` set.
+   Explicit opposite directions bypass the duplicate interval; inferred scans
+   retain the anti-double-scan interval. Time between sessions is not worked time.
 7. **Breaks.** Policy: `break_minutes` auto-deducted for shifts crossing a
    configurable duration threshold; can be disabled or manually adjusted via
    corrections.

@@ -157,17 +157,28 @@ describe('duplicates and guards', () => {
     expect(r.action).toBe('already_out');
   });
 
-  it('blocks a same-day second shift inside the shift gap', () => {
+  it.each([10, 60, 300, 1800])('allows returning %i seconds after clock-out with a legacy shift gap', (gapSeconds) => {
     const closed: Session = {
       ...openSession('2026-08-11T04:30:00Z'),
       checkOutAt: new Date('2026-08-11T12:30:00Z'), // 17:30 local
       status: 'closed',
     };
     const r = processScan({
-      ...base(ev('e1', '2026-08-11T13:00:00Z', 'in')), // 18:00 local — only 30 min gap
+      ...base({
+        id: 'return',
+        scanTime: new Date(closed.checkOutAt!.getTime() + gapSeconds * 1000),
+        directionHint: 'in',
+      }),
       lastSession: closed,
+      lastEventAt: closed.checkOutAt,
+      lastEventDirection: 'out',
+      policy: { ...policy, shiftGapHours: 24 },
     });
-    expect(r.action).toBe('duplicate');
+    expect(r.action).toBe('check_in');
+    if (r.action === 'check_in') {
+      expect(r.session.workDate).toBe(closed.workDate);
+      expect(r.session.checkOutAt).toBeNull();
+    }
   });
 
   it('allows a same-day second shift after the gap', () => {
@@ -182,6 +193,60 @@ describe('duplicates and guards', () => {
     });
     expect(r.action).toBe('check_in');
     if (r.action === 'check_in') expect(r.session.workDate).toBe('2026-08-11');
+  });
+});
+
+describe('multiple daily work blocks', () => {
+  it.each(['emp1', 'emp2', 'emp3'])('allows repeated clock-in/out cycles for %s and excludes time away', (employeeId) => {
+    let lastSession: Session | null = null;
+    let lastEventAt: Date | null = null;
+    let lastEventDirection: 'in' | 'out' | null = null;
+    const completed: Session[] = [];
+    // Includes a 10-second return and multiple short toilet/lunch breaks.
+    const punches = [
+      ['04:00:00', 'in'], ['05:00:00', 'out'],
+      ['05:00:10', 'in'], ['06:00:10', 'out'],
+      ['06:05:10', 'in'], ['07:05:10', 'out'],
+      ['07:35:10', 'in'], ['08:35:10', 'out'],
+    ] as const;
+    for (const [time, direction] of punches) {
+      const event = ev(`${employeeId}:${time}`, `2026-08-11T${time}Z`, direction);
+      const result = processScan({
+        ...base(event),
+        employeeId,
+        openSession: lastSession?.status === 'open' ? lastSession : null,
+        lastSession,
+        lastEventAt,
+        lastEventDirection,
+      });
+      expect(result.action).toBe(direction === 'in' ? 'check_in' : 'check_out');
+      if (result.action !== 'check_in' && result.action !== 'check_out') {
+        throw new Error(`Unexpected ${result.action} at ${time}`);
+      }
+      lastSession = result.session;
+      expect(lastSession.employeeId).toBe(employeeId);
+      expect(lastSession.workDate).toBe('2026-08-11');
+      if (result.action === 'check_out') completed.push(result.session);
+      lastEventAt = event.scanTime;
+      lastEventDirection = direction;
+    }
+    expect(completed).toHaveLength(4);
+    expect(completed.reduce((total, session) => total + session.stats.workedMinutes, 0)).toBe(240);
+  });
+
+  it('allows an inferred face-scan return after its anti-double-scan interval', () => {
+    const closed: Session = {
+      ...openSession('2026-08-11T04:00:00Z'),
+      checkOutAt: new Date('2026-08-11T05:00:00Z'),
+      status: 'closed',
+    };
+    const params = {
+      ...base(ev('return', '2026-08-11T05:05:00Z')),
+      lastSession: closed,
+      lastEventAt: closed.checkOutAt,
+    };
+    expect(processScan(params).action).toBe('check_in');
+    expect(processScan({ ...params, event: ev('double-scan', '2026-08-11T05:00:10Z') }).action).toBe('duplicate');
   });
 });
 
