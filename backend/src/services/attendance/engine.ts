@@ -19,7 +19,7 @@ export interface ShiftPolicy {
   graceMinutes: number; // late = check-in past shiftStart + grace
   minIntervalSeconds: number; // min gap between two events of same direction
   overnightCheckoutCutoff: string; // "06:00": checkouts earlier than this attach to the open session
-  shiftGapHours: number; // min gap before a same-day second shift is accepted
+  shiftGapHours: number; // legacy snapshot field; never restricts returning from a break
   breakAfterHours: number; // raw shift longer than this triggers break deduction
   breakMinutes: number; // auto-deducted break
   overnight: boolean; // shiftStart > shiftEnd (night shift)
@@ -176,7 +176,6 @@ export function processScan(params: {
     employeeId,
     event,
     openSession,
-    lastSession,
     lastEventAt,
     lastEventDirection,
     policy,
@@ -211,18 +210,8 @@ export function processScan(params: {
     if (duplicateGuard()) {
       return { action: 'duplicate', reason: 'within min interval of previous event' };
     }
-    // same-day second shift must clear the gap threshold
-    if (
-      lastSession &&
-      lastSession.status === 'closed' &&
-      lastSession.workDate === localDate(t, policy.timezone) &&
-      lastSession.checkOutAt
-    ) {
-      const gapHours = (t.getTime() - lastSession.checkOutAt.getTime()) / 3600000;
-      if (gapHours < policy.shiftGapHours) {
-        return { action: 'duplicate', reason: 'already checked out this shift period' };
-      }
-    }
+    // Every completed clock-out permits another work block, including short
+    // toilet/lunch breaks. Legacy shiftGapHours policies must not block returns.
     const session: Session = {
       id: `pending:${employeeId}:${t.getTime()}`,
       employeeId,
