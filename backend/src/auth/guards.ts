@@ -2,6 +2,7 @@ import type { FastifyRequest, FastifyReply } from 'fastify';
 import { queryOne } from '../db.js';
 import { unauthorized } from '../lib/errors.js';
 import { verifyToken, type TokenPayload } from './tokens.js';
+import { roleAllows } from './permissions.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -54,6 +55,9 @@ export async function requireAdmin(req: FastifyRequest, reply: FastifyReply): Pr
     return reply.code(403).send({ error: { code: 'FORBIDDEN', message: 'org mismatch' } });
   }
   req.admin = { id: admin.id, orgId: admin.org_id, name: admin.name, role: admin.role };
+  if (!roleAllows(admin.role, req.method, req.url)) {
+    return reply.code(403).send({ error: { code: 'FORBIDDEN', message: 'Your role does not allow this action. Ask an administrator.' } });
+  }
 }
 
 export function appError(reply: FastifyReply, err: unknown): void {

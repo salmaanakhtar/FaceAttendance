@@ -12,6 +12,7 @@ import { adminMiscRoutes } from './routes/admin-misc.js';
 import { leaveRoutes } from './routes/leave.js';
 import { payrollRoutes } from './routes/payroll.js';
 import { overtimeRoutes } from './routes/overtime.js';
+import { teamRoutes } from './routes/team.js';
 import { appError } from './auth/guards.js';
 import { runRollover } from './services/attendance/service.js';
 
@@ -39,6 +40,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   leaveRoutes(app);
   payrollRoutes(app);
   overtimeRoutes(app);
+  teamRoutes(app);
 
   app.setErrorHandler((err, req, reply) => {
     appError(reply, err);

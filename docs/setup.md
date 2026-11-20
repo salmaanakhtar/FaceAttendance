@@ -1,5 +1,22 @@
 # Local setup
 
+## v1.2.27 rollout
+
+- Deploy the updated backend source and run `npm run db:migrate` before using
+  Team access. Migration 008 extends the existing role check without changing
+  current owner/admin accounts. Restart the backend after migration.
+- Run `npm run typecheck` and `npm test` in `backend/`; run `flutter analyze` and
+  `flutter test` in `app/` before building the final APK.
+- The APK remains compatible with existing operational/report endpoints. An older
+  backend shows a clear Team access message until it has been updated.
+- The new workstation's signing key differs from the old v1.2.25 APK. Recover the
+  original signing keystore for an in-place upgrade of deployed kiosks. Do not
+  uninstall a kiosk to work around signing while it has locally pending punches.
+- Current workstation tools are under `.tooling/`: Flutter 3.22.1 in `flutter/`,
+  Java 17 in `java/jdk-17.0.21+9/`, and Android SDK in `android/`. Build sessions
+  set JAVA_HOME and ANDROID_HOME to these locations and add GitHub Desktop's
+  bundled `git/cmd` directory to their process PATH. System PATH is unchanged.
+
 ## Prerequisites (this machine)
 
 - Node 24.x, npm 11.x

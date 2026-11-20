@@ -1,5 +1,27 @@
 # Security decisions
 
+## Role-based administration (v1.2.27)
+
+- Existing `owner` and `admin` accounts retain full access. They can create and
+  enable/disable limited accounts through Account & kiosk > Team access.
+- `supervisor` can read operational employee/attendance/leave records and change
+  attendance and leave. `viewer` can only read these operational records.
+- Limited accounts cannot access payroll, exports, audit history, team management
+  or employee mutations. Employee schedule responses for limited accounts use an
+  operational-field allowlist and omit pay rates and identity details.
+- The API evaluates the current database role and active flag on each request;
+  unknown roles are denied. Client controls mirror this policy for usability.
+- Team management can only create limited roles or toggle limited accounts in
+  the caller's organization. It cannot modify existing privileged accounts or
+  remove the last administrator. Account writes and their audit events share a
+  transaction; changes also revoke the account's refresh sessions. Passwords use
+  the existing scrypt hashing function and never enter audit details.
+- Deploy migration `010_admin_roles.sql` and the updated backend before creating
+  limited accounts. APK-only restrictions are not a substitute for server policy.
+- Attendance edits and removals show before/after values and require a reason.
+  Bulk approval confirms the selected date scope explicitly. Raw scans remain
+  immutable and existing server auditing is retained.
+
 ## Transport & auth
 
 - All API traffic is HTTPS in production; local dev uses HTTP on loopback only.

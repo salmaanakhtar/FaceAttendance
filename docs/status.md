@@ -18,6 +18,95 @@
   No database migration or new APK is needed. Live-server/tablet verification
   remains pending; this workstation has no documented deployment credentials.
 
+## Completed usability update v1.2.27 (75) — 2026-11-18
+
+- Includes the v1.2.26 clocking, sync, dashboard and manual-entry changes below.
+- Payroll now refreshes its report and attendance review state before export,
+  shows unresolved/unapproved shifts and negative-net warnings, blocks invalid
+  rates, and requires confirmation. Each worker has an expandable calculation
+  breakdown. Existing pay calculations remain unchanged.
+- Corrections/removals show before/after values and require a reason. Bulk
+  approval explicitly confirms its date scope and warns that local search does
+  not restrict approval. These actions retain server auditing and raw scans.
+- Landscape is enabled. Wide admin screens use a navigation rail; compact
+  screens retain bottom navigation. Attendance headers scroll with the keyboard.
+- Dashboard, register, payroll review and worker pickers load all pages instead
+  of silently truncating records. Worker search ignores stale request results;
+  the register defaults to today when no remembered date range exists. The
+  dashboard links unapproved monthly shifts to the attention-filtered register.
+- Added limited supervisor/viewer accounts, an administrator Team access screen,
+  current-database-role enforcement in the backend, and matching client controls.
+  Restricted employee responses omit pay/identity fields. Team creation and
+  access changes are transactional and audited; privileged accounts cannot be
+  changed through the limited-account surface.
+- Scanner has worker-code fallback; release enrollment/scanning hides technical
+  diagnostics. Login/request errors provide recovery guidance.
+- Validation: Flutter analysis has no issues; all 60 Flutter tests pass. Backend
+  TypeScript checking and all 45 tests pass, including injected HTTP authorization
+  and account-management transaction tests. The PostgreSQL migration has not been
+  applied on this workstation or production; real tablet/camera validation is
+  still pending.
+- Backend rollout requires migration `010_admin_roles.sql` plus the updated
+  service. Existing administrator flows use compatible endpoints; Team access
+  explains when the server still needs updating. No production deployment was
+  performed because this environment has no deployment credentials.
+- One final APK build was generated after completing implementation and checks.
+  `FaceAttendance-v1.2.27.apk` is in the workspace root and `app/releases/`,
+  61,924,545 bytes. SHA-256:
+  `03BDA5D0D8765C686799DB7A7B53043864B6E3724C8E7422816C931DAE30EE6D`.
+  Android tools verified version 1.2.27/code 75, ARM32/ARM64/x86_64 support and
+  valid v1/v2 signatures. It uses the same local signing key as v1.2.26; v1.2.25 still requires
+  its original signing key for an in-place upgrade. Source is committed locally;
+  command-line GitHub authentication is still unavailable.
+
+## Usability update v1.2.26 (74) — 2026-11-18
+
+- Worker-code kiosk: larger green/blue clock-in/out buttons, constrained keypad
+  width on tablets, prominent confirmation above the keypad, and a sync-status
+  button showing pending punches.
+- Sync details are available from the kiosk, scanner and admin toolbar. They
+  show queued count, network availability, the most recent delivery during this
+  app session, safe error guidance, and manual retry. Network availability is
+  not presented as proof of server connectivity. Failed punches remain queued.
+- Queue regression checks exposed identical-timestamp punches arriving in UUID
+  order. A persisted local sequence now breaks timestamp ties without altering
+  captured timestamps or server idempotency keys. Old records remain readable.
+  Queue disposal cancels its retry timer and prevents late UI notifications.
+- Dashboard independent core requests run concurrently. Refreshes cannot
+  overlap, polling pauses on other admin tabs, and the interval is 30 seconds.
+  Failed refreshes retain previous data with an explicit warning and timestamp.
+  Attendance alerts appear first, with high severity first and expandable rows;
+  failed alert requests no longer imply there are no exceptions.
+- Attendance supports name/code search and a needs-attention filter. Export and
+  bulk approval still apply to the selected dates, not the local search filter.
+  The loaded-record cap is disclosed. Date ranges are remembered in secure
+  preferences, and headers scroll to accommodate small screens and keyboards.
+- Manual entries use searchable worker selection with validation, an explicit
+  next-day clock-out option, and a confirmation summary before saving attendance
+  or absence. Overnight timestamps use the organization's timezone.
+- Version prepared as 1.2.26+74. Flutter analysis reports no issues and all 54
+  tests pass, including offline retry/error recovery, equal-timestamp ordering,
+  sync-dialog recovery, and overnight month-boundary handling. Android release
+  compilation succeeded. Package version/code, three supported ABIs and APK
+  signature were checked with Android build tools.
+- Local test APK: `app/releases/FaceAttendance-v1.2.26-test.apk` (61,813,189
+  bytes), also copied to the workspace root. SHA-256:
+  `22687AF51520AB775E0B2BFB36E7763C099FE9C56EEED6A26F351FA9543DDE45`.
+- This build uses this workstation's generated debug signing certificate
+  (`0F36651695ABC427D93C30C9C37949E01982D9391EB56DAC101ADE8F276DAA9A`).
+  It differs from v1.2.25's signer, so Android will not accept it as an in-place
+  upgrade over that APK. Recover the previous signing keystore before updating
+  deployed kiosks; uninstalling would remove local provisioning and queued data.
+  This artifact is for a fresh test installation until signing is resolved.
+- Gradle emitted non-fatal Kotlin metadata diagnostics from older Android
+  dependency tooling; assembleRelease still exited successfully. No dependency
+  versions were changed as part of this update.
+- This workstation initially lacked Flutter, Java and Android SDK. Local tools
+  were installed under ignored `.tooling/`; no system PATH change was needed.
+- Physical tablet/camera and live-server workflow validation remain pending.
+- Source changes were committed locally. GitHub push was attempted but blocked
+  by missing command-line credentials; push from an authenticated Git client.
+
 ## Rekognition + React web admin — 2026-11-07
 
 - Replaced the kiosk's primary flow with AWS Rekognition:
