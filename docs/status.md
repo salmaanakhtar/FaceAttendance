@@ -1,5 +1,24 @@
 # Status
 
+## Unified production branch — 2026-11-20
+
+- `main` is now the single production line: the Rekognition/React rebuild plus the
+  2026-11-18 usability work (payroll review, audited corrections, tablet navigation,
+  limited supervisor/viewer roles, sync visibility, worker-code overlay) live in one
+  branch that the deployer builds.
+- Backend: permission guards, `/api/v1/admin/team`, restricted employee payloads and
+  the `admins.role` check relaxation ship together. The role migration is
+  `010_admin_roles.sql`, renumbered from `008_admin_roles.sql` because this line had
+  already applied `008_rekognition_faces.sql` and `009_min_interval_10s.sql`;
+  `schema_migrations` tracks filenames, so the new number is what makes it run.
+- Kiosk: keeps the Rekognition scanner, liveness and enrollment flow and adds the
+  worker-code overlay, sync-status button and inline punch notices; version bumped
+  to 1.2.28+76.
+- Verified on the merged tree: `flutter analyze` no issues, 60 Flutter tests pass,
+  `tsc --noEmit` clean, 75 backend tests pass.
+- The retired line is preserved as `legacy/main`; `hermes-branch-watch.timer` reports
+  any branch whose commits no deployment consumes.
+
 ## Repeat clock-in after breaks — 2026-11-20
 
 - Removed the same-day shift-gap rejection from the attendance engine. Existing
