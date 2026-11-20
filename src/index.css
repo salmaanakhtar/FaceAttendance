@@ -1,0 +1,56 @@
+@import "@fontsource-variable/inter/index.css";
+@import "@fontsource-variable/jetbrains-mono/index.css";
+@import "tailwindcss";
+
+@theme {
+  --color-canvas: #f6f8fc;
+  --color-surface: #ffffff;
+  --color-ink: #0b1220;
+  --color-muted: #5b6b82;
+  --color-line: #e3e9f2;
+  --color-primary: #2563eb;
+  --color-primary-dark: #1d4ed8;
+  --color-primary-soft: #dbeafe;
+  --color-accent: #a3e635;
+  --color-accent-ink: #1a2e05;
+  --color-accent-soft: #ecfccb;
+  --color-danger: #dc2626;
+  --color-danger-soft: #fee2e2;
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+  --radius-card: 16px;
+}
+
+@layer base {
+  * { border-color: var(--color-line); }
+  html { font-family: var(--font-sans); background: var(--color-canvas); }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+      radial-gradient(1000px 460px at 90% -10%, rgba(37, 99, 235, 0.08), transparent 60%),
+      var(--color-canvas);
+    color: var(--color-ink);
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: var(--color-accent); color: var(--color-accent-ink); }
+  button, input, select, textarea { font: inherit; }
+}
+
+@layer components {
+  .card { @apply rounded-card border border-line bg-surface; }
+  .btn {
+    @apply inline-flex select-none items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-colors disabled:pointer-events-none disabled:opacity-50;
+  }
+  .btn-primary { @apply bg-primary text-white shadow-sm hover:bg-primary-dark; }
+  .btn-secondary { @apply border border-line bg-surface text-ink hover:border-primary/30 hover:bg-primary-soft/40; }
+  .btn-ghost { @apply text-muted hover:bg-primary-soft/50 hover:text-ink; }
+  .btn-danger { @apply bg-danger text-white hover:bg-red-700; }
+  .field {
+    @apply w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 text-sm text-ink outline-none placeholder:text-muted/60 focus:border-primary/50 focus:ring-4 focus:ring-primary/10 disabled:bg-canvas;
+  }
+  .label { @apply text-[11px] font-semibold text-ink; }
+  .th { @apply bg-canvas/80 px-4 py-3 text-left text-[10px] font-bold uppercase tracking-[0.12em] text-muted; }
+  .td { @apply border-t border-line px-4 py-3 text-[12px] text-ink; }
+  .chip { @apply inline-flex items-center rounded-full border border-line bg-surface px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.06em]; }
+}
